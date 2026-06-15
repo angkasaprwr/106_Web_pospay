@@ -1,11 +1,7 @@
 /* eslint-disable no-console */
-const bcrypt = require('bcryptjs');
 const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
-
-const SEED_BENDAHARA = (process.env.SEED_DEFAULT_BENDAHARA || 'true').toLowerCase() === 'true';
-const STUDENT_PASSWORD = process.env.STUDENT_DEFAULT_PASSWORD || 'siswa123';
 
 async function main() {
   console.log('Seeding database...');
@@ -26,18 +22,6 @@ async function main() {
     });
   }
 
-  // ---- Default treasurer (bendahara) ----
-  if (SEED_BENDAHARA) {
-    const exists = await prisma.user.findFirst({ where: { role: 'BENDAHARA' } });
-    if (!exists) {
-      const password = await bcrypt.hash('bendahara123', 10);
-      await prisma.user.create({
-        data: { username: 'bendahara', password, fullName: 'Bendahara Sekolah', role: 'BENDAHARA', email: 'bendahara@smppusponegoro.sch.id' },
-      });
-      console.log('  -> Akun bendahara: username "bendahara", password "bendahara123"');
-    }
-  }
-
   // ---- Academic year & classes ----
   const year = await prisma.academicYear.upsert({
     where: { name: '2025/2026' },
@@ -46,16 +30,14 @@ async function main() {
   });
 
   const classNames = ['7A', '7B', '8A', '8B', '9A'];
-  const classes = {};
   for (const name of classNames) {
     const grade = parseInt(name[0], 10);
     // eslint-disable-next-line no-await-in-loop
-    const cls = await prisma.schoolClass.upsert({
+    await prisma.schoolClass.upsert({
       where: { name_academicYearId: { name, academicYearId: year.id } },
       update: {},
       create: { name, grade, academicYearId: year.id },
     });
-    classes[name] = cls;
   }
 
   // ---- Fee types ----
@@ -65,10 +47,9 @@ async function main() {
     { code: 'SERAGAM', name: 'Seragam', defaultAmount: 500000, isRecurring: false },
     { code: 'KEGIATAN', name: 'Uang Kegiatan', defaultAmount: 300000, isRecurring: false },
   ];
-  const feeTypes = {};
   for (const ft of feeTypeData) {
     // eslint-disable-next-line no-await-in-loop
-    feeTypes[ft.code] = await prisma.feeType.upsert({ where: { code: ft.code }, update: {}, create: ft });
+    await prisma.feeType.upsert({ where: { code: ft.code }, update: {}, create: ft });
   }
 
   // ---- Payment methods ----
@@ -131,83 +112,6 @@ async function main() {
     if (!found) {
       // eslint-disable-next-line no-await-in-loop
       await prisma.chatbotDocument.create({ data: d });
-    }
-  }
-
-  // ---- Sample students with accounts ----
-  const sampleStudents = [
-    { nis: '2025001', fullName: 'Ahmad Fauzi', gender: 'L', className: '7A', parentName: 'Bpk. Sukirman', parentPhone: '081200000001' },
-    { nis: '2025002', fullName: 'Siti Nurhaliza', gender: 'P', className: '7A', parentName: 'Ibu Aminah', parentPhone: '081200000002' },
-    { nis: '2025003', fullName: 'Budi Santoso', gender: 'L', className: '8A', parentName: 'Bpk. Joko', parentPhone: '081200000003' },
-    { nis: '2025004', fullName: 'Dewi Lestari', gender: 'P', className: '9A', parentName: 'Ibu Sri', parentPhone: '081200000004' },
-  ];
-
-  const studentPwd = await bcrypt.hash(STUDENT_PASSWORD, 10);
-  for (const s of sampleStudents) {
-    // eslint-disable-next-line no-await-in-loop
-    const exists = await prisma.student.findUnique({ where: { nis: s.nis } });
-    if (exists) continue;
-    // eslint-disable-next-line no-await-in-loop
-    const user = await prisma.user.create({
-      data: { username: s.nis, password: studentPwd, fullName: s.fullName, role: 'SISWA' },
-    });
-    // eslint-disable-next-line no-await-in-loop
-    const student = await prisma.student.create({
-      data: {
-        nis: s.nis,
-        fullName: s.fullName,
-        gender: s.gender,
-        parentName: s.parentName,
-        parentPhone: s.parentPhone,
-        classId: classes[s.className].id,
-        userId: user.id,
-        status: 'ACTIVE',
-        enrolledAt: new Date(),
-      },
-    });
-
-    // Create a couple of SPP bills (one paid, one due soon, one overdue)
-    const spp = feeTypes.SPP;
-    const months = [
-      { period: '2025-07', dueDate: new Date('2025-07-10'), paid: true },
-      { period: '2025-08', dueDate: new Date('2025-08-10'), paid: false, overdue: true },
-      { period: '2025-09', dueDate: new Date(Date.now() + 5 * 86400000), paid: false },
-    ];
-    for (const m of months) {
-      const amount = Number(spp.defaultAmount);
-      const paidAmount = m.paid ? amount : 0;
-      let status = 'UNPAID';
-      if (m.paid) status = 'PAID';
-      else if (m.overdue) status = 'OVERDUE';
-      // eslint-disable-next-line no-await-in-loop
-      const bill = await prisma.bill.create({
-        data: {
-          invoiceNo: `INV-${s.nis}-${m.period}`,
-          studentId: student.id,
-          feeTypeId: spp.id,
-          academicYearId: year.id,
-          period: m.period,
-          description: `SPP ${m.period}`,
-          amount,
-          paidAmount,
-          dueDate: m.dueDate,
-          status,
-        },
-      });
-      if (m.paid) {
-        // eslint-disable-next-line no-await-in-loop
-        await prisma.payment.create({
-          data: {
-            reference: `PAY-${s.nis}-${m.period}`,
-            billId: bill.id,
-            amount,
-            channel: 'TRANSFER',
-            status: 'VERIFIED',
-            verifiedAt: new Date(),
-            paidAt: m.dueDate,
-          },
-        });
-      }
     }
   }
 

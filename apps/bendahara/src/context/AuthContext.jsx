@@ -29,7 +29,7 @@ export function AuthProvider({ children }) {
   const login = async (username, password) => {
     const { data } = await api.post('/auth/login', { username, password });
     if (data.data.user.role !== 'BENDAHARA') {
-      throw new Error('Akun ini bukan akun bendahara. Gunakan aplikasi siswa.');
+      throw new Error('Akun ini tidak memiliki akses. Gunakan aplikasi siswa.');
     }
     setToken(data.data.accessToken);
     setUser(data.data.user);
