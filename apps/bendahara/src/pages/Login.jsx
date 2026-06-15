@@ -38,25 +38,25 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center overflow-y-auto bg-slate-100 p-4 dark:bg-slate-950 sm:p-6">
-      <div className="grid w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-900 lg:max-w-5xl lg:grid-cols-2">
+    <div className="flex min-h-screen items-center justify-center overflow-y-auto bg-slate-100 p-4 dark:bg-slate-950 sm:p-6 lg:p-8">
+      <div className="grid w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-900 lg:max-w-6xl lg:min-h-[42rem] lg:grid-cols-2 xl:max-w-7xl">
         {/* Left panel */}
-        <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-brand-600 to-brand-900 p-10 text-white lg:flex">
+        <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-brand-600 to-brand-900 p-10 text-white lg:flex xl:p-14">
           <div>
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15">
-                <Icon.School width={26} height={26} />
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 xl:h-14 xl:w-14">
+                <Icon.School width={28} height={28} />
               </div>
-              <span className="text-3xl font-extrabold tracking-tight">POSPAY</span>
+              <span className="text-3xl font-extrabold tracking-tight xl:text-4xl">POSPAY</span>
             </div>
-            <h1 className="mt-6 text-xl font-semibold leading-snug">Sistem Informasi Keuangan Sekolah Berbasis Website</h1>
+            <h1 className="mt-6 text-xl font-semibold leading-snug xl:text-2xl">Sistem Informasi Keuangan Sekolah Berbasis Website</h1>
             <div className="mt-3 h-1 w-12 rounded-full bg-white/40" />
-            <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-medium backdrop-blur">
+            <div className="mt-5 inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-medium backdrop-blur xl:text-base">
               <Icon.ChatBubble width={16} height={16} /> Dengan Fitur Bantuan Chatbot
             </div>
           </div>
 
-          <AuthIllustration className="my-6 w-full max-w-md self-center" />
+          <AuthIllustration className="my-6 w-full max-w-md self-center xl:max-w-xl" />
 
           <div className="flex items-center gap-3">
             <SchoolCrest size={52} />
@@ -69,11 +69,12 @@ export default function Login() {
         </div>
 
         {/* Right panel */}
-        <div className="relative flex flex-col justify-center p-8 sm:p-12">
+        <div className="relative flex flex-col justify-center p-8 sm:p-12 lg:p-14">
           <button onClick={toggle} className="absolute right-5 top-5 btn-ghost rounded-lg p-2" title="Ganti tema">
             {theme === 'dark' ? <Icon.Sun width={18} height={18} /> : <Icon.Moon width={18} height={18} />}
           </button>
 
+          <div className="mx-auto w-full max-w-sm">
           {/* Mobile brand */}
           <div className="mb-6 flex items-center gap-2 lg:hidden">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-white"><Icon.School width={20} height={20} /></div>
@@ -137,6 +138,7 @@ export default function Login() {
           )}
 
           <p className="mt-6 text-center text-xs text-slate-400">© {new Date().getFullYear()} POSPAY. All rights reserved.</p>
+          </div>
         </div>
       </div>
     </div>
