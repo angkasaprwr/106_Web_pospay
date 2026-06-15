@@ -1,0 +1,505 @@
+// ============================================================
+//  POSPAY - Sistem Informasi Keuangan Sekolah
+//  Prisma schema (PostgreSQL)
+// ============================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------------------------
+//  Enums
+// ------------------------------------------------------------
+
+enum Role {
+  BENDAHARA
+  SISWA
+}
+
+enum Gender {
+  L
+  P
+}
+
+enum StudentStatus {
+  ACTIVE
+  INACTIVE
+  GRADUATED
+  TRANSFERRED
+}
+
+enum BillStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  OVERDUE
+  WAIVED
+}
+
+enum PaymentStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+}
+
+enum PaymentChannel {
+  CASH
+  TRANSFER
+  QRIS
+  VIRTUAL_ACCOUNT
+  OTHER
+}
+
+enum DispensationType {
+  WAIVER
+  DISCOUNT
+  POSTPONE
+}
+
+enum DispensationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  VERIFY
+  REJECT
+  EXPORT
+  BACKUP
+  RESTORE
+  APPROVE
+}
+
+enum ChatRole {
+  USER
+  ASSISTANT
+  SYSTEM
+  HUMAN
+}
+
+enum ChatSessionStatus {
+  BOT
+  WAITING_HUMAN
+  HUMAN
+  CLOSED
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+// ------------------------------------------------------------
+//  Auth & Users
+// ------------------------------------------------------------
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  email     String?  @unique
+  password  String
+  fullName  String
+  phone     String?
+  avatarUrl String?
+  role      Role     @default(SISWA)
+  isActive  Boolean  @default(true)
+  lastLogin DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  student        Student?
+  refreshTokens  RefreshToken[]
+  deviceTokens   DeviceToken[]
+  auditLogs      AuditLog[]
+  verifiedPayments Payment[]    @relation("PaymentVerifier")
+  reviewedDispensations Dispensation[] @relation("DispensationReviewer")
+  notifications  Notification[]
+  chatSessions   ChatSession[]
+  chatMessages   ChatMessage[]
+
+  @@index([role])
+  @@index([isActive])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  userAgent String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model DeviceToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+}
+
+// ------------------------------------------------------------
+//  School organisation
+// ------------------------------------------------------------
+
+model SchoolProfile {
+  id         Int      @id @default(autoincrement())
+  name       String   @default("SMP Pusponegoro Brebes")
+  npsn       String?
+  address    String?
+  phone      String?
+  email      String?
+  website    String?
+  logoUrl    String?
+  headmaster String?
+  treasurer  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model AcademicYear {
+  id        String   @id @default(cuid())
+  name      String   @unique // e.g "2025/2026"
+  startDate DateTime?
+  endDate   DateTime?
+  isActive  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  classes   SchoolClass[]
+  bills      Bill[]
+
+  @@index([isActive])
+}
+
+model SchoolClass {
+  id             String   @id @default(cuid())
+  name           String // e.g "7A"
+  grade          Int // 7, 8, 9
+  homeroom       String?
+  academicYearId String
+  academicYear   AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  students       Student[]
+
+  @@unique([name, academicYearId])
+  @@index([academicYearId])
+  @@index([grade])
+}
+
+model Student {
+  id          String        @id @default(cuid())
+  nis         String        @unique // username = NIS
+  nisn        String?       @unique
+  fullName    String
+  gender      Gender?
+  birthPlace  String?
+  birthDate   DateTime?
+  address     String?
+  phone       String?
+  parentName  String?
+  parentPhone String?
+  photoUrl    String?
+  status      StudentStatus @default(ACTIVE)
+  enrolledAt  DateTime?
+
+  userId      String?       @unique
+  user        User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  classId     String?
+  schoolClass SchoolClass?  @relation(fields: [classId], references: [id], onDelete: SetNull)
+
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  bills          Bill[]
+  dispensations  Dispensation[]
+
+  @@index([classId])
+  @@index([status])
+  @@index([fullName])
+}
+
+// ------------------------------------------------------------
+//  Billing & Payments
+// ------------------------------------------------------------
+
+model FeeType {
+  id          String   @id @default(cuid())
+  code        String   @unique // e.g "SPP"
+  name        String
+  description String?
+  defaultAmount Decimal @default(0) @db.Decimal(12, 2)
+  isRecurring Boolean  @default(true) // monthly SPP vs one-time
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  bills       Bill[]
+
+  @@index([isActive])
+}
+
+model Bill {
+  id             String     @id @default(cuid())
+  invoiceNo      String     @unique
+  studentId      String
+  student        Student    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  feeTypeId      String
+  feeType        FeeType    @relation(fields: [feeTypeId], references: [id])
+  academicYearId String?
+  academicYear   AcademicYear? @relation(fields: [academicYearId], references: [id], onDelete: SetNull)
+
+  period         String?    // e.g "2025-07" for monthly SPP
+  description    String?
+  amount         Decimal    @db.Decimal(12, 2)
+  discount       Decimal    @default(0) @db.Decimal(12, 2)
+  paidAmount     Decimal    @default(0) @db.Decimal(12, 2)
+  dueDate        DateTime?
+  status         BillStatus @default(UNPAID)
+
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  payments       Payment[]
+  dispensations  Dispensation[]
+
+  @@index([studentId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([feeTypeId])
+  @@index([academicYearId])
+}
+
+model PaymentMethod {
+  id          String   @id @default(cuid())
+  name        String // e.g "Transfer BRI"
+  channel     PaymentChannel @default(TRANSFER)
+  accountName String?
+  accountNo   String?
+  instruction String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  payments    Payment[]
+
+  @@index([isActive])
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  reference       String        @unique
+  billId          String
+  bill            Bill          @relation(fields: [billId], references: [id], onDelete: Cascade)
+  paymentMethodId String?
+  paymentMethod   PaymentMethod? @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
+
+  amount          Decimal       @db.Decimal(12, 2)
+  channel         PaymentChannel @default(TRANSFER)
+  proofUrl        String?       // bukti pembayaran
+  note            String?
+  status          PaymentStatus @default(PENDING)
+  paidAt          DateTime      @default(now())
+
+  verifiedById    String?
+  verifiedBy      User?         @relation("PaymentVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
+  verifiedAt      DateTime?
+  rejectionReason String?
+
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  @@index([billId])
+  @@index([status])
+  @@index([paidAt])
+}
+
+model Dispensation {
+  id          String             @id @default(cuid())
+  studentId   String
+  student     Student            @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  billId      String?
+  bill        Bill?              @relation(fields: [billId], references: [id], onDelete: SetNull)
+
+  type        DispensationType   @default(POSTPONE)
+  reason      String
+  amount      Decimal            @default(0) @db.Decimal(12, 2) // discount/waiver amount
+  newDueDate  DateTime?          // for POSTPONE
+  attachmentUrl String?
+  status      DispensationStatus @default(PENDING)
+
+  reviewedById String?
+  reviewedBy   User?             @relation("DispensationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt   DateTime?
+  reviewNote   String?
+
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@index([studentId])
+  @@index([billId])
+  @@index([status])
+}
+
+// ------------------------------------------------------------
+//  Chatbot (Gemini + RAG + Human handover)
+// ------------------------------------------------------------
+
+model ChatbotQA {
+  id        String   @id @default(cuid())
+  question  String
+  answer    String
+  keywords  String?
+  category  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([category])
+}
+
+model ChatbotDocument {
+  id        String   @id @default(cuid())
+  title     String
+  content   String   @db.Text
+  source    String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+}
+
+model WorkingHour {
+  id        Int      @id @default(autoincrement())
+  dayOfWeek Int // 0=Sunday ... 6=Saturday
+  isOpen    Boolean  @default(true)
+  openTime  String   @default("08:00") // HH:mm
+  closeTime String   @default("15:00")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([dayOfWeek])
+}
+
+model ChatSession {
+  id         String            @id @default(cuid())
+  userId     String?
+  user       User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  guestName  String?
+  status     ChatSessionStatus @default(BOT)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  messages   ChatMessage[]
+
+  @@index([userId])
+  @@index([status])
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  role      ChatRole
+  content   String   @db.Text
+  metadata  Json?
+  senderId  String?
+  sender    User?    @relation(fields: [senderId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+}
+
+// ------------------------------------------------------------
+//  Notifications (FCM)
+// ------------------------------------------------------------
+
+model Notification {
+  id        String             @id @default(cuid())
+  userId    String?
+  user      User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  body      String
+  data      Json?
+  type      String?            // e.g "REMINDER", "PAYMENT_VERIFIED"
+  status    NotificationStatus @default(PENDING)
+  readAt    DateTime?
+  sentAt    DateTime?
+  error     String?
+  createdAt DateTime           @default(now())
+
+  @@index([userId])
+  @@index([status])
+}
+
+// ------------------------------------------------------------
+//  Audit log, settings & backups
+// ------------------------------------------------------------
+
+model AuditLog {
+  id        String      @id @default(cuid())
+  userId    String?
+  user      User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    AuditAction
+  entity    String
+  entityId  String?
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime    @default(now())
+
+  @@index([userId])
+  @@index([entity])
+  @@index([action])
+  @@index([createdAt])
+}
+
+model Setting {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     Json
+  group     String?  // e.g "security", "general", "chatbot"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([group])
+}
+
+model BackupRecord {
+  id        String   @id @default(cuid())
+  fileName  String
+  filePath  String
+  sizeBytes Int      @default(0)
+  createdById String?
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}

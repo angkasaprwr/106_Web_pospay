@@ -1,0 +1,27 @@
+{
+  "name": "pospay-school-finance",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sistem Informasi Keuangan Sekolah Berbasis Website (SMP Pusponegoro Brebes)",
+  "workspaces": [
+    "server",
+    "apps/bendahara",
+    "apps/siswa"
+  ],
+  "scripts": {
+    "dev:server": "npm --workspace server run dev",
+    "dev:bendahara": "npm --workspace apps/bendahara run dev",
+    "dev:siswa": "npm --workspace apps/siswa run dev",
+    "build:bendahara": "npm --workspace apps/bendahara run build",
+    "build:siswa": "npm --workspace apps/siswa run build",
+    "build": "npm run build:bendahara && npm run build:siswa",
+    "prisma:generate": "npm --workspace server run prisma:generate",
+    "prisma:migrate": "npm --workspace server run prisma:migrate",
+    "prisma:seed": "npm --workspace server run prisma:seed",
+    "start": "npm --workspace server run start"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "MIT"
+}

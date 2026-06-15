@@ -1,0 +1,26 @@
+const { Router } = require('express');
+const controller = require('./auth.controller');
+const { validate } = require('../../middlewares/validate.middleware');
+const { authenticate } = require('../../middlewares/auth.middleware');
+const { authLimiter } = require('../../middlewares/rateLimit.middleware');
+const {
+  registerSchema,
+  loginSchema,
+  refreshSchema,
+  changePasswordSchema,
+  updateProfileSchema,
+} = require('./auth.validation');
+
+const router = Router();
+
+router.get('/registration-status', controller.registrationStatus);
+router.post('/register', authLimiter, validate({ body: registerSchema }), controller.register);
+router.post('/login', authLimiter, validate({ body: loginSchema }), controller.login);
+router.post('/refresh', validate({ body: refreshSchema }), controller.refresh);
+router.post('/logout', controller.logout);
+
+router.get('/me', authenticate, controller.me);
+router.patch('/me', authenticate, validate({ body: updateProfileSchema }), controller.updateProfile);
+router.post('/change-password', authenticate, validate({ body: changePasswordSchema }), controller.changePassword);
+
+module.exports = router;
