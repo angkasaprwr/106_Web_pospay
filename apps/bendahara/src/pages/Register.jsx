@@ -6,58 +6,61 @@ import { api, apiError } from '../lib/api';
 import { Spinner } from '../components/ui';
 import { Icon } from '../components/Icons';
 
-/* ── Shared left panel illustration: dashboard on screen ── */
+/* ── Register left panel illustration: dashboard on browser window ── */
 function DashboardIllustration() {
   return (
-    <svg viewBox="0 0 320 220" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full max-w-xs mx-auto drop-shadow-xl">
-      {/* Books stack left */}
-      <rect x="8" y="148" width="52" height="10" rx="3" fill="#93c5fd" opacity="0.6" />
-      <rect x="12" y="138" width="44" height="10" rx="3" fill="#bfdbfe" opacity="0.5" />
-      <rect x="16" y="128" width="38" height="10" rx="3" fill="#dbeafe" opacity="0.4" />
+    <svg viewBox="0 0 380 240" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full max-w-sm mx-auto">
+      {/* Books stack – left */}
+      <rect x="6"  y="196" width="64" height="12" rx="4" fill="#93c5fd" opacity="0.58" />
+      <rect x="12" y="184" width="56" height="12" rx="4" fill="#bfdbfe" opacity="0.48" />
+      <rect x="18" y="172" width="48" height="12" rx="4" fill="#dbeafe" opacity="0.38" />
 
-      {/* Browser window */}
-      <rect x="54" y="20" width="210" height="150" rx="10" fill="white" opacity="0.95" />
-      {/* Browser chrome bar */}
-      <rect x="54" y="20" width="210" height="26" rx="10" fill="#e2e8f0" opacity="0.8" />
-      <circle cx="72" cy="33" r="4" fill="#f87171" opacity="0.8" />
-      <circle cx="84" cy="33" r="4" fill="#fbbf24" opacity="0.8" />
-      <circle cx="96" cy="33" r="4" fill="#4ade80" opacity="0.8" />
-      <rect x="108" y="28" width="100" height="10" rx="5" fill="white" opacity="0.7" />
+      {/* Browser window frame */}
+      <rect x="60" y="14" width="264" height="186" rx="12" fill="white" opacity="0.96" />
+      {/* Browser top bar */}
+      <rect x="60" y="14" width="264" height="28" rx="12" fill="#e8eef8" opacity="0.9" />
+      <rect x="60" y="30" width="264" height="12" fill="#e8eef8" opacity="0.9" />
+      {/* Traffic light dots */}
+      <circle cx="80"  cy="28" r="5" fill="#f87171" opacity="0.75" />
+      <circle cx="95"  cy="28" r="5" fill="#fbbf24" opacity="0.75" />
+      <circle cx="110" cy="28" r="5" fill="#4ade80" opacity="0.75" />
+      {/* URL bar */}
+      <rect x="122" y="21" width="130" height="14" rx="7" fill="white" opacity="0.8" />
 
-      {/* Cards inside browser */}
-      <rect x="64" y="56" width="42" height="24" rx="4" fill="#dbeafe" />
-      <rect x="114" y="56" width="42" height="24" rx="4" fill="#dcfce7" />
-      <rect x="164" y="56" width="42" height="24" rx="4" fill="#fef3c7" />
-      <rect x="214" y="56" width="42" height="24" rx="4" fill="#fce7f3" />
+      {/* Stat mini-cards row */}
+      <rect x="72"  y="52" width="54" height="28" rx="5" fill="#dbeafe" opacity="0.9" />
+      <rect x="134" y="52" width="54" height="28" rx="5" fill="#dcfce7" opacity="0.9" />
+      <rect x="196" y="52" width="54" height="28" rx="5" fill="#fef3c7" opacity="0.9" />
+      <rect x="258" y="52" width="54" height="28" rx="5" fill="#fce7f3" opacity="0.9" />
 
       {/* Bar chart */}
-      <rect x="64" y="120" width="12" height="36" rx="2" fill="#2563eb" opacity="0.7" />
-      <rect x="80" y="110" width="12" height="46" rx="2" fill="#2563eb" opacity="0.8" />
-      <rect x="96" y="100" width="12" height="56" rx="2" fill="#2563eb" />
-      <rect x="112" y="115" width="12" height="41" rx="2" fill="#60a5fa" opacity="0.8" />
-      <rect x="128" y="105" width="12" height="51" rx="2" fill="#93c5fd" opacity="0.7" />
-      {/* X-axis */}
-      <line x1="64" y1="157" x2="145" y2="157" stroke="#cbd5e1" strokeWidth="1" />
+      <rect x="72"  y="154" width="14" height="36" rx="3" fill="#2563eb" opacity="0.70" />
+      <rect x="90"  y="140" width="14" height="50" rx="3" fill="#2563eb" opacity="0.80" />
+      <rect x="108" y="126" width="14" height="64" rx="3" fill="#2563eb" />
+      <rect x="126" y="144" width="14" height="46" rx="3" fill="#60a5fa" opacity="0.80" />
+      <rect x="144" y="132" width="14" height="58" rx="3" fill="#93c5fd" opacity="0.70" />
+      <line x1="72" y1="191" x2="162" y2="191" stroke="#cbd5e1" strokeWidth="1" />
 
-      {/* Pie / donut chart */}
-      <circle cx="195" cy="128" r="26" fill="none" stroke="#dbeafe" strokeWidth="14" />
-      <circle cx="195" cy="128" r="26" fill="none" stroke="#2563eb" strokeWidth="14"
-        strokeDasharray="72 92" strokeDashoffset="23" />
-      <circle cx="195" cy="128" r="26" fill="none" stroke="#60a5fa" strokeWidth="14"
-        strokeDasharray="36 128" strokeDashoffset="-49" />
-      <circle cx="195" cy="128" r="14" fill="white" opacity="0.95" />
-      <text x="195" y="132" textAnchor="middle" fontSize="9" fill="#1e40af" fontWeight="bold">87%</text>
+      {/* Donut chart */}
+      <circle cx="224" cy="160" r="30" fill="none" stroke="#dbeafe" strokeWidth="16" />
+      <circle cx="224" cy="160" r="30" fill="none" stroke="#2563eb" strokeWidth="16"
+        strokeDasharray="82 106" strokeDashoffset="26" />
+      <circle cx="224" cy="160" r="30" fill="none" stroke="#60a5fa" strokeWidth="16"
+        strokeDasharray="40 148" strokeDashoffset="-56" />
+      <circle cx="224" cy="160" r="16" fill="white" opacity="0.96" />
+      <text x="224" y="165" textAnchor="middle" fontSize="10" fill="#1e40af" fontWeight="bold">87%</text>
 
-      {/* Line chart snippet */}
-      <polyline points="155,148 165,138 175,142 185,130 195,135 205,120 215,125 225,112 235,118 245,105"
-        stroke="#3b82f6" strokeWidth="2" fill="none" strokeLinejoin="round" opacity="0.7" />
+      {/* Line chart (right half, overlapping donut area) */}
+      <polyline
+        points="178,186 192,172 206,178 220,160 234,166 248,148 262,154 276,136 290,142"
+        stroke="#3b82f6" strokeWidth="2.2" fill="none" strokeLinejoin="round" opacity="0.65" />
 
-      {/* Plant right */}
-      <ellipse cx="294" cy="165" rx="16" ry="20" fill="#4ade80" opacity="0.35" />
-      <ellipse cx="280" cy="155" rx="12" ry="16" fill="#22c55e" opacity="0.3" />
-      <ellipse cx="305" cy="150" rx="10" ry="14" fill="#86efac" opacity="0.3" />
-      <rect x="290" y="168" width="8" height="18" rx="2" fill="#86efac" opacity="0.4" />
-      <rect x="282" y="178" width="24" height="8" rx="3" fill="#4ade80" opacity="0.3" />
+      {/* Plant – right */}
+      <ellipse cx="352" cy="180" rx="18" ry="24" fill="#4ade80" opacity="0.36" />
+      <ellipse cx="336" cy="165" rx="14" ry="19" fill="#22c55e" opacity="0.30" />
+      <ellipse cx="365" cy="160" rx="12" ry="16" fill="#86efac" opacity="0.33" />
+      <rect x="346" y="192" width="9" height="22" rx="3" fill="#86efac" opacity="0.40" />
+      <rect x="334" y="205" width="32" height="10" rx="4" fill="#4ade80" opacity="0.28" />
     </svg>
   );
 }
@@ -65,47 +68,63 @@ function DashboardIllustration() {
 /* ── Shared left panel ── */
 function LeftPanel() {
   return (
-    <div className="hidden lg:flex lg:w-[45%] xl:w-2/5 shrink-0 flex-col bg-gradient-to-br from-[#1a56db] to-[#1e3a8a] text-white">
-      <div className="flex flex-1 flex-col px-10 xl:px-12 py-8">
-        {/* Logo */}
+    <div className="hidden lg:flex lg:w-[46%] xl:w-[42%] shrink-0 flex-col bg-gradient-to-br from-[#1a56db] to-[#1e3a8a] text-white">
+      <div className="flex flex-1 flex-col items-center px-10 xl:px-12 py-10 text-center">
+        {/* POSPAY logo */}
         <div className="flex items-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-white shadow-md">
-            <Icon.School width={24} height={24} className="text-brand-700" />
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-lg">
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none">
+              <rect x="4" y="14" width="24" height="14" rx="3" fill="#1d4ed8" />
+              <rect x="8" y="18" width="7" height="6" rx="1.5" fill="white" opacity="0.7" />
+              <rect x="4" y="17" width="24" height="3" fill="#1e40af" opacity="0.6" />
+              <path d="M8 14 L16 7 L24 14" stroke="#1d4ed8" strokeWidth="2" fill="none" strokeLinejoin="round" />
+              <circle cx="16" cy="11" r="2.5" fill="#2563eb" />
+            </svg>
           </div>
-          <span className="text-2xl font-extrabold tracking-tight">POSPAY</span>
+          <span className="text-3xl font-extrabold tracking-tight">POSPAY</span>
         </div>
 
-        {/* Title + rule + chatbot button */}
-        <div className="mt-6">
-          <h1 className="text-2xl xl:text-3xl font-extrabold leading-snug">
-            Sistem Informasi Keuangan Sekolah Berbasis Website
-          </h1>
-          <div className="mt-4 h-px w-12 bg-white/40" />
-          <button className="mt-5 flex items-center gap-2 rounded-lg border border-white/40 px-4 py-2 text-sm font-medium text-white hover:bg-white/10 transition">
-            <Icon.Chat width={16} height={16} />
-            Dengan Fitur Bantuan Chatbot
-          </button>
-        </div>
+        {/* Title */}
+        <p className="mt-4 text-base font-semibold leading-snug text-white/90 xl:text-lg">
+          Sistem Informasi Keuangan Sekolah<br />Berbasis Website
+        </p>
+
+        {/* Divider */}
+        <div className="mt-4 h-px w-10 bg-white/40" />
+
+        {/* Chatbot button */}
+        <button className="mt-5 flex items-center gap-2.5 rounded-xl bg-[#1535a8]/70 px-5 py-2.5 text-sm font-semibold text-white shadow-inner hover:bg-[#1535a8] transition">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+          Dengan Fitur Bantuan Chatbot
+        </button>
 
         {/* Illustration */}
-        <div className="mt-6 flex-1 flex items-center">
+        <div className="mt-5 w-full flex items-center justify-center">
           <DashboardIllustration />
         </div>
       </div>
 
-      {/* SMP info footer */}
-      <div className="border-t border-white/20 px-10 xl:px-12 py-6">
-        <p className="text-xs font-medium text-blue-200 uppercase tracking-widest mb-2">Studi Kasus</p>
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-white/20">
-            <Icon.Shield width={18} height={18} />
-          </div>
+      {/* SMP footer */}
+      <div className="border-t border-white/15 px-8 xl:px-10 py-5">
+        <p className="text-[10px] font-semibold uppercase tracking-widest text-blue-200">Studi Kasus</p>
+        <div className="mt-2 flex items-center gap-3">
+          <svg width="40" height="40" viewBox="0 0 40 40" className="shrink-0">
+            <circle cx="20" cy="20" r="19" fill="#f59e0b" />
+            <circle cx="20" cy="20" r="15" fill="#1d4ed8" />
+            <circle cx="20" cy="20" r="12" fill="#1e40af" />
+            <path d="M14 22 L20 14 L26 22 Z" fill="#fbbf24" opacity="0.9" />
+            <rect x="16" y="22" width="8" height="6" rx="1" fill="#fbbf24" opacity="0.8" />
+            <path d="M12 18 Q20 12 28 18" stroke="#fbbf24" strokeWidth="1.5" fill="none" />
+            <text x="20" y="34" textAnchor="middle" fontSize="5" fill="#fbbf24" fontWeight="bold">BREBES</text>
+          </svg>
           <div>
-            <p className="font-bold text-base leading-tight">SMP Pusponegoro Brebes</p>
-            <div className="mt-0.5 h-px w-24 bg-white/30" />
+            <p className="font-bold text-sm leading-tight">SMP Pusponegoro Brebes</p>
+            <div className="mt-1 h-px w-20 bg-white/30" />
           </div>
         </div>
-        <p className="mt-3 text-xs text-blue-200 leading-relaxed">
+        <p className="mt-2 text-[11px] text-blue-200 leading-relaxed">
           POSPAY membantu pengelolaan keuangan sekolah menjadi lebih teratur, transparan, dan mudah diakses.
         </p>
       </div>
