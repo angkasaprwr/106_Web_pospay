@@ -8,6 +8,7 @@ const ExcelJS = require('exceljs');
  */
 function streamPdf(res, { title, subtitle, columns, rows, summary = [] }) {
   const doc = new PDFDocument({ margin: 40, size: 'A4', layout: 'landscape' });
+  res.setHeader('Content-Type', 'application/pdf');
   doc.pipe(res);
 
   doc.fontSize(16).text(title, { align: 'center' });
