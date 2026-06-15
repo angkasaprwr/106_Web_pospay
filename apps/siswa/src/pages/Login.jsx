@@ -33,10 +33,9 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center overflow-y-auto bg-slate-100 p-4 dark:bg-slate-950 sm:p-6 lg:p-8">
-      <div className="grid w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-900 lg:max-w-6xl lg:min-h-[42rem] lg:grid-cols-2 xl:max-w-7xl">
+    <div className="grid min-h-screen w-full bg-white dark:bg-slate-900 lg:grid-cols-2">
         {/* Left panel */}
-        <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-brand-600 to-brand-900 p-10 text-white lg:flex xl:p-14">
+        <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-brand-600 to-brand-900 p-10 text-white lg:flex xl:p-16">
           <div>
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 xl:h-14 xl:w-14">
@@ -51,7 +50,7 @@ export default function Login() {
             </div>
           </div>
 
-          <AuthIllustration className="my-6 w-full max-w-md self-center xl:max-w-xl" />
+          <AuthIllustration className="my-6 w-full max-w-md self-center xl:max-w-2xl" />
 
           <div className="flex items-center gap-3">
             <SchoolCrest size={52} />
@@ -64,12 +63,12 @@ export default function Login() {
         </div>
 
         {/* Right panel */}
-        <div className="relative flex flex-col justify-center p-8 sm:p-12 lg:p-14">
+        <div className="relative flex flex-col justify-center p-8 sm:p-12 lg:p-16">
           <button onClick={toggle} className="absolute right-5 top-5 btn-ghost rounded-lg p-2" title="Ganti tema">
             {theme === 'dark' ? <Icon.Sun width={18} height={18} /> : <Icon.Moon width={18} height={18} />}
           </button>
 
-          <div className="mx-auto w-full max-w-sm">
+          <div className="mx-auto w-full max-w-md">
           <div className="mb-6 flex items-center gap-2 lg:hidden">
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-600 text-white"><Icon.School width={20} height={20} /></div>
             <span className="text-xl font-bold">POSPAY</span>
@@ -125,7 +124,6 @@ export default function Login() {
           <p className="mt-6 text-center text-xs text-slate-400">© {new Date().getFullYear()} POSPAY. All rights reserved.</p>
           </div>
         </div>
-      </div>
     </div>
   );
 }
