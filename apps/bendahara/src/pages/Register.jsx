@@ -5,6 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { api, apiError } from '../lib/api';
 import { Spinner } from '../components/ui';
 import { Icon } from '../components/Icons';
+import { AuthLeftPanel } from './Login';
 
 /* ── Register left panel illustration: dashboard on browser window ── */
 function DashboardIllustration() {
@@ -227,7 +228,7 @@ export default function Register() {
 
   return (
     <div className="flex min-h-screen">
-      <LeftPanel />
+      <AuthLeftPanel illustration={<DashboardIllustration />} />
 
       {/* Right panel */}
       <div className="flex flex-1 items-center justify-center overflow-y-auto bg-white px-6 py-10 dark:bg-slate-950 sm:px-10">
