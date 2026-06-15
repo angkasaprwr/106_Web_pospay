@@ -10,8 +10,6 @@ const NAV = [
   { to: '/', label: 'Beranda', icon: Icon.Dashboard, end: true },
   { to: '/siswa', label: 'Data Siswa', icon: Icon.Students },
   { to: '/tagihan', label: 'Tagihan', icon: Icon.Bills },
-  { to: '/pembayaran', label: 'Pembayaran', icon: Icon.Payment },
-  { to: '/dispensasi', label: 'Dispensasi', icon: Icon.Dispensation },
   { to: '/laporan', label: 'Laporan', icon: Icon.Report },
   { to: '/chatbot', label: 'Chatbot', icon: Icon.Chat },
 ];
@@ -128,28 +126,25 @@ function ProfileMenu() {
             <p className="text-sm font-semibold truncate">{user?.fullName}</p>
             <p className="text-xs text-slate-400">@{user?.username}</p>
           </div>
-          <button
-            onClick={() => go('/profil')}
-            className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
-          >
+          <button onClick={() => go('/profil')} className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800">
             <Icon.User width={16} height={16} /> Profil Saya
           </button>
-          <button
-            onClick={() => go('/pengaturan')}
-            className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
-          >
+          <button onClick={() => go('/pengaturan')} className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800">
             <Icon.Settings width={16} height={16} /> Pengaturan
           </button>
-          <button
-            onClick={() => go('/pengaturan/tentang')}
-            className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800"
-          >
+          <div className="border-t border-slate-200 px-4 py-2 dark:border-slate-800">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Manajemen Keuangan</p>
+          </div>
+          <button onClick={() => go('/pembayaran')} className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800">
+            <Icon.Payment width={16} height={16} /> Pembayaran
+          </button>
+          <button onClick={() => go('/dispensasi')} className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800">
+            <Icon.Dispensation width={16} height={16} /> Dispensasi
+          </button>
+          <button onClick={() => go('/pengaturan/tentang')} className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800">
             <Icon.Info width={16} height={16} /> Bantuan
           </button>
-          <button
-            onClick={logout}
-            className="flex w-full items-center gap-2 border-t border-slate-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:border-slate-800 dark:hover:bg-red-900/20"
-          >
+          <button onClick={logout} className="flex w-full items-center gap-2 border-t border-slate-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:border-slate-800 dark:hover:bg-red-900/20">
             <Icon.Logout width={16} height={16} /> Logout
           </button>
         </div>
