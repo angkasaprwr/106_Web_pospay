@@ -74,11 +74,8 @@ export default function Login() {
             <span className="text-xl font-bold">POSPAY</span>
           </div>
 
-          <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-brand-900/40 dark:text-brand-300">
-            <Icon.Lock width={24} height={24} />
-          </div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Login</h2>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Masuk untuk mengakses sistem POSPAY</p>
+          <h2 className="text-center text-2xl font-bold text-slate-900 dark:text-white">Login</h2>
+          <p className="mt-1 text-center text-sm text-slate-500 dark:text-slate-400">Masuk untuk mengakses sistem POSPAY</p>
 
           <form onSubmit={submit} className="mt-7 space-y-4">
             <div>
@@ -112,14 +109,6 @@ export default function Login() {
               {loading ? <Spinner size={18} className="text-white" /> : 'Masuk'}
             </button>
           </form>
-
-          <div className="my-5 flex items-center gap-3 text-xs text-slate-400">
-            <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" /> atau <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
-          </div>
-
-          <button onClick={() => navigate('/')} className="btn-secondary w-full">
-            <Icon.Shield width={18} height={18} /> Kembali ke Beranda
-          </button>
 
           <p className="mt-6 text-center text-xs text-slate-400">© {new Date().getFullYear()} POSPAY. All rights reserved.</p>
           </div>

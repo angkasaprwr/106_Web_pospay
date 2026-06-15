@@ -80,18 +80,15 @@ export default function Login() {
             <span className="text-xl font-bold">POSPAY</span>
           </div>
 
-          <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-50 text-brand-600 dark:bg-brand-900/40 dark:text-brand-300">
-            <Icon.Lock width={24} height={24} />
-          </div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">Login</h2>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Masuk untuk mengakses sistem POSPAY</p>
+          <h2 className="text-center text-2xl font-bold text-slate-900 dark:text-white">Login</h2>
+          <p className="mt-1 text-center text-sm text-slate-500 dark:text-slate-400">Masuk untuk mengakses sistem POSPAY</p>
 
           <form onSubmit={submit} className="mt-7 space-y-4">
             <div>
-              <label className="label">Email Sekolah</label>
+              <label className="label">Username</label>
               <div className="relative">
-                <Icon.Mail width={18} height={18} className="pointer-events-none absolute left-3 top-2.5 text-slate-400" />
-                <input className="input pl-10" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="contoh@smppusponegoro.sch.id" autoFocus required />
+                <Icon.User width={18} height={18} className="pointer-events-none absolute left-3 top-2.5 text-slate-400" />
+                <input className="input pl-10" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="Masukkan username" autoFocus required />
               </div>
             </div>
             <div>
@@ -119,21 +116,18 @@ export default function Login() {
             </button>
           </form>
 
-          <div className="my-5 flex items-center gap-3 text-xs text-slate-400">
-            <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" /> atau <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
-          </div>
-
-          <button onClick={() => navigate('/')} className="btn-secondary w-full">
-            <Icon.Shield width={18} height={18} /> Kembali ke Beranda
-          </button>
-
           {registrationOpen && (
-            <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
-              Belum ada akun?{' '}
-              <Link to="/register" className="font-semibold text-brand-600 hover:underline">
-                Daftar akun
-              </Link>
-            </p>
+            <>
+              <div className="my-5 flex items-center gap-3 text-xs text-slate-400">
+                <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" /> atau <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
+              </div>
+              <p className="text-center text-sm text-slate-500 dark:text-slate-400">
+                Belum ada akun?{' '}
+                <Link to="/register" className="font-semibold text-brand-600 hover:underline">
+                  Daftar akun
+                </Link>
+              </p>
+            </>
           )}
 
           <p className="mt-6 text-center text-xs text-slate-400">© {new Date().getFullYear()} POSPAY. All rights reserved.</p>
