@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Environment
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Build outputs
+dist/
+build/
+.vite/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Prisma
+server/prisma/*.db
+server/prisma/migrations/dev.db*
+
+# Uploads & backups (runtime data)
+server/uploads/*
+!server/uploads/.gitkeep
+server/backups/*
+!server/backups/.gitkeep
+
+# Firebase service account
+**/firebase-service-account.json
+
+# Misc
+.DS_Store
+.idea/
+.vscode/
+coverage/
+*.tsbuildinfo
