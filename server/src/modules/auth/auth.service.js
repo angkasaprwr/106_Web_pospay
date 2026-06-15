@@ -46,12 +46,16 @@ async function register(input, req) {
 }
 
 async function login(username, password, req) {
-  const user = await prisma.user.findUnique({ where: { username } });
-  if (!user) throw ApiError.unauthorized('Username atau password salah');
+  // Allow logging in with either username or email (treasurer may use email).
+  const identifier = (username || '').trim();
+  const user = await prisma.user.findFirst({
+    where: { OR: [{ username: identifier }, { email: identifier }] },
+  });
+  if (!user) throw ApiError.unauthorized('Email/username atau password salah');
   if (!user.isActive) throw ApiError.forbidden('Akun Anda tidak aktif. Hubungi bendahara.');
 
   const match = await bcrypt.compare(password, user.password);
-  if (!match) throw ApiError.unauthorized('Username atau password salah');
+  if (!match) throw ApiError.unauthorized('Email/username atau password salah');
 
   await prisma.user.update({ where: { id: user.id }, data: { lastLogin: new Date() } });
   await recordAudit({ userId: user.id, action: 'LOGIN', entity: 'User', entityId: user.id, req });
