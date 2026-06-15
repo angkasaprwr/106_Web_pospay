@@ -88,7 +88,7 @@ export default function Login() {
 
           <form onSubmit={submit} className="mt-7 space-y-4">
             <div>
-              <label className="label">Email / Username</label>
+              <label className="label">Email Sekolah</label>
               <div className="relative">
                 <Icon.Mail width={18} height={18} className="pointer-events-none absolute left-3 top-2.5 text-slate-400" />
                 <input className="input pl-10" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} placeholder="contoh@smppusponegoro.sch.id" autoFocus required />
@@ -123,14 +123,17 @@ export default function Login() {
             <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" /> atau <span className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
           </div>
 
-          {registrationOpen ? (
-            <Link to="/register" className="btn-secondary w-full">
-              <Icon.Shield width={18} height={18} /> Daftar Akun (Instalasi Awal)
-            </Link>
-          ) : (
-            <button onClick={() => navigate('/')} className="btn-secondary w-full">
-              <Icon.Shield width={18} height={18} /> Kembali ke Beranda
-            </button>
+          <button onClick={() => navigate('/')} className="btn-secondary w-full">
+            <Icon.Shield width={18} height={18} /> Kembali ke Beranda
+          </button>
+
+          {registrationOpen && (
+            <p className="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
+              Belum ada akun?{' '}
+              <Link to="/register" className="font-semibold text-brand-600 hover:underline">
+                Daftar akun
+              </Link>
+            </p>
           )}
 
           <p className="mt-6 text-center text-xs text-slate-400">© {new Date().getFullYear()} POSPAY. All rights reserved.</p>
