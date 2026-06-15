@@ -48,6 +48,42 @@ router.get(
       if (monthly[key] !== undefined) monthly[key] += toNumber(p.amount);
     });
 
+    // Per-class arrears summary for the active academic year.
+    const activeYear = await prisma.academicYear.findFirst({ where: { isActive: true }, select: { id: true } });
+    let classArrears = [];
+    if (activeYear) {
+      const classes = await prisma.schoolClass.findMany({
+        where: { academicYearId: activeYear.id },
+        select: { id: true, name: true },
+        orderBy: { name: 'asc' },
+      });
+      classArrears = await Promise.all(
+        classes.map(async (cls) => {
+          const [studentCount, arrears] = await Promise.all([
+            prisma.student.count({
+              where: {
+                classId: cls.id,
+                status: 'ACTIVE',
+                bills: { some: { status: { in: ['UNPAID', 'OVERDUE'] } } },
+              },
+            }),
+            prisma.bill.aggregate({
+              where: {
+                student: { classId: cls.id, status: 'ACTIVE' },
+                status: { in: ['UNPAID', 'OVERDUE'] },
+              },
+              _sum: { amount: true, paidAmount: true },
+            }),
+          ]);
+          const outstanding = Math.max(
+            0,
+            toNumber(arrears._sum.amount) - toNumber(arrears._sum.paidAmount),
+          );
+          return { className: cls.name, studentCount, totalArrears: outstanding };
+        }),
+      );
+    }
+
     return ok(res, {
       students: { total: studentCount, active: activeStudents },
       finance: { totalBilled, totalPaid, totalOutstanding },
@@ -59,6 +95,7 @@ router.get(
         paid: toNumber(g._sum.paidAmount),
       })),
       monthlyPayments: Object.entries(monthly).map(([month, total]) => ({ month, total })),
+      classArrears,
     });
   }),
 );
