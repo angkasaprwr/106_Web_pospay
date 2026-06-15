@@ -4,21 +4,39 @@ const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 
-// Akun bendahara TIDAK dibuat secara default agar developer dapat menguji
-// alur registrasi instalasi (register sekali) sendiri. Aktifkan dengan
-// SEED_DEFAULT_BENDAHARA=true bila diperlukan.
-const SEED_BENDAHARA = (process.env.SEED_DEFAULT_BENDAHARA || 'false').toLowerCase() === 'true';
-// Data siswa juga TIDAK dibuat secara default; siswa didaftarkan oleh bendahara
-// melalui aplikasi. Aktifkan contoh data dengan SEED_SAMPLE_STUDENTS=true.
-const SEED_SAMPLE_STUDENTS = (process.env.SEED_SAMPLE_STUDENTS || 'false').toLowerCase() === 'true';
+// ============================================================
+//  Seed bersifat OPSIONAL & default KOSONG.
+//  Secara default seed TIDAK membuat data apa pun, sehingga
+//  seluruh halaman fitur & submenu kosong sampai developer
+//  mengisinya sendiri melalui uji CRUD (mulai dari Register
+//  bendahara, lalu input data master & siswa via aplikasi).
+//
+//  Aktifkan data contoh dengan environment variable:
+//    SEED_MASTER_DATA=true      -> profil sekolah, tahun ajaran,
+//                                  kelas, jenis tagihan, metode
+//                                  pembayaran, jam kerja, Q&A bot
+//    SEED_DEFAULT_BENDAHARA=true -> akun bendahara (bendahara/bendahara123)
+//    SEED_SAMPLE_STUDENTS=true   -> contoh siswa + tagihan (butuh master data)
+// ============================================================
+
+const bool = (v) => String(v || '').toLowerCase() === 'true';
+const SEED_MASTER = bool(process.env.SEED_MASTER_DATA);
+const SEED_BENDAHARA = bool(process.env.SEED_DEFAULT_BENDAHARA);
+const SEED_SAMPLE_STUDENTS = bool(process.env.SEED_SAMPLE_STUDENTS);
 const STUDENT_PASSWORD = process.env.STUDENT_DEFAULT_PASSWORD || 'siswa123';
 
-async function main() {
-  console.log('Seeding database...');
+async function seedBendahara() {
+  const exists = await prisma.user.findFirst({ where: { role: 'BENDAHARA' } });
+  if (exists) return;
+  const password = await bcrypt.hash('bendahara123', 10);
+  await prisma.user.create({
+    data: { username: 'bendahara', password, fullName: 'Bendahara Sekolah', role: 'BENDAHARA', email: 'bendahara@smppusponegoro.sch.id' },
+  });
+  console.log('  -> Akun bendahara: username "bendahara", password "bendahara123"');
+}
 
-  // ---- School profile ----
-  const existingProfile = await prisma.schoolProfile.findFirst();
-  if (!existingProfile) {
+async function seedMasterData() {
+  if (!(await prisma.schoolProfile.findFirst())) {
     await prisma.schoolProfile.create({
       data: {
         name: 'SMP Pusponegoro Brebes',
@@ -32,39 +50,23 @@ async function main() {
     });
   }
 
-  // ---- Default treasurer (bendahara) ----
-  if (SEED_BENDAHARA) {
-    const exists = await prisma.user.findFirst({ where: { role: 'BENDAHARA' } });
-    if (!exists) {
-      const password = await bcrypt.hash('bendahara123', 10);
-      await prisma.user.create({
-        data: { username: 'bendahara', password, fullName: 'Bendahara Sekolah', role: 'BENDAHARA', email: 'bendahara@smppusponegoro.sch.id' },
-      });
-      console.log('  -> Akun bendahara: username "bendahara", password "bendahara123"');
-    }
-  }
-
-  // ---- Academic year & classes ----
   const year = await prisma.academicYear.upsert({
     where: { name: '2025/2026' },
     update: { isActive: true },
     create: { name: '2025/2026', isActive: true, startDate: new Date('2025-07-01'), endDate: new Date('2026-06-30') },
   });
 
-  const classNames = ['7A', '7B', '8A', '8B', '9A'];
   const classes = {};
-  for (const name of classNames) {
+  for (const name of ['7A', '7B', '8A', '8B', '9A']) {
     const grade = parseInt(name[0], 10);
     // eslint-disable-next-line no-await-in-loop
-    const cls = await prisma.schoolClass.upsert({
+    classes[name] = await prisma.schoolClass.upsert({
       where: { name_academicYearId: { name, academicYearId: year.id } },
       update: {},
       create: { name, grade, academicYearId: year.id },
     });
-    classes[name] = cls;
   }
 
-  // ---- Fee types ----
   const feeTypeData = [
     { code: 'SPP', name: 'SPP Bulanan', defaultAmount: 150000, isRecurring: true },
     { code: 'GEDUNG', name: 'Uang Gedung', defaultAmount: 1500000, isRecurring: false },
@@ -77,7 +79,6 @@ async function main() {
     feeTypes[ft.code] = await prisma.feeType.upsert({ where: { code: ft.code }, update: {}, create: ft });
   }
 
-  // ---- Payment methods ----
   const methods = [
     { name: 'Transfer Bank BRI', channel: 'TRANSFER', accountName: 'SMP Pusponegoro', accountNo: '0123-01-000000-50-1', instruction: 'Transfer ke rekening lalu unggah bukti.' },
     { name: 'QRIS Sekolah', channel: 'QRIS', accountName: 'SMP Pusponegoro', instruction: 'Scan QRIS pada aplikasi e-wallet/m-banking.' },
@@ -85,14 +86,12 @@ async function main() {
   ];
   for (const m of methods) {
     // eslint-disable-next-line no-await-in-loop
-    const found = await prisma.paymentMethod.findFirst({ where: { name: m.name } });
-    if (!found) {
+    if (!(await prisma.paymentMethod.findFirst({ where: { name: m.name } }))) {
       // eslint-disable-next-line no-await-in-loop
       await prisma.paymentMethod.create({ data: m });
     }
   }
 
-  // ---- Working hours ----
   const workingHours = [
     { dayOfWeek: 1, isOpen: true, openTime: '08:00', closeTime: '15:00' },
     { dayOfWeek: 2, isOpen: true, openTime: '08:00', closeTime: '15:00' },
@@ -107,7 +106,6 @@ async function main() {
     await prisma.workingHour.upsert({ where: { dayOfWeek: wh.dayOfWeek }, update: wh, create: wh });
   }
 
-  // ---- Chatbot Q&A ----
   const qas = [
     { question: 'Bagaimana cara membayar SPP?', answer: 'Anda dapat membayar SPP melalui transfer bank, QRIS, atau tunai di loket. Setelah transfer, unggah bukti pembayaran pada menu Tagihan > Konfirmasi Pembayaran.', keywords: 'spp bayar pembayaran cara transfer', category: 'pembayaran' },
     { question: 'Kapan jatuh tempo pembayaran SPP?', answer: 'SPP umumnya jatuh tempo setiap tanggal 10 setiap bulannya. Cek menu Tagihan untuk tanggal jatuh tempo yang pasti.', keywords: 'jatuh tempo spp tanggal', category: 'pembayaran' },
@@ -116,8 +114,7 @@ async function main() {
   ];
   for (const qa of qas) {
     // eslint-disable-next-line no-await-in-loop
-    const found = await prisma.chatbotQA.findFirst({ where: { question: qa.question } });
-    if (!found) {
+    if (!(await prisma.chatbotQA.findFirst({ where: { question: qa.question } }))) {
       // eslint-disable-next-line no-await-in-loop
       await prisma.chatbotQA.create({ data: qa });
     }
@@ -133,20 +130,17 @@ async function main() {
   ];
   for (const d of docs) {
     // eslint-disable-next-line no-await-in-loop
-    const found = await prisma.chatbotDocument.findFirst({ where: { title: d.title } });
-    if (!found) {
+    if (!(await prisma.chatbotDocument.findFirst({ where: { title: d.title } }))) {
       // eslint-disable-next-line no-await-in-loop
       await prisma.chatbotDocument.create({ data: d });
     }
   }
 
-  // ---- Sample students with accounts (opsional) ----
-  if (!SEED_SAMPLE_STUDENTS) {
-    console.log('Seed selesai (tanpa akun bendahara & tanpa data siswa).');
-    console.log('Silakan daftar akun bendahara melalui halaman Register aplikasi.');
-    return;
-  }
+  return { year, classes, feeTypes };
+}
 
+async function seedSampleStudents(master) {
+  const { year, classes, feeTypes } = master;
   const sampleStudents = [
     { nis: '2025001', fullName: 'Ahmad Fauzi', gender: 'L', className: '7A', parentName: 'Bpk. Sukirman', parentPhone: '081200000001' },
     { nis: '2025002', fullName: 'Siti Nurhaliza', gender: 'P', className: '7A', parentName: 'Ibu Aminah', parentPhone: '081200000002' },
@@ -157,28 +151,14 @@ async function main() {
   const studentPwd = await bcrypt.hash(STUDENT_PASSWORD, 10);
   for (const s of sampleStudents) {
     // eslint-disable-next-line no-await-in-loop
-    const exists = await prisma.student.findUnique({ where: { nis: s.nis } });
-    if (exists) continue;
+    if (await prisma.student.findUnique({ where: { nis: s.nis } })) continue;
     // eslint-disable-next-line no-await-in-loop
-    const user = await prisma.user.create({
-      data: { username: s.nis, password: studentPwd, fullName: s.fullName, role: 'SISWA' },
-    });
+    const user = await prisma.user.create({ data: { username: s.nis, password: studentPwd, fullName: s.fullName, role: 'SISWA' } });
     // eslint-disable-next-line no-await-in-loop
     const student = await prisma.student.create({
-      data: {
-        nis: s.nis,
-        fullName: s.fullName,
-        gender: s.gender,
-        parentName: s.parentName,
-        parentPhone: s.parentPhone,
-        classId: classes[s.className].id,
-        userId: user.id,
-        status: 'ACTIVE',
-        enrolledAt: new Date(),
-      },
+      data: { nis: s.nis, fullName: s.fullName, gender: s.gender, parentName: s.parentName, parentPhone: s.parentPhone, classId: classes[s.className].id, userId: user.id, status: 'ACTIVE', enrolledAt: new Date() },
     });
 
-    // Create a couple of SPP bills (one paid, one due soon, one overdue)
     const spp = feeTypes.SPP;
     const months = [
       { period: '2025-07', dueDate: new Date('2025-07-10'), paid: true },
@@ -193,36 +173,33 @@ async function main() {
       else if (m.overdue) status = 'OVERDUE';
       // eslint-disable-next-line no-await-in-loop
       const bill = await prisma.bill.create({
-        data: {
-          invoiceNo: `INV-${s.nis}-${m.period}`,
-          studentId: student.id,
-          feeTypeId: spp.id,
-          academicYearId: year.id,
-          period: m.period,
-          description: `SPP ${m.period}`,
-          amount,
-          paidAmount,
-          dueDate: m.dueDate,
-          status,
-        },
+        data: { invoiceNo: `INV-${s.nis}-${m.period}`, studentId: student.id, feeTypeId: spp.id, academicYearId: year.id, period: m.period, description: `SPP ${m.period}`, amount, paidAmount, dueDate: m.dueDate, status },
       });
       if (m.paid) {
         // eslint-disable-next-line no-await-in-loop
         await prisma.payment.create({
-          data: {
-            reference: `PAY-${s.nis}-${m.period}`,
-            billId: bill.id,
-            amount,
-            channel: 'TRANSFER',
-            status: 'VERIFIED',
-            verifiedAt: new Date(),
-            paidAt: m.dueDate,
-          },
+          data: { reference: `PAY-${s.nis}-${m.period}`, billId: bill.id, amount, channel: 'TRANSFER', status: 'VERIFIED', verifiedAt: new Date(), paidAt: m.dueDate },
         });
       }
     }
   }
+}
 
+async function main() {
+  if (!SEED_MASTER && !SEED_BENDAHARA && !SEED_SAMPLE_STUDENTS) {
+    console.log('Seed dilewati: database dibiarkan KOSONG sesuai konfigurasi default.');
+    console.log('Mulai dari halaman Register aplikasi bendahara untuk membuat akun pertama,');
+    console.log('lalu isi data master & siswa melalui aplikasi (uji CRUD).');
+    console.log('Aktifkan contoh data dengan SEED_MASTER_DATA / SEED_DEFAULT_BENDAHARA / SEED_SAMPLE_STUDENTS.');
+    return;
+  }
+
+  console.log('Seeding database...');
+  let master = null;
+  // Sample students butuh data master.
+  if (SEED_MASTER || SEED_SAMPLE_STUDENTS) master = await seedMasterData();
+  if (SEED_BENDAHARA) await seedBendahara();
+  if (SEED_SAMPLE_STUDENTS) await seedSampleStudents(master);
   console.log('Seed selesai.');
 }
 

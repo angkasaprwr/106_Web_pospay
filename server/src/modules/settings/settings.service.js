@@ -11,17 +11,31 @@ const DEFAULT_SECURITY = {
   twoFactorEnabled: false,
 };
 
+// Default profil sekolah yang dikembalikan tanpa menulis ke DB, sehingga tabel
+// tetap kosong sampai bendahara benar-benar menyimpan perubahan.
+const DEFAULT_SCHOOL_PROFILE = {
+  id: null,
+  name: 'SMP Pusponegoro Brebes',
+  npsn: null,
+  address: null,
+  phone: null,
+  email: null,
+  website: null,
+  logoUrl: null,
+  headmaster: null,
+  treasurer: null,
+};
+
 async function getSchoolProfile() {
-  let profile = await prisma.schoolProfile.findFirst();
-  if (!profile) {
-    profile = await prisma.schoolProfile.create({ data: { name: 'SMP Pusponegoro Brebes' } });
-  }
-  return profile;
+  const profile = await prisma.schoolProfile.findFirst();
+  return profile || DEFAULT_SCHOOL_PROFILE;
 }
 
 async function updateSchoolProfile(data, actorId, req) {
-  const current = await getSchoolProfile();
-  const profile = await prisma.schoolProfile.update({ where: { id: current.id }, data });
+  const current = await prisma.schoolProfile.findFirst();
+  const profile = current
+    ? await prisma.schoolProfile.update({ where: { id: current.id }, data })
+    : await prisma.schoolProfile.create({ data: { name: 'SMP Pusponegoro Brebes', ...data } });
   await recordAudit({ userId: actorId, action: 'UPDATE', entity: 'SchoolProfile', entityId: String(profile.id), req });
   return profile;
 }
