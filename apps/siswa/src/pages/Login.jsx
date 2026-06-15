@@ -33,8 +33,8 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4 dark:bg-slate-950">
-      <div className="grid w-full max-w-5xl overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-900 lg:grid-cols-2">
+    <div className="flex min-h-screen items-center justify-center overflow-y-auto bg-slate-100 p-4 dark:bg-slate-950 sm:p-6">
+      <div className="grid w-full max-w-md overflow-hidden rounded-3xl bg-white shadow-2xl dark:bg-slate-900 lg:max-w-5xl lg:grid-cols-2">
         {/* Left panel */}
         <div className="relative hidden flex-col justify-between overflow-hidden bg-gradient-to-br from-brand-600 to-brand-900 p-10 text-white lg:flex">
           <div>
