@@ -6,169 +6,183 @@ import { api, apiError } from '../lib/api';
 import { Spinner } from '../components/ui';
 import { Icon } from '../components/Icons';
 
-/* ─────────────────────────────────────────────────────────────
-   LEFT PANEL — Shared between Login & Register
-───────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════
+   LEFT PANEL ILLUSTRATION
+   Laptop dashboard + chat bubble + Rp card + books + plant
+═══════════════════════════════════════════════════════ */
+function LeftIllustration() {
+  return (
+    <svg viewBox="0 0 460 300" fill="none" xmlns="http://www.w3.org/2000/svg"
+      className="w-full max-w-[420px] mx-auto">
+
+      {/* ── Chat bubble ── */}
+      <rect x="6"  y="32" width="96" height="54" rx="16" fill="white" opacity="0.93"/>
+      <path d="M28 86 C32 98 44 98 48 86" fill="white" opacity="0.93"/>
+      <circle cx="30" cy="59" r="6"  fill="#93c5fd"/>
+      <circle cx="54" cy="59" r="6"  fill="#93c5fd"/>
+      <circle cx="78" cy="59" r="6"  fill="#93c5fd"/>
+
+      {/* ── Books stack ── */}
+      <rect x="16" y="236" width="88" height="13" rx="4" fill="#93c5fd" opacity="0.55"/>
+      <rect x="8"  y="223" width="104" height="13" rx="4" fill="#bfdbfe" opacity="0.45"/>
+
+      {/* ── Laptop keyboard ── */}
+      <rect x="50" y="194" width="284" height="20" rx="8" fill="white" opacity="0.55"/>
+      <rect x="110" y="205" width="164" height="5" rx="2.5" fill="#94a3b8" opacity="0.18"/>
+
+      {/* ── Laptop screen frame ── */}
+      <rect x="62"  y="56"  width="260" height="144" rx="12" fill="white"   opacity="0.97"/>
+      {/* screen glass */}
+      <rect x="72"  y="65"  width="240" height="126" rx="7"  fill="#f0f6ff"/>
+
+      {/* ── Dashboard on screen ── */}
+      {/* Header bar */}
+      <rect x="78" y="71"  width="228" height="14" rx="3" fill="#e2ecff" opacity="0.8"/>
+      <rect x="82" y="74.5" width="40" height="7" rx="2" fill="#3b82f6" opacity="0.5"/>
+      <rect x="128" y="74.5" width="30" height="7" rx="2" fill="#94a3b8" opacity="0.4"/>
+      <rect x="164" y="74.5" width="30" height="7" rx="2" fill="#94a3b8" opacity="0.4"/>
+
+      {/* Stat cards row */}
+      <rect x="78"  y="91" width="52" height="28" rx="5" fill="#dbeafe" opacity="0.9"/>
+      <rect x="136" y="91" width="52" height="28" rx="5" fill="#dcfce7" opacity="0.9"/>
+      <rect x="194" y="91" width="52" height="28" rx="5" fill="#fef3c7" opacity="0.9"/>
+      <rect x="252" y="91" width="48" height="28" rx="5" fill="#fce7f3" opacity="0.9"/>
+
+      {/* Left: Area chart */}
+      {/* chart bg */}
+      <rect x="78" y="125" width="148" height="60" rx="4" fill="white" opacity="0.6"/>
+      {/* grid */}
+      <line x1="84"  y1="175" x2="220" y2="175" stroke="#e2ecff" strokeWidth="0.8"/>
+      <line x1="84"  y1="163" x2="220" y2="163" stroke="#e2ecff" strokeWidth="0.8"/>
+      <line x1="84"  y1="151" x2="220" y2="151" stroke="#e2ecff" strokeWidth="0.8"/>
+      {/* area fill */}
+      <polygon points="88,172 100,165 112,168 124,158 136,163 148,152 160,155 172,144 184,148 196,136 208,140 220,129 220,176 88,176"
+        fill="#3b82f6" opacity="0.10"/>
+      {/* line */}
+      <polyline points="88,172 100,165 112,168 124,158 136,163 148,152 160,155 172,144 184,148 196,136 208,140 220,129"
+        stroke="#3b82f6" strokeWidth="2.2" fill="none" strokeLinejoin="round" strokeLinecap="round"/>
+      <circle cx="172" cy="144" r="3" fill="#2563eb"/>
+      <circle cx="220" cy="129" r="3.5" fill="#2563eb"/>
+
+      {/* Right: Donut chart */}
+      <rect x="232" y="125" width="82" height="60" rx="4" fill="white" opacity="0.6"/>
+      <circle cx="273" cy="155" r="22" fill="none" stroke="#dbeafe"  strokeWidth="12"/>
+      <circle cx="273" cy="155" r="22" fill="none" stroke="#3b82f6"  strokeWidth="12"
+        strokeDasharray="60 82" strokeDashoffset="21"/>
+      <circle cx="273" cy="155" r="22" fill="none" stroke="#60a5fa"  strokeWidth="12"
+        strokeDasharray="28 114" strokeDashoffset="-39"/>
+      <circle cx="273" cy="155" r="14" fill="#f0f6ff"/>
+      <text x="273" y="159" textAnchor="middle" fontSize="9" fontWeight="bold" fill="#1e40af">76%</text>
+
+      {/* ── Rp card ── */}
+      <rect x="310" y="44" width="80" height="108" rx="14" fill="white" opacity="0.95"/>
+      <rect x="310" y="44" width="80" height="24"  rx="14" fill="#eff6ff"/>
+      <rect x="310" y="58" width="80" height="10"  fill="#eff6ff"/>
+      {/* Rp circle */}
+      <circle cx="350" cy="100" r="22" fill="#dbeafe"/>
+      <circle cx="350" cy="100" r="15" fill="#2563eb"/>
+      <text x="350" y="105" textAnchor="middle" fontSize="11" fontWeight="bold" fill="white">Rp</text>
+      <rect x="322" y="130" width="56" height="5" rx="2.5" fill="#93c5fd" opacity="0.5"/>
+      <rect x="326" y="140" width="48" height="5" rx="2.5" fill="#bfdbfe" opacity="0.45"/>
+
+      {/* ── Potted plant ── */}
+      {/* leaves */}
+      <ellipse cx="400" cy="182" rx="14" ry="22" fill="#4ade80" opacity="0.40"/>
+      <ellipse cx="388" cy="168" rx="11" ry="17" fill="#22c55e" opacity="0.35"/>
+      <ellipse cx="412" cy="165" rx="10" ry="15" fill="#86efac" opacity="0.38"/>
+      <ellipse cx="402" cy="160" rx="8"  ry="14" fill="#4ade80" opacity="0.30"/>
+      {/* stem */}
+      <rect x="396" y="190" width="7"  height="18" rx="3"  fill="#86efac" opacity="0.50"/>
+      {/* pot */}
+      <path d="M388 208 L392 224 L410 224 L414 208 Z" fill="#e2e8f0" opacity="0.75"/>
+      <rect x="386" y="204" width="30" height="7" rx="3.5" fill="#cbd5e1" opacity="0.70"/>
+    </svg>
+  );
+}
+
+/* ═══════════════════════════════════════════════════════
+   LEFT PANEL — exported so Register can reuse it
+═══════════════════════════════════════════════════════ */
 export function AuthLeftPanel({ illustration }) {
   return (
-    <div className="hidden lg:flex lg:w-[44%] xl:w-[40%] shrink-0 flex-col bg-gradient-to-b from-[#1a56db] via-[#1a4cc5] to-[#1e3a8a] text-white select-none">
+    <div
+      className="hidden lg:flex lg:w-[44%] xl:w-[42%] shrink-0 flex-col text-white select-none relative overflow-hidden"
+      style={{ background: 'linear-gradient(160deg, #1a56db 0%, #1a4cc5 45%, #1e3a8a 100%)' }}
+    >
+      {/* dot grid overlay */}
+      <div className="absolute inset-0 pointer-events-none"
+        style={{
+          backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.07) 1.5px, transparent 1.5px)',
+          backgroundSize: '28px 28px',
+        }}
+      />
+      <div className="relative flex flex-1 flex-col items-center justify-between px-8 xl:px-10 py-8">
+        {/* Top: POSPAY logo */}
+        <div className="flex flex-col items-center gap-3 w-full">
+          <div className="flex items-center gap-3">
+            <div className="flex h-[60px] w-[60px] items-center justify-center rounded-[18px] bg-white shadow-lg">
+              {/* Graduation cap + wallet icon */}
+              <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+                <rect x="5" y="17" width="26" height="15" rx="4" fill="#1d4ed8"/>
+                <rect x="9" y="21" width="9" height="7" rx="2.5" fill="white" opacity="0.75"/>
+                <rect x="5" y="20" width="26" height="4" fill="#1e40af" opacity="0.5"/>
+                <path d="M7 17 L18 8 L29 17" fill="#dbeafe" opacity="0.9"/>
+                <circle cx="18" cy="12" r="3.5" fill="#3b82f6"/>
+              </svg>
+            </div>
+            <span className="text-[32px] font-extrabold tracking-tight leading-none">POSPAY</span>
+          </div>
+        </div>
 
-      {/* ── Top branding ── */}
-      <div className="flex flex-col items-center pt-10 px-10 xl:px-12">
-        {/* Logo */}
-        <div className="flex items-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white shadow-md">
-            {/* Wallet + cap icon */}
-            <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
-              <rect x="5" y="16" width="24" height="14" rx="3.5" fill="#1d4ed8"/>
-              <rect x="9" y="20" width="8" height="6" rx="2" fill="white" opacity="0.75"/>
-              <rect x="5" y="19" width="24" height="3.5" fill="#1e40af" opacity="0.55"/>
-              <path d="M8 16 L17 8 L26 16" fill="#dbeafe" opacity="0.85"/>
-              <circle cx="17" cy="11.5" r="3" fill="#3b82f6"/>
+        {/* Middle: Illustration */}
+        <div className="flex-1 flex items-center justify-center w-full py-4">
+          {illustration}
+        </div>
+
+        {/* Bottom: SMP section */}
+        <div className="w-full border-t border-white/15 pt-5">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-200/80 mb-3">
+            Studi Kasus
+          </p>
+          <div className="flex items-center gap-3">
+            {/* School badge */}
+            <svg width="46" height="46" viewBox="0 0 46 46" className="shrink-0">
+              <circle cx="23" cy="23" r="22" fill="#f59e0b"/>
+              <circle cx="23" cy="23" r="18" fill="#1a4cc5"/>
+              <circle cx="23" cy="23" r="14" fill="#1e3a8a"/>
+              {/* Open book */}
+              <path d="M14 19 Q18 16 23 19 Q28 16 32 19 L32 29 Q28 26 23 29 Q18 26 14 29 Z"
+                fill="#fbbf24" opacity="0.9"/>
+              <line x1="23" y1="19" x2="23" y2="29" stroke="#1e3a8a" strokeWidth="1"/>
+              {/* Lines on pages */}
+              <line x1="16" y1="22" x2="21" y2="22" stroke="#fde68a" strokeWidth="0.8" opacity="0.7"/>
+              <line x1="16" y1="24.5" x2="21" y2="24.5" stroke="#fde68a" strokeWidth="0.8" opacity="0.7"/>
+              <line x1="25" y1="22" x2="30" y2="22" stroke="#fde68a" strokeWidth="0.8" opacity="0.7"/>
+              <line x1="25" y1="24.5" x2="30" y2="24.5" stroke="#fde68a" strokeWidth="0.8" opacity="0.7"/>
+              <text x="23" y="39" textAnchor="middle" fontSize="4.8" fontWeight="bold" fill="#fde68a">BREBES</text>
             </svg>
+            <div>
+              <p className="font-bold text-[15px] leading-tight">SMP Pusponegoro Brebes</p>
+              <div className="mt-1 h-px w-24 bg-white/30"/>
+            </div>
           </div>
-          <span className="text-3xl font-extrabold tracking-tight">POSPAY</span>
+          <p className="mt-2.5 text-[11.5px] leading-relaxed text-blue-200/80">
+            POSPAY membantu pengelolaan keuangan sekolah menjadi lebih teratur, transparan, dan mudah diakses.
+          </p>
         </div>
-
-        {/* Subtitle */}
-        <p className="mt-3 text-center text-[15px] font-semibold leading-snug text-white/90">
-          Sistem Informasi Keuangan Sekolah<br/>Berbasis Website
-        </p>
-
-        {/* Divider */}
-        <div className="mt-3 h-[2px] w-10 rounded-full bg-white/35"/>
-
-        {/* Chatbot button */}
-        <button className="mt-4 flex items-center gap-2 rounded-xl bg-white/10 border border-white/20 px-5 py-2.5 text-sm font-semibold hover:bg-white/15 transition-colors shadow-sm">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" opacity="0.9">
-            <path d="M20 2H4a2 2 0 00-2 2v18l4-4h14a2 2 0 002-2V4a2 2 0 00-2-2z"/>
-          </svg>
-          Dengan Fitur Bantuan Chatbot
-        </button>
-      </div>
-
-      {/* ── Illustration ── */}
-      <div className="flex flex-1 items-center justify-center px-6 py-2">
-        {illustration}
-      </div>
-
-      {/* ── SMP section ── */}
-      <div className="border-t border-white/15 px-8 xl:px-10 py-5">
-        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-blue-200/80 mb-2">
-          Studi Kasus
-        </p>
-        <div className="flex items-center gap-3">
-          {/* School badge */}
-          <svg width="42" height="42" viewBox="0 0 42 42" className="shrink-0">
-            <circle cx="21" cy="21" r="20" fill="#f59e0b"/>
-            <circle cx="21" cy="21" r="16" fill="#1d4ed8"/>
-            <circle cx="21" cy="21" r="12.5" fill="#1e3a8a"/>
-            {/* Open book icon inside */}
-            <path d="M13 16 Q17 14 21 16 Q25 14 29 16 L29 26 Q25 24 21 26 Q17 24 13 26 Z" fill="#fbbf24" opacity="0.85"/>
-            <line x1="21" y1="16" x2="21" y2="26" stroke="#1e3a8a" strokeWidth="0.8"/>
-            <text x="21" y="36" textAnchor="middle" fontSize="4.5" fontWeight="bold" fill="#fde68a">BREBES</text>
-          </svg>
-          <div>
-            <p className="font-bold text-[14px] leading-tight">SMP Pusponegoro Brebes</p>
-            <div className="mt-1 h-px w-20 bg-white/30"/>
-          </div>
-        </div>
-        <p className="mt-2 text-[11px] leading-relaxed text-blue-200/80">
-          POSPAY membantu pengelolaan keuangan sekolah menjadi lebih teratur, transparan, dan mudah diakses.
-        </p>
       </div>
     </div>
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
-   LOGIN ILLUSTRATION
-───────────────────────────────────────────────────────────── */
-function LoginIllustration() {
-  return (
-    <svg viewBox="0 0 360 250" fill="none" xmlns="http://www.w3.org/2000/svg"
-      className="w-full max-w-[340px]">
-
-      {/* ─── Chat bubble ─── */}
-      <rect x="4" y="20" width="88" height="54" rx="14" fill="white" opacity="0.92"/>
-      {/* bubble tail */}
-      <path d="M24 74 Q30 86 40 74" fill="white" opacity="0.92"/>
-      {/* three dots */}
-      <circle cx="26" cy="47" r="5.5" fill="#93c5fd"/>
-      <circle cx="48" cy="47" r="5.5" fill="#93c5fd"/>
-      <circle cx="70" cy="47" r="5.5" fill="#93c5fd"/>
-
-      {/* ─── Laptop keyboard base ─── */}
-      <rect x="30" y="186" width="254" height="18" rx="7" fill="white" opacity="0.6"/>
-      <rect x="88" y="197" width="138" height="5" rx="2.5" fill="#94a3b8" opacity="0.22"/>
-
-      {/* ─── Laptop screen ─── */}
-      <rect x="42" y="56" width="230" height="136" rx="12" fill="white" opacity="0.96"/>
-      {/* screen content bg */}
-      <rect x="52" y="65" width="210" height="118" rx="7" fill="#f0f6ff"/>
-
-      {/* ─── Chart grid ─── */}
-      <line x1="62" y1="170" x2="252" y2="170" stroke="#dde8f7" strokeWidth="1"/>
-      <line x1="62" y1="153" x2="252" y2="153" stroke="#dde8f7" strokeWidth="0.8"/>
-      <line x1="62" y1="136" x2="252" y2="136" stroke="#dde8f7" strokeWidth="0.8"/>
-      <line x1="62" y1="119" x2="252" y2="119" stroke="#dde8f7" strokeWidth="0.8"/>
-      <line x1="62" y1="102" x2="252" y2="102" stroke="#dde8f7" strokeWidth="0.8"/>
-
-      {/* ─── Area fill ─── */}
-      <polygon
-        points="72,162 98,148 124,154 150,132 176,140 202,116 228,122 252,105 252,172 72,172"
-        fill="#3b82f6" opacity="0.10"/>
-
-      {/* ─── Line chart ─── */}
-      <polyline
-        points="72,162 98,148 124,154 150,132 176,140 202,116 228,122 252,105"
-        stroke="#2563eb" strokeWidth="3" fill="none"
-        strokeLinejoin="round" strokeLinecap="round"/>
-
-      {/* chart dots */}
-      <circle cx="72"  cy="162" r="4" fill="white" stroke="#2563eb" strokeWidth="2"/>
-      <circle cx="124" cy="154" r="4" fill="white" stroke="#2563eb" strokeWidth="2"/>
-      <circle cx="176" cy="140" r="4" fill="white" stroke="#2563eb" strokeWidth="2"/>
-      <circle cx="228" cy="122" r="4" fill="white" stroke="#2563eb" strokeWidth="2"/>
-      <circle cx="252" cy="105" r="5" fill="#2563eb"/>
-
-      {/* x-axis labels placeholder */}
-      <rect x="68"  y="175" width="18" height="3.5" rx="1.75" fill="#c7d9f0" opacity="0.6"/>
-      <rect x="96"  y="175" width="18" height="3.5" rx="1.75" fill="#c7d9f0" opacity="0.6"/>
-      <rect x="124" y="175" width="18" height="3.5" rx="1.75" fill="#c7d9f0" opacity="0.6"/>
-      <rect x="152" y="175" width="18" height="3.5" rx="1.75" fill="#c7d9f0" opacity="0.6"/>
-      <rect x="180" y="175" width="18" height="3.5" rx="1.75" fill="#c7d9f0" opacity="0.6"/>
-      <rect x="208" y="175" width="18" height="3.5" rx="1.75" fill="#c7d9f0" opacity="0.6"/>
-
-      {/* ─── Rp card ─── */}
-      <rect x="270" y="58" width="82" height="120" rx="14" fill="white" opacity="0.95"/>
-      {/* card top accent */}
-      <rect x="270" y="58" width="82" height="22" rx="14" fill="#eff6ff"/>
-      <rect x="270" y="70" width="82" height="10" fill="#eff6ff"/>
-      {/* Rp circle */}
-      <circle cx="311" cy="106" r="22" fill="#dbeafe"/>
-      <circle cx="311" cy="106" r="15" fill="#2563eb"/>
-      <text x="311" y="111" textAnchor="middle" fontSize="11" fontWeight="bold" fill="white">Rp</text>
-      {/* card lines */}
-      <rect x="283" y="138" width="56" height="5" rx="2.5" fill="#93c5fd" opacity="0.5"/>
-      <rect x="287" y="150" width="48" height="5" rx="2.5" fill="#bfdbfe" opacity="0.45"/>
-      <rect x="291" y="162" width="40" height="5" rx="2.5" fill="#dbeafe" opacity="0.35"/>
-
-      {/* ─── Plant ─── */}
-      <ellipse cx="350" cy="172" rx="12" ry="18" fill="#4ade80" opacity="0.38"/>
-      <ellipse cx="340" cy="158" rx="10" ry="15" fill="#22c55e" opacity="0.32"/>
-      <ellipse cx="358" cy="155" rx="9"  ry="13" fill="#86efac" opacity="0.38"/>
-      <rect x="345" y="182" width="7" height="20" rx="3" fill="#86efac" opacity="0.40"/>
-    </svg>
-  );
-}
-
-/* ─────────────────────────────────────────────────────────────
-   INPUT COMPONENT
-───────────────────────────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════
+   FIELD INPUT
+═══════════════════════════════════════════════════════ */
 function FieldInput({ icon: IconC, right, ...props }) {
   return (
-    <div className="flex items-center rounded-lg border border-slate-300 bg-white overflow-hidden transition-shadow focus-within:border-brand-500 focus-within:ring-1 focus-within:ring-brand-500 dark:border-slate-600 dark:bg-slate-800">
+    <div className="flex items-center rounded-lg border border-slate-300 bg-white overflow-hidden
+      transition focus-within:border-brand-500 focus-within:ring-1 focus-within:ring-brand-500
+      dark:border-slate-600 dark:bg-slate-800">
       <span className="flex w-10 shrink-0 items-center justify-center">
         <IconC width={15} height={15} className="text-slate-400"/>
       </span>
@@ -181,9 +195,9 @@ function FieldInput({ icon: IconC, right, ...props }) {
   );
 }
 
-/* ─────────────────────────────────────────────────────────────
+/* ═══════════════════════════════════════════════════════
    LOGIN PAGE
-───────────────────────────────────────────────────────────── */
+═══════════════════════════════════════════════════════ */
 export default function Login() {
   const { login } = useAuth();
   const toast = useToast();
@@ -216,35 +230,34 @@ export default function Login() {
 
   return (
     <div className="flex min-h-screen">
-      <AuthLeftPanel illustration={<LoginIllustration />} />
+      <AuthLeftPanel illustration={<LeftIllustration />} />
 
       {/* ── Right panel ── */}
-      <div className="flex flex-1 items-center justify-center overflow-y-auto bg-white dark:bg-slate-950 px-6 py-10 sm:px-10">
+      <div className="flex flex-1 items-center justify-center overflow-y-auto bg-white dark:bg-slate-950 px-6 py-10 sm:px-12">
         <div className="w-full max-w-sm">
 
           {/* Mobile logo */}
-          <div className="mb-7 flex items-center gap-2 lg:hidden">
+          <div className="mb-8 flex items-center gap-2 lg:hidden">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-white">
               <Icon.School width={18} height={18}/>
             </div>
             <span className="font-bold text-slate-900 dark:text-white">POSPAY</span>
           </div>
 
-          {/* Lock icon */}
-          <div className="mb-5 flex justify-center">
-            <div className="flex h-[60px] w-[60px] items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800">
-              <Icon.Lock width={26} height={26} className="text-slate-400"/>
-            </div>
+          {/* Heading — centered */}
+          <div className="mb-6 text-center">
+            <h1 className="text-[30px] font-extrabold text-slate-900 dark:text-white tracking-tight">Masuk</h1>
+            <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
+              Masuk untuk mengakses sistem POSPAY
+            </p>
           </div>
 
-          {/* Heading */}
-          <h1 className="text-[26px] font-bold text-slate-900 dark:text-white">Login Bendahara</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Masuk untuk mengakses sistem POSPAY</p>
-
-          <form onSubmit={submit} className="mt-6 space-y-4">
+          <form onSubmit={submit} className="space-y-4">
             {/* Email Sekolah */}
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Email Sekolah</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Email Sekolah
+              </label>
               <FieldInput
                 icon={Icon.Mail}
                 type="text"
@@ -258,7 +271,9 @@ export default function Login() {
 
             {/* Password */}
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">Password</label>
+              <label className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Password
+              </label>
               <FieldInput
                 icon={Icon.Lock}
                 type={showPwd ? 'text' : 'password'}
@@ -270,26 +285,35 @@ export default function Login() {
                   <button type="button" tabIndex={-1}
                     onClick={() => setShowPwd(v => !v)}
                     className="flex w-10 shrink-0 items-center justify-center text-slate-400 hover:text-slate-600">
-                    {showPwd ? <Icon.EyeOff width={15} height={15}/> : <Icon.Eye width={15} height={15}/>}
+                    {showPwd
+                      ? <Icon.EyeOff width={15} height={15}/>
+                      : <Icon.Eye    width={15} height={15}/>}
                   </button>
                 }
               />
             </div>
 
-            {/* Remember + Forgot */}
+            {/* Remember me + Forgot password */}
             <div className="flex items-center justify-between">
               <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 accent-brand-600"/>
+                <input
+                  type="checkbox"
+                  checked={remember}
+                  onChange={e => setRemember(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 accent-brand-600"
+                />
                 Ingat saya
               </label>
-              <button type="button" className="text-sm font-medium text-brand-600 hover:underline">
+              <button type="button"
+                className="text-sm font-semibold text-brand-600 hover:underline">
                 Lupa password?
               </button>
             </div>
 
             <button type="submit" disabled={loading}
-              className="w-full rounded-lg bg-brand-600 py-2.5 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-60 transition-colors flex items-center justify-center">
+              className="flex w-full items-center justify-center rounded-lg bg-brand-600 py-3
+                text-sm font-semibold text-white shadow-sm hover:bg-brand-700
+                disabled:opacity-60 transition-colors">
               {loading ? <Spinner size={18} className="text-white"/> : 'Masuk'}
             </button>
           </form>
@@ -301,23 +325,31 @@ export default function Login() {
             <div className="flex-1 border-t border-slate-200 dark:border-slate-700"/>
           </div>
 
-          {/* Back to home / register */}
-          <button
-            type="button"
-            onClick={() => canRegister ? navigate('/register') : navigate('/')}
-            className="flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800 transition-colors">
-            <Icon.Shield width={15} height={15} className="text-brand-600"/>
-            Kembali ke Beranda
-          </button>
+          {/* Register link */}
+          {canRegister && (
+            <p className="text-center text-sm text-slate-600 dark:text-slate-400">
+              Belum memiliki akun?{' '}
+              <button
+                type="button"
+                onClick={() => navigate('/register')}
+                className="font-semibold text-brand-600 hover:underline"
+              >
+                daftar
+              </button>
+            </p>
+          )}
 
           {/* Footer */}
-          <div className="mt-7 space-y-1 text-center">
+          <div className="mt-8 space-y-1 text-center">
             <p className="flex items-center justify-center gap-1 text-xs text-slate-400">
               <Icon.Shield width={11} height={11}/>
               Hanya bendahara yang terdaftar dapat mengakses sistem ini
             </p>
-            <p className="text-xs text-slate-400">© {new Date().getFullYear()} POSPAY. All rights reserved.</p>
+            <p className="text-xs text-slate-400">
+              © {new Date().getFullYear()} POSPAY.&nbsp; All rights reserved.
+            </p>
           </div>
+
         </div>
       </div>
     </div>
