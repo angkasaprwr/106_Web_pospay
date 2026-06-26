@@ -6,145 +6,157 @@ import { apiError } from '../lib/api';
 import { Spinner } from '../components/ui';
 import { Icon } from '../components/Icons';
 
-/* ════════════════════════════════════════════════════════
-   ILLUSTRATION  (identical to bendahara)
-════════════════════════════════════════════════════════ */
-function LeftIllustration() {
+/* ══════════════════════════════════════════════════════════════
+   SAME ILLUSTRATION as bendahara
+══════════════════════════════════════════════════════════════ */
+function LoginIllustration() {
   return (
-    <svg viewBox="0 0 500 320" fill="none" xmlns="http://www.w3.org/2000/svg"
-      className="w-full max-w-[460px] mx-auto">
+    <svg viewBox="0 0 520 330" fill="none" xmlns="http://www.w3.org/2000/svg"
+         style={{ width: '100%', maxWidth: 480 }}>
       {/* Chat bubble */}
-      <rect x="4" y="28" width="108" height="62" rx="18" fill="white" opacity="0.94"/>
-      <path d="M30 90 Q38 108 56 90" fill="white" opacity="0.94"/>
-      <circle cx="32" cy="59" r="8" fill="#93c5fd"/>
-      <circle cx="58" cy="59" r="8" fill="#93c5fd"/>
-      <circle cx="84" cy="59" r="8" fill="#93c5fd"/>
+      <rect x="2" y="24" width="112" height="64" rx="20" fill="white" fillOpacity=".93"/>
+      <path d="M28 88 Q36 108 54 88" fill="white" fillOpacity=".93"/>
+      <circle cx="32" cy="56" r="8.5" fill="#93c5fd"/>
+      <circle cx="57" cy="56" r="8.5" fill="#93c5fd"/>
+      <circle cx="82" cy="56" r="8.5" fill="#93c5fd"/>
       {/* Books */}
-      <rect x="10" y="258" width="96"  height="16" rx="6" fill="#1e3a8a" opacity="0.65"/>
-      <rect x="4"  y="242" width="110" height="16" rx="6" fill="#1e40af" opacity="0.50"/>
-      <rect x="16" y="274" width="82"  height="12" rx="5" fill="#1e3a8a" opacity="0.55"/>
+      <rect x="6"  y="266" width="102" height="17" rx="6" fill="#1e3a8a" fillOpacity=".65"/>
+      <rect x="0"  y="249" width="116" height="17" rx="6" fill="#1e40af" fillOpacity=".52"/>
+      <rect x="12" y="283" width="88"  height="12" rx="5" fill="#1e3a8a" fillOpacity=".56"/>
       {/* Keyboard */}
-      <rect x="50" y="214" width="318" height="24" rx="10" fill="#334155" opacity="0.80"/>
-      <rect x="114" y="224" width="190" height="7" rx="3.5" fill="#1e293b" opacity="0.28"/>
-      {/* Screen bezel */}
-      <rect x="62" y="60" width="294" height="160" rx="14" fill="#1e293b" opacity="0.85"/>
-      {/* Screen glass */}
-      <rect x="76" y="72" width="266" height="138" rx="9" fill="white"   opacity="0.97"/>
-      <rect x="76" y="72" width="266" height="138" rx="9" fill="#eef5ff" opacity="0.55"/>
+      <rect x="48" y="220" width="328" height="26" rx="11" fill="#334155" fillOpacity=".82"/>
+      <rect x="116" y="231" width="196" height="7"  rx="3.5" fill="#1e293b" fillOpacity=".26"/>
+      {/* Bezel */}
+      <rect x="60" y="58" width="304" height="168" rx="15" fill="#1e293b" fillOpacity=".88"/>
+      {/* Screen */}
+      <rect x="74" y="70" width="276" height="144" rx="10" fill="white"   fillOpacity=".98"/>
+      <rect x="74" y="70" width="276" height="144" rx="10" fill="#eef5ff" fillOpacity=".55"/>
       {/* Nav */}
-      <rect x="82" y="78" width="254" height="18" rx="4" fill="#dbeafe" opacity="0.80"/>
-      <rect x="87" y="81.5" width="50" height="11" rx="3" fill="#3b82f6" opacity="0.55"/>
-      <rect x="143" y="81.5" width="36" height="11" rx="3" fill="#94a3b8" opacity="0.38"/>
-      <rect x="185" y="81.5" width="36" height="11" rx="3" fill="#94a3b8" opacity="0.30"/>
+      <rect x="80" y="76" width="264" height="19" rx="5" fill="#dbeafe" fillOpacity=".80"/>
+      <rect x="85" y="79.5" width="54" height="12" rx="3.5" fill="#3b82f6" fillOpacity=".55"/>
+      <rect x="145" y="79.5" width="38" height="12" rx="3"   fill="#94a3b8" fillOpacity=".38"/>
+      <rect x="189" y="79.5" width="38" height="12" rx="3"   fill="#94a3b8" fillOpacity=".30"/>
       {/* Stat cards */}
-      <rect x="82"  y="102" width="60" height="28" rx="6" fill="#dbeafe" opacity="0.95"/>
-      <rect x="149" y="102" width="60" height="28" rx="6" fill="#dcfce7" opacity="0.95"/>
-      <rect x="216" y="102" width="60" height="28" rx="6" fill="#fef3c7" opacity="0.95"/>
-      <rect x="283" y="102" width="54" height="28" rx="6" fill="#fce7f3" opacity="0.90"/>
+      <rect x="80"  y="101" width="62" height="30" rx="6" fill="#dbeafe" fillOpacity=".95"/>
+      <rect x="149" y="101" width="62" height="30" rx="6" fill="#dcfce7" fillOpacity=".95"/>
+      <rect x="218" y="101" width="62" height="30" rx="6" fill="#fef3c7" fillOpacity=".95"/>
+      <rect x="287" y="101" width="57" height="30" rx="6" fill="#fce7f3" fillOpacity=".90"/>
       {/* Line chart */}
-      <rect x="82" y="136" width="160" height="68" rx="6" fill="white" opacity="0.65"/>
-      <line x1="90" y1="196" x2="236" y2="196" stroke="#dde9f7" strokeWidth="1"/>
-      <line x1="90" y1="181" x2="236" y2="181" stroke="#dde9f7" strokeWidth="1"/>
-      <line x1="90" y1="166" x2="236" y2="166" stroke="#dde9f7" strokeWidth="1"/>
-      <line x1="90" y1="151" x2="236" y2="151" stroke="#dde9f7" strokeWidth="1"/>
+      <rect x="80" y="138" width="166" height="70" rx="7" fill="white" fillOpacity=".68"/>
+      <line x1="88" y1="200" x2="240" y2="200" stroke="#dde9f7" strokeWidth="1"/>
+      <line x1="88" y1="186" x2="240" y2="186" stroke="#dde9f7" strokeWidth="1"/>
+      <line x1="88" y1="172" x2="240" y2="172" stroke="#dde9f7" strokeWidth="1"/>
+      <line x1="88" y1="158" x2="240" y2="158" stroke="#dde9f7" strokeWidth="1"/>
       <polygon
-        points="94,192 110,182 126,186 142,172 158,178 174,164 190,168 206,155 222,159 234,146 242,146 242,198 94,198"
-        fill="#3b82f6" opacity="0.10"/>
+        points="92,196 108,186 124,190 140,176 156,182 172,167 188,172 204,158 220,163 234,149 242,149 242,202 92,202"
+        fill="#3b82f6" fillOpacity=".10"/>
       <polyline
-        points="94,192 110,182 126,186 142,172 158,178 174,164 190,168 206,155 222,159 234,146"
+        points="92,196 108,186 124,190 140,176 156,182 172,167 188,172 204,158 220,163 234,149"
         stroke="#2563eb" strokeWidth="2.8" fill="none"
         strokeLinejoin="round" strokeLinecap="round"/>
-      <circle cx="142" cy="172" r="4" fill="white" stroke="#2563eb" strokeWidth="2.2"/>
-      <circle cx="190" cy="168" r="4" fill="white" stroke="#2563eb" strokeWidth="2.2"/>
-      <circle cx="234" cy="146" r="4.5" fill="#2563eb"/>
+      <circle cx="140" cy="176" r="4.5" fill="white" stroke="#2563eb" strokeWidth="2.2"/>
+      <circle cx="188" cy="172" r="4.5" fill="white" stroke="#2563eb" strokeWidth="2.2"/>
+      <circle cx="234" cy="149" r="5"   fill="#2563eb"/>
       {/* Donut */}
-      <rect x="248" y="136" width="90" height="68" rx="6" fill="white" opacity="0.65"/>
-      <circle cx="293" cy="170" r="26" fill="none" stroke="#dbeafe" strokeWidth="15"/>
-      <circle cx="293" cy="170" r="26" fill="none" stroke="#2563eb" strokeWidth="15"
-        strokeDasharray="70 94" strokeDashoffset="23"/>
-      <circle cx="293" cy="170" r="26" fill="none" stroke="#60a5fa" strokeWidth="15"
-        strokeDasharray="32 132" strokeDashoffset="-47"/>
-      <circle cx="293" cy="170" r="15" fill="#eef5ff"/>
-      <text x="293" y="175" textAnchor="middle" fontSize="10" fontWeight="bold" fill="#1e40af">76%</text>
+      <rect x="252" y="138" width="92" height="70" rx="7" fill="white" fillOpacity=".68"/>
+      <circle cx="298" cy="173" r="27" fill="none" stroke="#dbeafe" strokeWidth="15"/>
+      <circle cx="298" cy="173" r="27" fill="none" stroke="#2563eb" strokeWidth="15"
+              strokeDasharray="72 98" strokeDashoffset="24"/>
+      <circle cx="298" cy="173" r="27" fill="none" stroke="#60a5fa" strokeWidth="15"
+              strokeDasharray="33 137" strokeDashoffset="-48"/>
+      <circle cx="298" cy="173" r="16" fill="#eef5ff"/>
+      <text x="298" y="178" textAnchor="middle" fontSize="10.5" fontWeight="bold" fill="#1e40af">76%</text>
       {/* Rp card */}
-      <rect x="344" y="44" width="98" height="130" rx="18" fill="white" opacity="0.97"/>
-      <rect x="344" y="44" width="98" height="30"  rx="18" fill="#eff6ff"/>
-      <rect x="344" y="62" width="98" height="12"  fill="#eff6ff"/>
-      <circle cx="393" cy="114" r="27" fill="#dbeafe"/>
-      <circle cx="393" cy="114" r="18" fill="#2563eb"/>
-      <text x="393" y="120" textAnchor="middle" fontSize="14" fontWeight="bold" fill="white">Rp</text>
-      <rect x="357" y="150" width="72" height="7" rx="3.5" fill="#93c5fd" opacity="0.50"/>
-      <rect x="361" y="164" width="64" height="7" rx="3.5" fill="#bfdbfe" opacity="0.44"/>
-      <rect x="365" y="178" width="56" height="7" rx="3.5" fill="#dbeafe" opacity="0.34"/>
+      <rect x="352" y="42" width="100" height="132" rx="18" fill="white" fillOpacity=".97"/>
+      <rect x="352" y="42"  width="100" height="30" rx="18" fill="#eff6ff"/>
+      <rect x="352" y="60"  width="100" height="12"        fill="#eff6ff"/>
+      <circle cx="402" cy="116" r="28" fill="#dbeafe"/>
+      <circle cx="402" cy="116" r="19" fill="#2563eb"/>
+      <text x="402" y="123" textAnchor="middle" fontSize="14" fontWeight="bold" fill="white">Rp</text>
+      <rect x="366" y="154" width="72" height="7.5" rx="3.75" fill="#93c5fd" fillOpacity=".50"/>
+      <rect x="370" y="168" width="64" height="7.5" rx="3.75" fill="#bfdbfe" fillOpacity=".44"/>
+      <rect x="374" y="182" width="56" height="7.5" rx="3.75" fill="#dbeafe" fillOpacity=".34"/>
       {/* Plant */}
-      <ellipse cx="456" cy="204" rx="18" ry="28" fill="#4ade80" opacity="0.44"/>
-      <ellipse cx="440" cy="186" rx="14" ry="22" fill="#22c55e" opacity="0.38"/>
-      <ellipse cx="470" cy="182" rx="13" ry="20" fill="#86efac" opacity="0.40"/>
-      <ellipse cx="458" cy="174" rx="11" ry="18" fill="#4ade80" opacity="0.34"/>
-      <rect x="450" y="220" width="10" height="24" rx="4"  fill="#86efac" opacity="0.52"/>
-      <path d="M438 244 L442 266 L468 266 L472 244 Z" fill="#94a3b8" opacity="0.72"/>
-      <rect x="434" y="240" width="42" height="10" rx="5" fill="#cbd5e1" opacity="0.78"/>
+      <ellipse cx="468" cy="208" rx="20" ry="30" fill="#4ade80" fillOpacity=".44"/>
+      <ellipse cx="450" cy="188" rx="16" ry="24" fill="#22c55e" fillOpacity=".38"/>
+      <ellipse cx="484" cy="184" rx="14" ry="21" fill="#86efac" fillOpacity=".40"/>
+      <ellipse cx="470" cy="175" rx="12" ry="19" fill="#4ade80" fillOpacity=".34"/>
+      <rect x="461" y="226" width="11" height="26" rx="5" fill="#86efac" fillOpacity=".52"/>
+      <path d="M446 252 L450 276 L480 276 L484 252 Z" fill="#94a3b8" fillOpacity=".72"/>
+      <rect x="442" y="248" width="46" height="11" rx="5.5" fill="#cbd5e1" fillOpacity=".80"/>
     </svg>
   );
 }
 
-/* ════════════════════════════════════════════════════════
-   LEFT PANEL
-════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════
+   LEFT PANEL (same as bendahara)
+══════════════════════════════════════════════════════════════ */
 function LeftPanel() {
   return (
     <div
-      className="hidden lg:flex lg:w-[44%] xl:w-[42%] shrink-0 flex-col text-white select-none relative overflow-hidden"
-      style={{ background: 'linear-gradient(160deg,#1a56db 0%,#1848c0 42%,#1e3a8a 100%)' }}
+      className="hidden lg:flex lg:w-[44%] xl:w-[42%] shrink-0 flex-col text-white select-none overflow-hidden relative"
+      style={{ background: 'linear-gradient(155deg, #1a56db 0%, #1848c0 45%, #1e3a8a 100%)' }}
     >
-      <div className="absolute inset-0 pointer-events-none"
+      <div
+        className="absolute inset-0 pointer-events-none"
         style={{
-          backgroundImage: 'radial-gradient(circle,rgba(255,255,255,0.07) 1.5px,transparent 1.5px)',
+          backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.07) 1.5px, transparent 1.5px)',
           backgroundSize: '28px 28px',
         }}
       />
-      <div className="relative flex flex-1 flex-col justify-between px-8 xl:px-10 py-10">
+      <div className="relative flex h-full flex-col justify-between px-8 xl:px-10 py-10">
         {/* Logo */}
         <div className="flex items-center gap-4">
-          <div className="flex h-[68px] w-[68px] items-center justify-center rounded-[20px] bg-white shadow-lg shrink-0">
-            <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-              <rect x="4" y="18" width="32" height="18" rx="4.5" fill="#1d4ed8"/>
-              <rect x="8" y="22" width="12" height="9"  rx="3" fill="white" opacity="0.75"/>
-              <rect x="4" y="21" width="32" height="5"  fill="#1e40af" opacity="0.50"/>
-              <path d="M7 18 L20 8 L33 18" fill="#dbeafe" opacity="0.92"/>
-              <circle cx="20" cy="13" r="4" fill="#3b82f6"/>
+          <div
+            className="flex items-center justify-center rounded-[20px] bg-white shadow-lg"
+            style={{ width: 70, height: 70, flexShrink: 0 }}
+          >
+            <svg width="42" height="42" viewBox="0 0 42 42" fill="none">
+              <rect x="4"  y="19" width="34" height="19" rx="5"   fill="#1d4ed8"/>
+              <rect x="8"  y="23" width="13" height="10" rx="3"   fill="white" fillOpacity=".75"/>
+              <rect x="4"  y="22" width="34" height="5"  fill="#1e40af" fillOpacity=".50"/>
+              <path d="M7 19 L21 8 L35 19" fill="#dbeafe" fillOpacity=".92"/>
+              <circle cx="21" cy="14" r="4.5" fill="#3b82f6"/>
             </svg>
           </div>
-          <span className="text-[38px] font-extrabold tracking-tight leading-none">POSPAY</span>
+          <span style={{ fontSize: 40, fontWeight: 800, letterSpacing: '-0.03em', lineHeight: 1 }}>
+            POSPAY
+          </span>
         </div>
         {/* Illustration */}
-        <div className="flex-1 flex items-center justify-center py-2">
-          <LeftIllustration />
+        <div className="flex flex-1 items-center justify-center py-4">
+          <LoginIllustration />
         </div>
         {/* SMP */}
-        <div className="border-t border-white/15 pt-5">
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-blue-200/80 mb-2.5">Studi Kasus</p>
+        <div className="border-t pt-5" style={{ borderColor: 'rgba(255,255,255,0.15)' }}>
+          <p style={{
+            fontSize: 10, fontWeight: 700, letterSpacing: '0.18em',
+            textTransform: 'uppercase', color: 'rgba(191,219,254,0.80)', marginBottom: 10,
+          }}>
+            Studi Kasus
+          </p>
           <div className="flex items-center gap-3">
-            <svg width="50" height="50" viewBox="0 0 50 50" className="shrink-0">
-              <circle cx="25" cy="25" r="24" fill="#f59e0b"/>
-              <circle cx="25" cy="25" r="20" fill="#1a4cc5"/>
-              <circle cx="25" cy="25" r="16" fill="#1e3a8a"/>
-              <path d="M15 22 Q20 19 25 22 Q30 19 35 22 L35 32 Q30 29 25 32 Q20 29 15 32 Z"
-                fill="#fbbf24" opacity="0.92"/>
-              <line x1="25" y1="22" x2="25" y2="32" stroke="#1e3a8a" strokeWidth="1.4"/>
-              <line x1="17" y1="25" x2="23" y2="25" stroke="#fde68a" strokeWidth="1" opacity="0.75"/>
-              <line x1="17" y1="28" x2="23" y2="28" stroke="#fde68a" strokeWidth="1" opacity="0.75"/>
-              <line x1="27" y1="25" x2="33" y2="25" stroke="#fde68a" strokeWidth="1" opacity="0.75"/>
-              <line x1="27" y1="28" x2="33" y2="28" stroke="#fde68a" strokeWidth="1" opacity="0.75"/>
-              <text x="25" y="44" textAnchor="middle" fontSize="5.5" fontWeight="bold" fill="#fde68a">BREBES</text>
+            <svg width="52" height="52" viewBox="0 0 52 52" style={{ flexShrink: 0 }}>
+              <circle cx="26" cy="26" r="25" fill="#f59e0b"/>
+              <circle cx="26" cy="26" r="21" fill="#1a4cc5"/>
+              <circle cx="26" cy="26" r="17" fill="#1e3a8a"/>
+              <path d="M16 23 Q21 20 26 23 Q31 20 36 23 L36 33 Q31 30 26 33 Q21 30 16 33 Z"
+                    fill="#fbbf24" fillOpacity=".92"/>
+              <line x1="26" y1="23" x2="26" y2="33" stroke="#1e3a8a" strokeWidth="1.5"/>
+              <line x1="18" y1="26" x2="24" y2="26" stroke="#fde68a" strokeWidth="1" strokeOpacity=".75"/>
+              <line x1="18" y1="29" x2="24" y2="29" stroke="#fde68a" strokeWidth="1" strokeOpacity=".75"/>
+              <line x1="28" y1="26" x2="34" y2="26" stroke="#fde68a" strokeWidth="1" strokeOpacity=".75"/>
+              <line x1="28" y1="29" x2="34" y2="29" stroke="#fde68a" strokeWidth="1" strokeOpacity=".75"/>
+              <text x="26" y="46" textAnchor="middle" fontSize="5.5" fontWeight="bold" fill="#fde68a">BREBES</text>
             </svg>
             <div>
-              <p className="font-bold text-[16px] leading-tight">SMP Pusponegoro Brebes</p>
-              <div className="mt-1.5 h-px w-28 bg-white/30"/>
+              <p style={{ fontWeight: 700, fontSize: 16, lineHeight: 1.2 }}>SMP Pusponegoro Brebes</p>
+              <div style={{ marginTop: 6, height: 1, width: 112, background: 'rgba(255,255,255,0.28)' }}/>
             </div>
           </div>
-          <p className="mt-2.5 text-[11.5px] leading-relaxed text-blue-200/80">
-            POSPAY membantu pengelolaan keuangan sekolah menjadi lebih teratur, transparan, dan mudah diakses.
+          <p style={{ marginTop: 10, fontSize: 11.5, lineHeight: 1.65, color: 'rgba(191,219,254,0.80)' }}>
+            POSPAY membantu pengelolaan keuangan sekolah menjadi lebih teratur,
+            transparan, dan mudah diakses.
           </p>
         </div>
       </div>
@@ -152,40 +164,18 @@ function LeftPanel() {
   );
 }
 
-/* ════════════════════════════════════════════════════════
-   FIELD INPUT
-════════════════════════════════════════════════════════ */
-function FieldInput({ icon: IconC, right, hint, ...props }) {
-  return (
-    <div>
-      <div className="flex items-center rounded-lg border border-slate-200 bg-white overflow-hidden
-        shadow-sm transition focus-within:border-brand-500 focus-within:ring-1 focus-within:ring-brand-500
-        dark:border-slate-600 dark:bg-slate-800">
-        <span className="flex w-11 shrink-0 items-center justify-center">
-          <IconC width={17} height={17} className="text-slate-400"/>
-        </span>
-        <input
-          className="flex-1 bg-transparent py-3 text-sm text-slate-800 placeholder-slate-400 outline-none dark:text-slate-100"
-          {...props}
-        />
-        {right}
-      </div>
-      {hint && <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">{hint}</p>}
-    </div>
-  );
-}
-
-/* ════════════════════════════════════════════════════════
-   SISWA LOGIN PAGE  — no register link
-════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════
+   SISWA LOGIN  — NO register link
+══════════════════════════════════════════════════════════════ */
 export default function Login() {
   const { login } = useAuth();
-  const toast = useToast();
-  const navigate = useNavigate();
-  const [form, setForm] = useState({ username: '', password: '' });
-  const [showPwd, setShowPwd] = useState(false);
+  const toast     = useToast();
+  const navigate  = useNavigate();
+
+  const [form,     setForm]     = useState({ username: '', password: '' });
+  const [showPwd,  setShowPwd]  = useState(false);
   const [remember, setRemember] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading,  setLoading]  = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -202,106 +192,155 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen">
+    <div style={{ display: 'flex', minHeight: '100vh' }}>
       <LeftPanel />
 
-      {/* Right panel — same light gray background + floating card */}
-      <div className="flex flex-1 items-center justify-center bg-[#f0f4ff] dark:bg-slate-900 px-4 py-10 sm:px-8">
-        <div className="w-full max-w-[420px] rounded-2xl border border-slate-200 bg-white
-          px-8 py-10 shadow-md dark:border-slate-700 dark:bg-slate-900 sm:px-10 sm:py-12">
-
+      {/* RIGHT PANEL */}
+      <div
+        style={{
+          flex: 1,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: '#eef2ff',
+          padding: '40px 16px',
+        }}
+      >
+        {/* WHITE CARD */}
+        <div
+          style={{
+            width: '100%',
+            maxWidth: 440,
+            backgroundColor: 'white',
+            borderRadius: 20,
+            border: '1px solid #e2e8f0',
+            boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+            padding: '48px 40px',
+          }}
+        >
           {/* Mobile logo */}
           <div className="mb-7 flex items-center gap-2 lg:hidden">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-white">
               <Icon.School width={18} height={18}/>
             </div>
-            <span className="font-bold text-slate-900 dark:text-white">POSPAY</span>
+            <span className="font-bold text-slate-900">POSPAY</span>
           </div>
 
-          {/* Heading */}
-          <div className="mb-7 text-center">
-            <h1 className="text-[32px] font-extrabold tracking-tight text-slate-900 dark:text-white">
+          {/* HEADING */}
+          <div style={{ textAlign: 'center', marginBottom: 28 }}>
+            <h1 style={{ fontSize: 36, fontWeight: 800, letterSpacing: '-0.02em', color: '#0f172a', margin: 0 }}>
               Masuk
             </h1>
-            <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400">
+            <p style={{ marginTop: 6, fontSize: 14, color: '#64748b' }}>
               Masuk untuk mengakses sistem POSPAY
             </p>
           </div>
 
-          <form onSubmit={submit} className="space-y-4">
-            {/* NIS */}
-            <div>
-              <label className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">
+          <form onSubmit={submit}>
+            {/* NIS / USERNAME */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', marginBottom: 6, fontSize: 14, fontWeight: 600, color: '#374151' }}>
                 Username
               </label>
-              <FieldInput
-                icon={Icon.User}
-                type="text"
-                placeholder="Masukkan username"
-                value={form.username}
-                onChange={(e) => setForm({ ...form, username: e.target.value })}
-                hint="Username dapat berupa NIK Bendahara atau NIS Siswa"
-                autoFocus
-                required
-              />
+              <div style={{
+                display: 'flex', alignItems: 'center',
+                border: '1.5px solid #e2e8f0', borderRadius: 10,
+                backgroundColor: 'white', overflow: 'hidden',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+              }}>
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, flexShrink: 0 }}>
+                  <Icon.User width={18} height={18} style={{ color: '#9ca3af' }}/>
+                </span>
+                <input
+                  type="text"
+                  placeholder="Masukkan username"
+                  value={form.username}
+                  onChange={e => setForm({ ...form, username: e.target.value })}
+                  autoFocus
+                  required
+                  style={{
+                    flex: 1, border: 'none', outline: 'none',
+                    fontSize: 14, color: '#1e293b', background: 'transparent',
+                    padding: '12px 12px 12px 0',
+                  }}
+                />
+              </div>
+              <p style={{ marginTop: 6, fontSize: 12, color: '#9ca3af' }}>
+                Username dapat berupa NIK Bendahara atau NIS Siswa
+              </p>
             </div>
 
-            {/* Password */}
-            <div>
-              <label className="mb-1.5 block text-sm font-semibold text-slate-700 dark:text-slate-300">
+            {/* PASSWORD */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', marginBottom: 6, fontSize: 14, fontWeight: 600, color: '#374151' }}>
                 Password
               </label>
-              <FieldInput
-                icon={Icon.Lock}
-                type={showPwd ? 'text' : 'password'}
-                placeholder="Masukkan password"
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                required
-                right={
-                  <button type="button" tabIndex={-1}
-                    onClick={() => setShowPwd(v => !v)}
-                    className="flex w-11 shrink-0 items-center justify-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
-                    {showPwd
-                      ? <Icon.EyeOff width={16} height={16}/>
-                      : <Icon.Eye    width={16} height={16}/>}
-                  </button>
-                }
-              />
+              <div style={{
+                display: 'flex', alignItems: 'center',
+                border: '1.5px solid #e2e8f0', borderRadius: 10,
+                backgroundColor: 'white', overflow: 'hidden',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.06)',
+              }}>
+                <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, flexShrink: 0 }}>
+                  <Icon.Lock width={17} height={17} style={{ color: '#9ca3af' }}/>
+                </span>
+                <input
+                  type={showPwd ? 'text' : 'password'}
+                  placeholder="Masukkan password"
+                  value={form.password}
+                  onChange={e => setForm({ ...form, password: e.target.value })}
+                  required
+                  style={{
+                    flex: 1, border: 'none', outline: 'none',
+                    fontSize: 14, color: '#1e293b', background: 'transparent',
+                    padding: '12px 0',
+                  }}
+                />
+                <button
+                  type="button" tabIndex={-1}
+                  onClick={() => setShowPwd(v => !v)}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af' }}
+                >
+                  {showPwd ? <Icon.EyeOff width={16} height={16}/> : <Icon.Eye width={16} height={16}/>}
+                </button>
+              </div>
             </div>
 
-            {/* Remember + Forgot */}
-            <div className="flex items-center justify-between">
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={remember}
-                  onChange={e => setRemember(e.target.checked)}
-                  className="h-4 w-4 rounded border-slate-300 accent-brand-600"
-                />
+            {/* REMEMBER + FORGOT */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, color: '#4b5563', cursor: 'pointer' }}>
+                <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)}
+                  style={{ width: 16, height: 16, accentColor: '#2563eb' }}/>
                 Ingat saya
               </label>
               <button type="button"
-                className="text-sm font-semibold text-brand-600 hover:underline">
+                style={{ fontSize: 14, fontWeight: 600, color: '#2563eb', background: 'none', border: 'none', cursor: 'pointer' }}>
                 Lupa password?
               </button>
             </div>
 
+            {/* MASUK */}
             <button type="submit" disabled={loading}
-              className="flex w-full items-center justify-center rounded-lg bg-brand-600 py-3
-                text-[15px] font-semibold text-white shadow hover:bg-brand-700
-                disabled:opacity-60 transition-colors">
+              style={{
+                width: '100%', padding: '14px', borderRadius: 10,
+                backgroundColor: '#1d4ed8', color: 'white',
+                fontSize: 15, fontWeight: 700, border: 'none',
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.7 : 1,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 2px 8px rgba(29,78,216,0.30)',
+              }}>
               {loading ? <Spinner size={18} className="text-white"/> : 'Masuk'}
             </button>
           </form>
 
-          {/* Footer */}
-          <div className="mt-8 space-y-1 text-center">
-            <p className="flex items-center justify-center gap-1 text-xs text-slate-400">
+          {/* FOOTER — no register link for siswa */}
+          <div style={{ marginTop: 32, textAlign: 'center' }}>
+            <p style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 12, color: '#9ca3af', marginBottom: 2 }}>
               <Icon.Shield width={11} height={11}/>
               Password default diberikan oleh bendahara sekolah
             </p>
-            <p className="text-xs text-slate-400">
+            <p style={{ fontSize: 12, color: '#9ca3af' }}>
               © {new Date().getFullYear()} POSPAY.&nbsp; All rights reserved.
             </p>
           </div>

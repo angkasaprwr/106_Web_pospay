@@ -162,13 +162,12 @@ export default function Register() {
   }
 
   return (
-    <div className="flex min-h-screen">
+    <div style={{ display: 'flex', minHeight: '100vh' }}>
       <AuthLeftPanel illustration={<DashboardIllustration />} />
 
       {/* Right panel */}
-      <div className="flex flex-1 items-center justify-center overflow-y-auto bg-[#f0f4ff] dark:bg-slate-900 px-4 py-10 sm:px-8">
-        <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white px-8 py-10
-          shadow-md dark:border-slate-700 dark:bg-slate-900 sm:px-10 sm:py-12">
+      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#eef2ff', padding: '40px 16px', overflowY: 'auto' }}>
+        <div style={{ width: '100%', maxWidth: 460, backgroundColor: 'white', borderRadius: 20, border: '1px solid #e2e8f0', boxShadow: '0 4px 24px rgba(0,0,0,0.08)', padding: '48px 40px' }}>
 
           {/* Mobile logo */}
           <div className="mb-6 flex items-center gap-2 lg:hidden">
@@ -321,3 +320,4 @@ export default function Register() {
     </div>
   );
 }
+
