@@ -162,14 +162,13 @@ export default function Register() {
   }
 
   return (
-    <div className="flex min-h-screen bg-[#f4f6fb] dark:bg-slate-900 lg:bg-white lg:dark:bg-slate-950">
+    <div className="flex min-h-screen">
       <AuthLeftPanel illustration={<DashboardIllustration />} />
 
       {/* Right panel */}
-      <div className="flex flex-1 items-center justify-center overflow-y-auto px-4 py-10 sm:px-8">
+      <div className="flex flex-1 items-center justify-center overflow-y-auto bg-[#f0f4ff] dark:bg-slate-900 px-4 py-10 sm:px-8">
         <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white px-8 py-10
-          shadow-sm dark:border-slate-700 dark:bg-slate-900
-          lg:rounded-none lg:border-0 lg:shadow-none lg:bg-transparent lg:dark:bg-transparent lg:px-10 lg:py-0">
+          shadow-md dark:border-slate-700 dark:bg-slate-900 sm:px-10 sm:py-12">
 
           {/* Mobile logo */}
           <div className="mb-6 flex items-center gap-2 lg:hidden">
