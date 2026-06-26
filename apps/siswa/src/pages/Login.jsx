@@ -239,7 +239,7 @@ export default function Login() {
                 placeholder="Masukkan NIS"
                 value={form.username}
                 onChange={(e) => setForm({ ...form, username: e.target.value })}
-                hint="Gunakan Nomor Induk Siswa (NIS) sebagai username"
+                hint="NIS diberikan oleh bendahara saat akun siswa dibuat"
                 autoFocus
                 required
               />
