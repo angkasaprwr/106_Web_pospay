@@ -20,7 +20,7 @@ async function register(input, req) {
   const open = await isRegistrationOpen();
   if (!open) {
     throw ApiError.forbidden(
-      'Registrasi bendahara sudah dinonaktifkan. Akun bendahara hanya dapat dibuat sekali saat instalasi.',
+      'Registrasi sudah dinonaktifkan. Akun hanya dapat dibuat sekali saat instalasi.',
     );
   }
 

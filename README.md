@@ -105,13 +105,15 @@ npm run prisma:migrate     # buat tabel
 npm run prisma:seed        # data contoh + akun default
 ```
 
-Akun default hasil seed:
-- **Bendahara** → username `bendahara`, password `bendahara123`
-- **Siswa** → username `2025001`–`2025004`, password `siswa123`
+Seed **tidak membuat akun login apapun** (database bersih). Alur test:
 
-> Untuk menguji alur registrasi instalasi, jalankan seed dengan
-> `SEED_DEFAULT_BENDAHARA=false npm run prisma:seed` (atau reset DB) agar belum ada
-> akun bendahara, lalu daftar via halaman `/register` aplikasi bendahara.
+1. **Bendahara** — buka `http://localhost:5173/login`, klik **register**,
+   isi form (Nama Lengkap, **Username** bebas misal `bendahara`, Password bebas).
+   Username ini yang dipakai untuk login.
+2. **Siswa** — setelah login sebagai bendahara, buka menu **Data Siswa → Tambah Siswa**,
+   centang "Buat akun login otomatis". Username siswa = **NIS** yang di-input,
+   password default = `siswa123` (lihat `STUDENT_DEFAULT_PASSWORD` di `server/.env`).
+   Login siswa di `http://localhost:5174/login` menggunakan NIS tersebut.
 
 ### 4. Menjalankan
 Tiga terminal terpisah:
