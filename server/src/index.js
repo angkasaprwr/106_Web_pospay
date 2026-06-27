@@ -17,7 +17,7 @@ async function bootstrap() {
   fcm.init();
 
   const app = createApp();
-  const server = app.listen(env.port, () => {
+  const server = app.listen(env.port, '0.0.0.0', () => {
     logger.info(`POSPAY API berjalan di port ${env.port} (${env.nodeEnv})`);
   });
 
