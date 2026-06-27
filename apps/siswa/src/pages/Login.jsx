@@ -237,7 +237,7 @@ export default function Login() {
           </div>
 
           <form onSubmit={submit}>
-            {/* NIS / USERNAME */}
+            {/* USERNAME */}
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', marginBottom: 6, fontSize: 14, fontWeight: 600, color: '#374151' }}>
                 Username
@@ -253,7 +253,7 @@ export default function Login() {
                 </span>
                 <input
                   type="text"
-                  placeholder="Masukkan username"
+                  placeholder="Nanti akan menggunakan NIS siswa"
                   value={form.username}
                   onChange={e => setForm({ ...form, username: e.target.value })}
                   autoFocus
@@ -266,7 +266,7 @@ export default function Login() {
                 />
               </div>
               <p style={{ marginTop: 6, fontSize: 12, color: '#9ca3af' }}>
-                Username dapat berupa NIK Bendahara atau NIS Siswa
+                Login menggunakan NIS yang terdaftar
               </p>
             </div>
 
@@ -286,7 +286,7 @@ export default function Login() {
                 </span>
                 <input
                   type={showPwd ? 'text' : 'password'}
-                  placeholder="Masukkan password"
+                  placeholder="Default (yang sudah dibuat oleh Bendahara)"
                   value={form.password}
                   onChange={e => setForm({ ...form, password: e.target.value })}
                   required
@@ -304,6 +304,9 @@ export default function Login() {
                   {showPwd ? <Icon.EyeOff width={16} height={16}/> : <Icon.Eye width={16} height={16}/>}
                 </button>
               </div>
+              <p style={{ marginTop: 6, fontSize: 12, color: '#9ca3af' }}>
+                Gunakan password default yang diberikan oleh Bendahara
+              </p>
             </div>
 
             {/* REMEMBER + FORGOT */}
@@ -334,11 +337,11 @@ export default function Login() {
             </button>
           </form>
 
-          {/* FOOTER — no register link for siswa */}
-          <div style={{ marginTop: 32, textAlign: 'center' }}>
-            <p style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 12, color: '#9ca3af', marginBottom: 2 }}>
+          {/* FOOTER */}
+          <div style={{ marginTop: 28, textAlign: 'center' }}>
+            <p style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, fontSize: 12, color: '#9ca3af', marginBottom: 4 }}>
               <Icon.Shield width={11} height={11}/>
-              Password default diberikan oleh bendahara sekolah
+              Halaman ini hanya untuk akses siswa.
             </p>
             <p style={{ fontSize: 12, color: '#9ca3af' }}>
               © {new Date().getFullYear()} POSPAY.&nbsp; All rights reserved.
