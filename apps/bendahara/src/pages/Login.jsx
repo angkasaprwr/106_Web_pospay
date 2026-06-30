@@ -5,18 +5,29 @@ import { useToast } from '../context/ToastContext';
 import { api, apiError } from '../lib/api';
 import { Spinner } from '../components/ui';
 import { Icon } from '../components/Icons';
+import LoginIllustration from '../components/login/LoginIllustration';
+import SchoolEmblem from '../components/login/SchoolEmblem';
+import PospayLogo from '../components/login/PospayLogo';
+
+const REMEMBER_KEY = 'pospay_bendahara_remember';
 
 export default function Login() {
   const { login } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
   const [form, setForm] = useState({ username: '', password: '' });
+  const [remember, setRemember] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [registrationOpen, setRegistrationOpen] = useState(false);
 
   useEffect(() => {
     api.get('/auth/registration-status').then(({ data }) => setRegistrationOpen(data.data.open)).catch(() => {});
+    const saved = localStorage.getItem(REMEMBER_KEY);
+    if (saved) {
+      setForm((f) => ({ ...f, username: saved }));
+      setRemember(true);
+    }
   }, []);
 
   const submit = async (e) => {
@@ -24,6 +35,8 @@ export default function Login() {
     setLoading(true);
     try {
       await login(form.username, form.password);
+      if (remember) localStorage.setItem(REMEMBER_KEY, form.username);
+      else localStorage.removeItem(REMEMBER_KEY);
       toast.success('Login berhasil');
       navigate('/');
     } catch (err) {
@@ -34,100 +47,91 @@ export default function Login() {
   };
 
   return (
-    <div className="relative flex min-h-screen overflow-hidden bg-slate-100">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(37,99,235,0.18),_transparent_40%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.14),_transparent_35%)]" />
-      <div className="pointer-events-none absolute -left-24 top-20 h-72 w-72 rounded-full bg-brand-400/20 blur-3xl" />
-      <div className="pointer-events-none absolute -right-16 bottom-10 h-80 w-80 rounded-full bg-sky-400/20 blur-3xl" />
+    <div className="flex min-h-screen flex-col bg-white lg:flex-row">
+      {/* Panel kiri — branding */}
+      <div className="relative flex w-full flex-col justify-between overflow-hidden bg-pospay px-6 py-8 text-white sm:px-10 sm:py-10 lg:w-1/2 lg:px-12 lg:py-12">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-[0.08]"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle, #fff 1.5px, transparent 1.5px)',
+            backgroundSize: '22px 22px',
+          }}
+        />
 
-      <div className="relative hidden w-[48%] flex-col justify-between overflow-hidden bg-gradient-to-br from-brand-700 via-brand-800 to-slate-900 p-12 text-white lg:flex">
-        <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.35\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }} />
-        <div className="relative flex items-center gap-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-white/25 backdrop-blur">
-            <Icon.School width={28} height={28} />
-          </div>
+        <div className="relative flex items-center gap-3">
+          <PospayLogo size={48} />
+          <span className="text-2xl font-extrabold tracking-wide sm:text-3xl">POSPAY</span>
+        </div>
+
+        <div className="relative my-8 flex flex-1 items-center justify-center py-4 lg:my-0">
+          <LoginIllustration />
+        </div>
+
+        <div className="relative flex items-start gap-4">
+          <SchoolEmblem size={52} />
           <div>
-            <p className="text-sm font-medium uppercase tracking-[0.2em] text-brand-100">POSPAY</p>
-            <p className="text-lg font-bold">Portal Bendahara</p>
+            <p className="text-sm font-medium text-white/75">Studi Kasus</p>
+            <p className="text-lg font-bold leading-snug sm:text-xl">SMP Pusponegoro Brebes</p>
+            <p className="mt-2 max-w-md text-sm leading-relaxed text-white/80">
+              POSPAY membantu pengelolaan keuangan sekolah menjadi lebih teratur, transparan, dan mudah diakses.
+            </p>
           </div>
         </div>
-
-        <div className="relative max-w-lg">
-          <p className="mb-3 inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-wider text-brand-100 ring-1 ring-white/20">
-            SMP Pusponegoro Brebes
-          </p>
-          <h1 className="text-4xl font-extrabold leading-tight xl:text-5xl">
-            Sistem Informasi Keuangan Sekolah
-          </h1>
-          <p className="mt-5 text-base leading-relaxed text-brand-100">
-            Kelola tagihan, pembayaran, dispensasi, dan laporan keuangan sekolah dalam satu portal bendahara yang aman dan modern.
-          </p>
-          <div className="mt-8 grid grid-cols-2 gap-3 text-sm">
-            {['Tagihan & Pembayaran', 'Laporan Keuangan', 'Dispensasi Siswa', 'Notifikasi Gmail'].map((item) => (
-              <div key={item} className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 ring-1 ring-white/10">
-                <span className="h-2 w-2 rounded-full bg-emerald-300" />
-                <span>{item}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <p className="relative text-sm text-brand-200">© {new Date().getFullYear()} SMP Pusponegoro Brebes · POSPAY</p>
       </div>
 
-      <div className="relative flex flex-1 items-center justify-center p-6 sm:p-10">
-        <div className="w-full max-w-md">
-          <div className="mb-8 flex items-center justify-center gap-3 lg:hidden">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-lg shadow-brand-600/30">
-              <Icon.School width={22} height={22} />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-brand-600">POSPAY</p>
-              <p className="text-lg font-bold text-slate-900">Portal Bendahara</p>
-            </div>
-          </div>
-
-          <div className="rounded-3xl border border-white/70 bg-white/90 p-8 shadow-2xl shadow-slate-300/40 backdrop-blur-xl">
-            <div className="mb-8 text-center">
-              <h2 className="text-2xl font-extrabold text-slate-900">Masuk Bendahara</h2>
-              <p className="mt-2 text-sm text-slate-500">Silakan masuk untuk mengelola keuangan sekolah.</p>
+      {/* Panel kanan — form login */}
+      <div className="flex w-full flex-1 items-center justify-center bg-white px-4 py-10 sm:px-8 lg:w-1/2 lg:px-12">
+        <div className="w-full max-w-[420px]">
+          <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-[0_8px_40px_rgba(0,71,171,0.08)] sm:p-8">
+            <div className="mb-8">
+              <h1 className="text-2xl font-extrabold text-pospay sm:text-[28px]">Masuk</h1>
+              <p className="mt-1 text-sm text-slate-500">Masuk untuk mengakses sistem POSPAY</p>
             </div>
 
             <form onSubmit={submit} className="space-y-5">
               <div>
-                <label className="label">Username</label>
+                <label htmlFor="username" className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Username
+                </label>
                 <div className="relative">
-                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                  <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
                     <Icon.User width={18} height={18} />
                   </span>
                   <input
-                    className="input pl-10"
+                    id="username"
+                    className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-pospay focus:ring-2 focus:ring-pospay/20"
                     value={form.username}
                     onChange={(e) => setForm({ ...form, username: e.target.value })}
-                    placeholder="bendahara"
+                    placeholder="Masukkan username"
                     autoFocus
                     required
                   />
                 </div>
+                <p className="mt-1.5 text-xs text-slate-400">Username dapat berupa NIK Bendahara atau NIS Siswa</p>
               </div>
 
               <div>
-                <label className="label">Password</label>
+                <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-slate-700">
+                  Password
+                </label>
                 <div className="relative">
-                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                  <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
                     <Icon.Lock width={18} height={18} />
                   </span>
                   <input
-                    className="input pl-10 pr-10"
+                    id="password"
+                    className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-10 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-pospay focus:ring-2 focus:ring-pospay/20"
                     type={showPassword ? 'text' : 'password'}
                     value={form.password}
                     onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    placeholder="••••••••"
+                    placeholder="Masukkan password"
                     required
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                     aria-label={showPassword ? 'Sembunyikan password' : 'Tampilkan password'}
                   >
                     {showPassword ? <Icon.EyeOff width={18} height={18} /> : <Icon.Eye width={18} height={18} />}
@@ -135,24 +139,58 @@ export default function Login() {
                 </div>
               </div>
 
-              <button type="submit" className="btn-primary h-12 w-full rounded-xl text-base shadow-lg shadow-brand-600/25" disabled={loading}>
+              <div className="flex items-center justify-between text-sm">
+                <label className="flex cursor-pointer items-center gap-2 text-slate-600">
+                  <input
+                    type="checkbox"
+                    checked={remember}
+                    onChange={(e) => setRemember(e.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-pospay focus:ring-pospay/30"
+                  />
+                  Ingat saya
+                </label>
+                <button
+                  type="button"
+                  onClick={() => toast.info('Hubungi administrator sekolah untuk reset password.')}
+                  className="font-medium text-pospay hover:underline"
+                >
+                  Lupa password?
+                </button>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex h-11 w-full items-center justify-center rounded-lg bg-pospay text-sm font-semibold text-white transition hover:bg-pospay-700 disabled:opacity-60"
+              >
                 {loading ? <Spinner size={18} className="text-white" /> : 'Masuk'}
               </button>
             </form>
 
             {registrationOpen && (
-              <p className="mt-6 text-center text-sm text-slate-500">
-                Belum punya akun bendahara?{' '}
-                <Link to="/register" className="font-semibold text-brand-600 hover:text-brand-700 hover:underline">
-                  Daftar Akun
-                </Link>
-              </p>
+              <>
+                <div className="my-6 flex items-center gap-3">
+                  <div className="h-px flex-1 bg-slate-200" />
+                  <span className="text-xs text-slate-400">atau</span>
+                  <div className="h-px flex-1 bg-slate-200" />
+                </div>
+                <p className="text-center text-sm text-slate-500">
+                  Belum memiliki akun ?{' '}
+                  <Link to="/register" className="font-semibold text-pospay hover:underline">
+                    daftar
+                  </Link>
+                </p>
+              </>
             )}
           </div>
 
-          <p className="mt-6 text-center text-xs text-slate-500">
-            Gunakan akun yang sudah diverifikasi melalui email Gmail sekolah.
-          </p>
+          <div className="mt-6 border-t border-slate-100 pt-5 text-center">
+            <div className="flex items-center justify-center gap-2 text-xs text-slate-400">
+              <Icon.Shield width={14} height={14} className="text-pospay/70" />
+              <span>Hanya bendahara yang terdaftar dapat mengakses sistem ini</span>
+            </div>
+            <p className="mt-3 text-xs text-slate-400">© {new Date().getFullYear()} POSPAY. All rights reserved.</p>
+          </div>
         </div>
       </div>
     </div>

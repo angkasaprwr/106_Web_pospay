@@ -38,20 +38,20 @@ export default function VerifyRegister() {
   if (!verificationId) return null;
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-100 p-6">
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-50 p-4 sm:p-6">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_bottom,_rgba(37,99,235,0.12),_transparent_45%)]" />
       <div className="relative w-full max-w-md">
         <div className="mb-6 flex items-center justify-center gap-3">
-          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-lg shadow-brand-600/30">
+          <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-pospay text-white shadow-lg shadow-pospay/25">
             <Icon.Mail width={22} height={22} />
           </div>
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-brand-600">Verifikasi Email</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-pospay">Verifikasi Email</p>
             <p className="text-lg font-bold text-slate-900">Kode Gmail Sekolah</p>
           </div>
         </div>
 
-        <div className="rounded-3xl border border-white/70 bg-white/95 p-8 shadow-2xl shadow-slate-300/40 backdrop-blur-xl">
+        <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-[0_8px_40px_rgba(0,71,171,0.08)] sm:p-8">
           <h2 className="text-2xl font-extrabold text-slate-900">Masukkan Kode Verifikasi</h2>
           <p className="mt-2 text-sm text-slate-500">
             Kode 6 digit telah dikirim ke notifikasi Gmail sekolah:
@@ -77,7 +77,7 @@ export default function VerifyRegister() {
                 required
               />
             </div>
-            <button type="submit" className="btn-primary h-12 w-full rounded-xl text-base" disabled={loading || code.length !== 6}>
+            <button type="submit" className="flex h-11 w-full items-center justify-center rounded-lg bg-pospay text-sm font-semibold text-white transition hover:bg-pospay-700" disabled={loading || code.length !== 6}>
               {loading ? <Spinner size={18} className="text-white" /> : 'Verifikasi & Masuk'}
             </button>
           </form>
@@ -85,7 +85,7 @@ export default function VerifyRegister() {
 
         <p className="mt-6 text-center text-sm text-slate-500">
           Salah email?{' '}
-          <Link to="/register" className="font-semibold text-brand-600 hover:underline">
+          <Link to="/register" className="font-semibold text-pospay hover:underline">
             Daftar ulang
           </Link>
         </p>
