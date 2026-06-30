@@ -38,6 +38,16 @@ export function AuthProvider({ children }) {
 
   const register = async (payload) => {
     const { data } = await api.post('/auth/register', payload);
+    return data.data;
+  };
+
+  const requestRegistration = register;
+
+  const verifyRegistration = async (payload) => {
+    const { data } = await api.post('/auth/register/verify', payload);
+    if (data.data.user.role !== 'BENDAHARA') {
+      throw new Error('Akun ini bukan akun bendahara.');
+    }
     setToken(data.data.accessToken);
     setUser(data.data.user);
     return data.data.user;
@@ -56,7 +66,7 @@ export function AuthProvider({ children }) {
   const updateUser = (patch) => setUser((u) => ({ ...u, ...patch }));
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, updateUser, reload: loadProfile }}>
+    <AuthContext.Provider value={{ user, loading, login, register, requestRegistration, verifyRegistration, logout, updateUser, reload: loadProfile }}>
       {children}
     </AuthContext.Provider>
   );

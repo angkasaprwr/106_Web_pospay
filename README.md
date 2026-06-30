@@ -58,8 +58,12 @@ sesi live/human handover, kelola Q&A, dokumen RAG, jam kerja), Pengaturan (profi
 sekolah, pengguna & akun, metode pembayaran, data master, backup & restore,
 keamanan, tentang), Profil Saya.
 
-Registrasi bendahara **hanya dapat dilakukan sekali saat instalasi**, setelah itu
-otomatis nonaktif.
+Registrasi bendahara melalui halaman `/register` dengan **verifikasi kode via Gmail sekolah**.
+Setelah mengisi form dan klik **Daftar Akun**, pengguna diarahkan ke halaman **Kode Verifikasi**
+(`/register/verify`). Kode 6 digit dikirim ke email Gmail resmi sekolah (bukan SMS/handphone).
+
+Untuk pengujian developer (CRUD register), set `REGISTRATION_ALWAYS_OPEN=true` di `server/.env`.
+Jika SMTP Gmail belum dikonfigurasi, kode verifikasi ditampilkan di mode developer.
 
 ### Role Siswa
 Login dengan **NIS** (password default dibuat bendahara), Beranda, Tagihan
@@ -110,16 +114,27 @@ Akun default hasil seed:
 - **Siswa** → username `2025001`–`2025004`, password `siswa123`
 
 > Untuk menguji alur registrasi instalasi, jalankan seed dengan
-> `SEED_DEFAULT_BENDAHARA=false npm run prisma:seed` (atau reset DB) agar belum ada
-> akun bendahara, lalu daftar via halaman `/register` aplikasi bendahara.
+> `SEED_DEFAULT_BENDAHARA=false npm run prisma:seed` agar belum ada akun bendahara,
+> lalu daftar via halaman `/register` aplikasi bendahara dan verifikasi di `/register/verify`.
+
+### Gmail SMTP (verifikasi pendaftaran bendahara)
+Isi di `server/.env`:
+```
+SMTP_USER=akun-gmail-sekolah@gmail.com
+SMTP_PASS=app-password-gmail
+SCHOOL_EMAIL_DOMAIN=smppusponegoro.sch.id
+```
+Email pendaftar harus menggunakan domain sekolah (`@smppusponegoro.sch.id`).
 
 ### 4. Menjalankan
-Tiga terminal terpisah:
+Tiga terminal terpisah (gunakan `127.0.0.1` agar konsisten dengan CORS):
 ```bash
-npm run dev:server      # http://localhost:4000
-npm run dev:bendahara   # http://localhost:5173
-npm run dev:siswa       # http://localhost:5174
+npm run dev:server      # http://127.0.0.1:4000
+cd apps/bendahara && npx vite --port 5173 --host 127.0.0.1   # http://127.0.0.1:5173/login
+cd apps/siswa && npx vite --port 5174 --host 127.0.0.1       # http://127.0.0.1:5174/login
 ```
+
+Halaman login bendahara: **http://127.0.0.1:5173/login**
 
 ---
 
@@ -146,7 +161,7 @@ Diatur via `REMINDER_CRON` (default `0 8 * * *`), `REMINDER_ENABLED`, dan
 
 Base URL: `/api`
 
-- `auth` — register (sekali), login, refresh, logout, me, change-password
+- `auth` — register (kirim kode Gmail), register/verify, login, refresh, logout, me, change-password
 - `students` — CRUD siswa, reset password, toggle akun
 - `bills` — daftar, buat satuan/massal, update, hapus
 - `payments` — daftar, catat, verifikasi, tolak

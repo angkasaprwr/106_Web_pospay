@@ -50,6 +50,21 @@ const env = {
     enabled: bool(process.env.REMINDER_ENABLED, true),
     daysBefore: parseInt(process.env.REMINDER_DAYS_BEFORE || '3', 10),
   },
+
+  registrationAlwaysOpen: bool(process.env.REGISTRATION_ALWAYS_OPEN, false),
+
+  school: {
+    name: process.env.SCHOOL_NAME || 'SMP Pusponegoro Brebes',
+    emailDomain: process.env.SCHOOL_EMAIL_DOMAIN || 'smppusponegoro.sch.id',
+  },
+
+  smtp: {
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT || '587', 10),
+    secure: bool(process.env.SMTP_SECURE, false),
+    user: process.env.SMTP_USER || '',
+    pass: process.env.SMTP_PASS || '',
+  },
 };
 
 module.exports = { env };

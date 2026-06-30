@@ -5,6 +5,7 @@ import Layout from './components/Layout';
 
 import Login from './pages/Login';
 import Register from './pages/Register';
+import VerifyRegister from './pages/VerifyRegister';
 import Dashboard from './pages/Dashboard';
 import Students from './pages/Students';
 import Bills from './pages/Bills';
@@ -35,6 +36,7 @@ export default function App() {
     <Routes>
       <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
       <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
+      <Route path="/register/verify" element={<PublicOnly><VerifyRegister /></PublicOnly>} />
       <Route
         path="/"
         element={

@@ -4,7 +4,7 @@ const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 
-const SEED_BENDAHARA = (process.env.SEED_DEFAULT_BENDAHARA || 'true').toLowerCase() === 'true';
+const SEED_BENDAHARA = (process.env.SEED_DEFAULT_BENDAHARA || 'false').toLowerCase() === 'true';
 const STUDENT_PASSWORD = process.env.STUDENT_DEFAULT_PASSWORD || 'siswa123';
 
 async function main() {
@@ -32,7 +32,14 @@ async function main() {
     if (!exists) {
       const password = await bcrypt.hash('bendahara123', 10);
       await prisma.user.create({
-        data: { username: 'bendahara', password, fullName: 'Bendahara Sekolah', role: 'BENDAHARA', email: 'bendahara@smppusponegoro.sch.id' },
+        data: {
+          username: 'bendahara',
+          password,
+          fullName: 'Bendahara Sekolah',
+          role: 'BENDAHARA',
+          email: 'bendahara@smppusponegoro.sch.id',
+          emailVerified: true,
+        },
       });
       console.log('  -> Akun bendahara: username "bendahara", password "bendahara123"');
     }

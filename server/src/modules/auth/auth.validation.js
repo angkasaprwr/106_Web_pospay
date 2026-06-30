@@ -4,8 +4,13 @@ const registerSchema = z.object({
   username: z.string().min(3, 'Username minimal 3 karakter').max(50),
   password: z.string().min(6, 'Password minimal 6 karakter'),
   fullName: z.string().min(2, 'Nama lengkap wajib diisi'),
-  email: z.string().email('Email tidak valid').optional().or(z.literal('')),
+  email: z.string().email('Email tidak valid'),
   phone: z.string().optional(),
+});
+
+const verifyRegistrationSchema = z.object({
+  verificationId: z.string().min(1, 'ID verifikasi wajib diisi'),
+  code: z.string().length(6, 'Kode verifikasi harus 6 digit'),
 });
 
 const loginSchema = z.object({
@@ -31,6 +36,7 @@ const updateProfileSchema = z.object({
 
 module.exports = {
   registerSchema,
+  verifyRegistrationSchema,
   loginSchema,
   refreshSchema,
   changePasswordSchema,

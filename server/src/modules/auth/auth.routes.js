@@ -5,6 +5,7 @@ const { authenticate } = require('../../middlewares/auth.middleware');
 const { authLimiter } = require('../../middlewares/rateLimit.middleware');
 const {
   registerSchema,
+  verifyRegistrationSchema,
   loginSchema,
   refreshSchema,
   changePasswordSchema,
@@ -15,6 +16,7 @@ const router = Router();
 
 router.get('/registration-status', controller.registrationStatus);
 router.post('/register', authLimiter, validate({ body: registerSchema }), controller.register);
+router.post('/register/verify', authLimiter, validate({ body: verifyRegistrationSchema }), controller.verifyRegister);
 router.post('/login', authLimiter, validate({ body: loginSchema }), controller.login);
 router.post('/refresh', validate({ body: refreshSchema }), controller.refresh);
 router.post('/logout', controller.logout);

@@ -7,7 +7,7 @@ import { Spinner } from '../components/ui';
 import { Icon } from '../components/Icons';
 
 export default function Register() {
-  const { register } = useAuth();
+  const { requestRegistration } = useAuth();
   const toast = useToast();
   const navigate = useNavigate();
   const [form, setForm] = useState({ fullName: '', username: '', email: '', password: '', confirm: '' });
@@ -28,9 +28,18 @@ export default function Register() {
     if (form.password !== form.confirm) return toast.error('Konfirmasi password tidak cocok');
     setLoading(true);
     try {
-      await register({ fullName: form.fullName, username: form.username, email: form.email, password: form.password });
-      toast.success('Akun bendahara berhasil dibuat');
-      navigate('/');
+      const result = await requestRegistration({
+        fullName: form.fullName,
+        username: form.username,
+        email: form.email,
+        password: form.password,
+      });
+      if (!result.emailSent && result.devCode) {
+        toast.info(`Mode developer: kode verifikasi ${result.devCode}`);
+      } else {
+        toast.success('Kode verifikasi dikirim ke Gmail sekolah Anda');
+      }
+      navigate('/register/verify', { state: { verificationId: result.verificationId, email: result.email, devCode: result.devCode } });
     } catch (err) {
       toast.error(apiError(err, 'Registrasi gagal'));
     } finally {
@@ -40,30 +49,35 @@ export default function Register() {
 
   if (checking) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
+      <div className="flex min-h-screen items-center justify-center bg-slate-100">
         <Spinner size={32} />
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-6 dark:bg-slate-950">
-      <div className="w-full max-w-md">
-        <div className="mb-6 flex items-center justify-center gap-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-brand-600 text-white">
-            <Icon.School width={20} height={20} />
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-100 p-6">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(37,99,235,0.12),_transparent_45%)]" />
+      <div className="relative w-full max-w-lg">
+        <div className="mb-6 flex items-center justify-center gap-3">
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-600 text-white shadow-lg shadow-brand-600/30">
+            <Icon.School width={22} height={22} />
           </div>
-          <span className="text-lg font-bold">POSPAY</span>
+          <div className="text-center sm:text-left">
+            <p className="text-xs font-semibold uppercase tracking-wider text-brand-600">POSPAY</p>
+            <p className="text-lg font-bold text-slate-900">Registrasi Bendahara</p>
+          </div>
         </div>
-        <div className="card p-6">
+
+        <div className="rounded-3xl border border-white/70 bg-white/95 p-8 shadow-2xl shadow-slate-300/40 backdrop-blur-xl">
           {!open ? (
             <div className="text-center">
-              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/40">
+              <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 text-amber-600">
                 <Icon.Warning width={24} height={24} />
               </div>
               <h2 className="text-lg font-bold">Registrasi Ditutup</h2>
-              <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
-                Akun bendahara hanya dapat dibuat sekali saat instalasi dan sudah dinonaktifkan. Silakan login menggunakan akun yang ada.
+              <p className="mt-2 text-sm text-slate-500">
+                Akun bendahara sudah terdaftar. Silakan login menggunakan akun yang ada.
               </p>
               <Link to="/login" className="btn-primary mt-4 inline-flex">
                 Ke Halaman Login
@@ -71,8 +85,10 @@ export default function Register() {
             </div>
           ) : (
             <>
-              <h2 className="text-xl font-bold text-slate-900 dark:text-white">Registrasi Bendahara</h2>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Pendaftaran ini hanya tersedia satu kali saat instalasi awal.</p>
+              <h2 className="text-2xl font-extrabold text-slate-900">Daftar Akun Bendahara</h2>
+              <p className="mt-2 text-sm text-slate-500">
+                Gunakan email Gmail resmi sekolah. Kode verifikasi akan dikirim ke email tersebut.
+              </p>
               <form onSubmit={submit} className="mt-6 space-y-4">
                 <div>
                   <label className="label">Nama Lengkap</label>
@@ -83,26 +99,45 @@ export default function Register() {
                   <input className="input" value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required />
                 </div>
                 <div>
-                  <label className="label">Email</label>
-                  <input className="input" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                  <label className="label">Email Gmail Sekolah</label>
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                      <Icon.Mail width={18} height={18} />
+                    </span>
+                    <input
+                      className="input pl-10"
+                      type="email"
+                      value={form.email}
+                      onChange={(e) => setForm({ ...form, email: e.target.value })}
+                      placeholder="nama@smppusponegoro.sch.id"
+                      required
+                    />
+                  </div>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="label">Password</label>
                     <input className="input" type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
                   </div>
                   <div>
-                    <label className="label">Konfirmasi</label>
+                    <label className="label">Konfirmasi Password</label>
                     <input className="input" type="password" value={form.confirm} onChange={(e) => setForm({ ...form, confirm: e.target.value })} required />
                   </div>
                 </div>
-                <button type="submit" className="btn-primary w-full" disabled={loading}>
-                  {loading ? <Spinner size={18} className="text-white" /> : 'Daftar'}
+                <button type="submit" className="btn-primary h-12 w-full rounded-xl text-base" disabled={loading}>
+                  {loading ? <Spinner size={18} className="text-white" /> : 'Daftar Akun'}
                 </button>
               </form>
             </>
           )}
         </div>
+
+        <p className="mt-6 text-center text-sm text-slate-500">
+          Sudah punya akun?{' '}
+          <Link to="/login" className="font-semibold text-brand-600 hover:underline">
+            Masuk
+          </Link>
+        </p>
       </div>
     </div>
   );

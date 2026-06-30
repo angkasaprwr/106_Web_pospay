@@ -21,9 +21,14 @@ const registrationStatus = asyncHandler(async (req, res) => {
 });
 
 const register = asyncHandler(async (req, res) => {
-  const result = await authService.register(req.body, req);
+  const result = await authService.requestRegistration(req.body, req);
+  return created(res, result, result.message);
+});
+
+const verifyRegister = asyncHandler(async (req, res) => {
+  const result = await authService.verifyRegistration(req.body, req);
   setRefreshCookie(res, result.refreshToken);
-  return created(res, result, 'Akun bendahara berhasil dibuat');
+  return created(res, result, 'Akun bendahara berhasil diverifikasi dan dibuat');
 });
 
 const login = asyncHandler(async (req, res) => {
@@ -65,6 +70,7 @@ const changePassword = asyncHandler(async (req, res) => {
 module.exports = {
   registrationStatus,
   register,
+  verifyRegister,
   login,
   refresh,
   logout,

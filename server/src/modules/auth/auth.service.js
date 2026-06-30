@@ -1,8 +1,11 @@
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { prisma } = require('../../config/prisma');
+const { env } = require('../../config/env');
 const { ApiError } = require('../../core/ApiError');
 const tokenService = require('./token.service');
 const { recordAudit } = require('../audit/audit.service');
+const emailService = require('../../services/email.service');
 
 function sanitizeUser(user) {
   if (!user) return null;
@@ -10,13 +13,18 @@ function sanitizeUser(user) {
   return rest;
 }
 
-/** Whether bendahara self-registration is still allowed (only before first bendahara exists). */
+function generateCode() {
+  return String(crypto.randomInt(100000, 999999));
+}
+
+/** Whether bendahara self-registration is still allowed. */
 async function isRegistrationOpen() {
-  const count = await prisma.user.count({ where: { role: 'BENDAHARA' } });
+  if (env.registrationAlwaysOpen) return true;
+  const count = await prisma.user.count({ where: { role: 'BENDAHARA', emailVerified: true } });
   return count === 0;
 }
 
-async function register(input, req) {
+async function requestRegistration(input, req) {
   const open = await isRegistrationOpen();
   if (!open) {
     throw ApiError.forbidden(
@@ -24,31 +32,101 @@ async function register(input, req) {
     );
   }
 
-  const existing = await prisma.user.findUnique({ where: { username: input.username } });
-  if (existing) throw ApiError.conflict('Username sudah digunakan');
+  if (!input.email) throw ApiError.badRequest('Email Gmail sekolah wajib diisi');
+  if (!emailService.isSchoolEmail(input.email)) {
+    throw ApiError.badRequest(`Email harus menggunakan domain Gmail sekolah (@${env.school.emailDomain})`);
+  }
 
+  const existing = await prisma.user.findFirst({
+    where: { OR: [{ username: input.username }, { email: input.email }] },
+  });
+  if (existing) throw ApiError.conflict('Username atau email sudah digunakan');
+
+  const code = generateCode();
   const hashed = await bcrypt.hash(input.password, 10);
-  const user = await prisma.user.create({
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+  await prisma.registrationVerification.deleteMany({ where: { email: input.email } });
+  const pending = await prisma.registrationVerification.create({
     data: {
+      email: input.email,
+      code,
+      fullName: input.fullName,
       username: input.username,
       password: hashed,
-      fullName: input.fullName,
-      email: input.email || null,
-      phone: input.phone || null,
-      role: 'BENDAHARA',
-      isActive: true,
+      expiresAt,
     },
   });
 
-  await recordAudit({ userId: user.id, action: 'CREATE', entity: 'User', entityId: user.id, metadata: { role: 'BENDAHARA', via: 'register' }, req });
+  const mailResult = await emailService.sendVerificationCode(input.email, code, input.fullName);
+
+  return {
+    verificationId: pending.id,
+    email: input.email,
+    emailSent: mailResult.sent,
+    devCode: mailResult.devCode || null,
+    message: mailResult.sent
+      ? 'Kode verifikasi telah dikirim ke email Gmail sekolah Anda.'
+      : 'SMTP belum dikonfigurasi. Gunakan kode verifikasi yang ditampilkan untuk pengujian developer.',
+  };
+}
+
+async function verifyRegistration(input, req) {
+  const pending = await prisma.registrationVerification.findUnique({ where: { id: input.verificationId } });
+  if (!pending || pending.usedAt) throw ApiError.badRequest('Permintaan verifikasi tidak valid');
+  if (pending.expiresAt < new Date()) throw ApiError.badRequest('Kode verifikasi sudah kedaluwarsa. Silakan daftar ulang.');
+  if (pending.code !== input.code) throw ApiError.badRequest('Kode verifikasi salah');
+
+  const open = await isRegistrationOpen();
+  if (!open) throw ApiError.forbidden('Registrasi bendahara sudah ditutup');
+
+  const existing = await prisma.user.findFirst({
+    where: { OR: [{ username: pending.username }, { email: pending.email }] },
+  });
+  if (existing) throw ApiError.conflict('Username atau email sudah digunakan');
+
+  const user = await prisma.user.create({
+    data: {
+      username: pending.username,
+      password: pending.password,
+      fullName: pending.fullName,
+      email: pending.email,
+      phone: null,
+      role: 'BENDAHARA',
+      isActive: true,
+      emailVerified: true,
+    },
+  });
+
+  await prisma.registrationVerification.update({
+    where: { id: pending.id },
+    data: { usedAt: new Date() },
+  });
+
+  await recordAudit({
+    userId: user.id,
+    action: 'CREATE',
+    entity: 'User',
+    entityId: user.id,
+    metadata: { role: 'BENDAHARA', via: 'register-verify' },
+    req,
+  });
 
   return issueSession(user, req);
+}
+
+async function register(input, req) {
+  const result = await requestRegistration(input, req);
+  return { pending: true, ...result };
 }
 
 async function login(username, password, req) {
   const user = await prisma.user.findUnique({ where: { username } });
   if (!user) throw ApiError.unauthorized('Username atau password salah');
   if (!user.isActive) throw ApiError.forbidden('Akun Anda tidak aktif. Hubungi bendahara.');
+  if (user.role === 'BENDAHARA' && !user.emailVerified) {
+    throw ApiError.forbidden('Akun belum diverifikasi. Selesaikan verifikasi email terlebih dahulu.');
+  }
 
   const match = await bcrypt.compare(password, user.password);
   if (!match) throw ApiError.unauthorized('Username atau password salah');
@@ -119,6 +197,8 @@ async function changePassword(userId, currentPassword, newPassword, req) {
 
 module.exports = {
   isRegistrationOpen,
+  requestRegistration,
+  verifyRegistration,
   register,
   login,
   refresh,
