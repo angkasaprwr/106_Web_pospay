@@ -40,3 +40,4 @@ server/backups/*
 .vscode/
 coverage/
 *.tsbuildinfo
+.playwright-mcp/

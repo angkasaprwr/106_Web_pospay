@@ -1,219 +1,131 @@
-import { useEffect, useState, useCallback } from 'react';
-import { api, apiError } from '../lib/api';
-import { useToast } from '../context/ToastContext';
-import { PageHeader, Spinner, Modal, Pagination, Field, EmptyState, Badge, ConfirmDialog } from '../components/ui';
+import { useCallback, useEffect, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { api } from '../lib/api';
 import { Icon } from '../components/Icons';
-import { formatIDR, formatDate, BILL_STATUS } from '../lib/format';
+import { StatCard } from '../components/tagihan/shared';
+import DaftarTagihanTab from '../components/tagihan/DaftarTagihanTab';
+import StatusPembayaranTab from '../components/tagihan/StatusPembayaranTab';
+import VerifikasiPembayaranTab from '../components/tagihan/VerifikasiPembayaranTab';
+import TunggakanDispensasiTab from '../components/tagihan/TunggakanDispensasiTab';
+
+const TABS = [
+  { id: 'daftar', label: 'A. Daftar Tagihan' },
+  { id: 'status', label: 'B. Status Pembayaran' },
+  { id: 'verifikasi', label: 'C. Verifikasi Pembayaran' },
+  { id: 'tunggakan', label: 'D. Tunggakan & Dispensasi' },
+];
+
+async function countBills(status) {
+  const params = new URLSearchParams({ limit: 1, page: 1 });
+  if (status) params.set('status', status);
+  const { data } = await api.get(`/bills?${params}`);
+  return data.meta?.total || 0;
+}
+
+async function countPayments(status) {
+  const params = new URLSearchParams({ limit: 1, page: 1 });
+  if (status) params.set('status', status);
+  const { data } = await api.get(`/payments?${params}`);
+  return data.meta?.total || 0;
+}
+
+async function countDispensations(status) {
+  const params = new URLSearchParams({ limit: 1, page: 1 });
+  if (status) params.set('status', status);
+  const { data } = await api.get(`/dispensations?${params}`);
+  return data.meta?.total || 0;
+}
 
 export default function Bills() {
-  const toast = useToast();
-  const [items, setItems] = useState([]);
-  const [meta, setMeta] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({ search: '', status: '', feeTypeId: '', classId: '', page: 1 });
-  const [feeTypes, setFeeTypes] = useState([]);
-  const [classes, setClasses] = useState([]);
-  const [students, setStudents] = useState([]);
-  const [modal, setModal] = useState(null); // 'single' | 'bulk'
-  const [single, setSingle] = useState({ studentId: '', feeTypeId: '', amount: '', dueDate: '', period: '', description: '' });
-  const [bulk, setBulk] = useState({ feeTypeId: '', amount: '', dueDate: '', period: '', target: 'ALL', classId: '' });
-  const [saving, setSaving] = useState(false);
-  const [confirm, setConfirm] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const initialTab = TABS.some((t) => t.id === tabParam) ? tabParam : 'daftar';
+  const [tab, setTab] = useState(initialTab);
+  const [stats, setStats] = useState({ total: 0, paid: 0, pendingPay: 0, unpaid: 0, pendingDisp: 0 });
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      Object.entries(filters).forEach(([k, v]) => v && params.append(k, v));
-      const { data } = await api.get(`/bills?${params}`);
-      setItems(data.data);
-      setMeta(data.meta);
-    } catch (e) {
-      toast.error(apiError(e));
-    } finally {
-      setLoading(false);
+  const selectTab = (id) => {
+    setTab(id);
+    if (id === 'daftar') {
+      searchParams.delete('tab');
+    } else {
+      searchParams.set('tab', id);
     }
-  }, [filters]); // eslint-disable-line
+    setSearchParams(searchParams, { replace: true });
+  };
 
-  useEffect(() => { load(); }, [load]);
-  useEffect(() => {
-    api.get('/masterdata/fee-types').then(({ data }) => setFeeTypes(data.data)).catch(() => {});
-    api.get('/masterdata/classes').then(({ data }) => setClasses(data.data)).catch(() => {});
-    api.get('/students?limit=100').then(({ data }) => setStudents(data.data)).catch(() => {});
+  const loadStats = useCallback(async () => {
+    try {
+      const [total, paid, pendingPay, unpaid, overdue, partial, pendingDisp] = await Promise.all([
+        countBills(''),
+        countBills('PAID'),
+        countPayments('PENDING'),
+        countBills('UNPAID'),
+        countBills('OVERDUE'),
+        countBills('PARTIAL'),
+        countDispensations('PENDING'),
+      ]);
+      setStats({
+        total,
+        paid,
+        pendingPay,
+        unpaid: unpaid + overdue + partial,
+        pendingDisp,
+      });
+    } catch {
+      /* ignore */
+    }
   }, []);
 
-  const onFeeChange = (id, setter, current) => {
-    const ft = feeTypes.find((f) => f.id === id);
-    setter({ ...current, feeTypeId: id, amount: ft ? Number(ft.defaultAmount) : current.amount });
-  };
-
-  const saveSingle = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      await api.post('/bills', single);
-      toast.success('Tagihan dibuat');
-      setModal(null);
-      load();
-    } catch (err) {
-      toast.error(apiError(err));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const saveBulk = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      const { data } = await api.post('/bills/bulk', bulk);
-      toast.success(`${data.data.created} tagihan dibuat`);
-      setModal(null);
-      load();
-    } catch (err) {
-      toast.error(apiError(err));
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const del = async () => {
-    setSaving(true);
-    try {
-      await api.delete(`/bills/${confirm.id}`);
-      toast.success('Tagihan dihapus');
-      setConfirm(null);
-      load();
-    } catch (e) {
-      toast.error(apiError(e));
-    } finally {
-      setSaving(false);
-    }
-  };
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
 
   return (
-    <div>
-      <PageHeader
-        title="Tagihan"
-        subtitle="Daftar tagihan dan status pembayaran"
-        actions={
-          <>
-            <button className="btn-secondary" onClick={() => setModal('bulk')}><Icon.Plus width={18} height={18} /> Tagihan Massal</button>
-            <button className="btn-primary" onClick={() => setModal('single')}><Icon.Plus width={18} height={18} /> Tagihan Baru</button>
-          </>
-        }
-      />
-
-      <div className="card mb-4 flex flex-wrap items-center gap-3 p-4">
-        <div className="relative flex-1 min-w-[200px]">
-          <Icon.Search width={18} height={18} className="absolute left-3 top-2.5 text-slate-400" />
-          <input className="input pl-10" placeholder="Cari invoice / siswa..." value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value, page: 1 })} />
-        </div>
-        <select className="input w-auto" value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value, page: 1 })}>
-          <option value="">Semua Status</option>
-          {Object.entries(BILL_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
-        </select>
-        <select className="input w-auto" value={filters.feeTypeId} onChange={(e) => setFilters({ ...filters, feeTypeId: e.target.value, page: 1 })}>
-          <option value="">Semua Jenis</option>
-          {feeTypes.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-        </select>
-        <select className="input w-auto" value={filters.classId} onChange={(e) => setFilters({ ...filters, classId: e.target.value, page: 1 })}>
-          <option value="">Semua Kelas</option>
-          {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-        </select>
+    <div className="mx-auto max-w-7xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Tagihan</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          Kelola tagihan, pembayaran, tunggakan, dan dispensasi siswa dalam satu tempat.
+        </p>
       </div>
 
-      <div className="card overflow-hidden">
-        {loading ? (
-          <div className="flex h-48 items-center justify-center"><Spinner size={32} /></div>
-        ) : items.length === 0 ? (
-          <EmptyState title="Belum ada tagihan" icon={Icon.Bills} />
-        ) : (
-          <div className="overflow-x-auto scrollbar-thin">
-            <table className="table-base">
-              <thead>
-                <tr>
-                  <th>Invoice</th><th>Siswa</th><th>Jenis</th><th className="text-right">Nominal</th><th className="text-right">Terbayar</th><th>Jatuh Tempo</th><th>Status</th><th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((b) => (
-                  <tr key={b.id}>
-                    <td className="font-mono text-xs">{b.invoiceNo}</td>
-                    <td><div className="font-medium">{b.student?.fullName}</div><div className="text-xs text-slate-400">{b.student?.schoolClass?.name}</div></td>
-                    <td>{b.feeType?.name}{b.period ? ` (${b.period})` : ''}</td>
-                    <td className="text-right">{formatIDR(b.amount)}</td>
-                    <td className="text-right text-emerald-600">{formatIDR(b.paidAmount)}</td>
-                    <td>{formatDate(b.dueDate)}</td>
-                    <td><Badge status={b.status} map={BILL_STATUS} /></td>
-                    <td className="text-right"><button onClick={() => setConfirm(b)} className="btn-ghost rounded p-1.5 text-red-500"><Icon.Trash width={16} height={16} /></button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-        <Pagination meta={meta} onPage={(p) => setFilters({ ...filters, page: p })} />
+      <div className="flex flex-wrap gap-3">
+        <StatCard label="Total Tagihan" value={`${stats.total} Tagihan`} icon={Icon.Bills} iconBg="bg-blue-50" iconColor="text-blue-600" />
+        <StatCard label="Lunas" value={`${stats.paid} Tagihan`} icon={Icon.Check} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
+        <StatCard label="Menunggu Verifikasi" value={`${stats.pendingPay} Tagihan`} icon={Icon.Clock} iconBg="bg-amber-50" iconColor="text-amber-500" />
+        <StatCard label="Belum Bayar" value={`${stats.unpaid} Tagihan`} icon={Icon.Warning} iconBg="bg-red-50" iconColor="text-red-500" />
+        <StatCard label="Pengajuan Dispensasi" value={`${stats.pendingDisp} Menunggu`} icon={Icon.User} iconBg="bg-purple-50" iconColor="text-purple-600" />
       </div>
 
-      {/* Single bill modal */}
-      <Modal open={modal === 'single'} onClose={() => setModal(null)} title="Buat Tagihan" footer={<><button className="btn-secondary" onClick={() => setModal(null)}>Batal</button><button className="btn-primary" onClick={saveSingle} disabled={saving}>{saving ? <Spinner size={16} className="text-white" /> : 'Simpan'}</button></>}>
-        <form onSubmit={saveSingle} className="space-y-4">
-          <Field label="Siswa" required>
-            <select className="input" value={single.studentId} onChange={(e) => setSingle({ ...single, studentId: e.target.value })} required>
-              <option value="">Pilih siswa</option>
-              {students.map((s) => <option key={s.id} value={s.id}>{s.nis} - {s.fullName}</option>)}
-            </select>
-          </Field>
-          <Field label="Jenis Tagihan" required>
-            <select className="input" value={single.feeTypeId} onChange={(e) => onFeeChange(e.target.value, setSingle, single)} required>
-              <option value="">Pilih jenis</option>
-              {feeTypes.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-            </select>
-          </Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Nominal" required><input type="number" className="input" value={single.amount} onChange={(e) => setSingle({ ...single, amount: e.target.value })} required /></Field>
-            <Field label="Jatuh Tempo"><input type="date" className="input" value={single.dueDate} onChange={(e) => setSingle({ ...single, dueDate: e.target.value })} /></Field>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Periode"><input className="input" placeholder="2025-09" value={single.period} onChange={(e) => setSingle({ ...single, period: e.target.value })} /></Field>
-            <Field label="Keterangan"><input className="input" value={single.description} onChange={(e) => setSingle({ ...single, description: e.target.value })} /></Field>
-          </div>
-        </form>
-      </Modal>
+      <div className="flex flex-wrap gap-2">
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            type="button"
+            onClick={() => selectTab(t.id)}
+            className={`rounded-lg px-4 py-2.5 text-sm font-medium transition ${
+              tab === t.id
+                ? 'bg-pospay text-white shadow-sm'
+                : 'border border-slate-200 bg-white text-slate-700 hover:border-pospay/30 hover:text-pospay'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
 
-      {/* Bulk bill modal */}
-      <Modal open={modal === 'bulk'} onClose={() => setModal(null)} title="Tagihan Massal" footer={<><button className="btn-secondary" onClick={() => setModal(null)}>Batal</button><button className="btn-primary" onClick={saveBulk} disabled={saving}>{saving ? <Spinner size={16} className="text-white" /> : 'Buat'}</button></>}>
-        <form onSubmit={saveBulk} className="space-y-4">
-          <Field label="Jenis Tagihan" required>
-            <select className="input" value={bulk.feeTypeId} onChange={(e) => onFeeChange(e.target.value, setBulk, bulk)} required>
-              <option value="">Pilih jenis</option>
-              {feeTypes.map((f) => <option key={f.id} value={f.id}>{f.name}</option>)}
-            </select>
-          </Field>
-          <Field label="Target" required>
-            <select className="input" value={bulk.target} onChange={(e) => setBulk({ ...bulk, target: e.target.value })}>
-              <option value="ALL">Semua Siswa Aktif</option>
-              <option value="CLASS">Per Kelas</option>
-            </select>
-          </Field>
-          {bulk.target === 'CLASS' && (
-            <Field label="Kelas" required>
-              <select className="input" value={bulk.classId} onChange={(e) => setBulk({ ...bulk, classId: e.target.value })} required>
-                <option value="">Pilih kelas</option>
-                {classes.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-              </select>
-            </Field>
-          )}
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Nominal" required><input type="number" className="input" value={bulk.amount} onChange={(e) => setBulk({ ...bulk, amount: e.target.value })} required /></Field>
-            <Field label="Jatuh Tempo"><input type="date" className="input" value={bulk.dueDate} onChange={(e) => setBulk({ ...bulk, dueDate: e.target.value })} /></Field>
-          </div>
-          <Field label="Periode"><input className="input" placeholder="2025-09" value={bulk.period} onChange={(e) => setBulk({ ...bulk, period: e.target.value })} /></Field>
-        </form>
-      </Modal>
+      {tab === 'daftar' && <DaftarTagihanTab onStatsChange={loadStats} />}
+      {tab === 'status' && <StatusPembayaranTab />}
+      {tab === 'verifikasi' && <VerifikasiPembayaranTab />}
+      {tab === 'tunggakan' && <TunggakanDispensasiTab />}
 
-      <ConfirmDialog open={!!confirm} message={`Hapus tagihan ${confirm?.invoiceNo}?`} onConfirm={del} onClose={() => setConfirm(null)} loading={saving} />
+      <Link
+        to="/chatbot"
+        className="fixed bottom-6 right-6 z-20 flex items-center gap-2 rounded-full bg-pospay px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-pospay-700"
+      >
+        <Icon.Chat width={20} height={20} />
+        <span className="hidden sm:inline">Butuh bantuan? Tanya lewat Chatbot</span>
+      </Link>
     </div>
   );
 }

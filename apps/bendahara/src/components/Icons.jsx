@@ -31,4 +31,8 @@ export const Icon = {
   Shield: (p) => (<svg {...base} {...p}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>),
   Info: (p) => (<svg {...base} {...p}><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>),
   Clock: (p) => (<svg {...base} {...p}><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>),
+  Lock: (p) => (<svg {...base} {...p}><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>),
+  Eye: (p) => (<svg {...base} {...p}><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" /><circle cx="12" cy="12" r="3" /></svg>),
+  EyeOff: (p) => (<svg {...base} {...p}><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.77 21.77 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 5c7 0 11 7 11 7a21.8 21.8 0 0 1-5 5.87" /><path d="M1 1l22 22M14.12 14.12a3 3 0 0 1-4.24-4.24" /></svg>),
+  Mail: (p) => (<svg {...base} {...p}><path d="M4 4h16v16H4z" /><path d="M22 6l-10 7L2 6" /></svg>),
 };
