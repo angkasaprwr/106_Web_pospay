@@ -67,6 +67,22 @@ const changePassword = asyncHandler(async (req, res) => {
   return ok(res, null, 'Password berhasil diubah, silakan login kembali');
 });
 
+const forgotPassword = asyncHandler(async (req, res) => {
+  const result = await authService.requestPasswordReset(req.body.email, req);
+  return ok(res, result, result.message);
+});
+
+const validateResetToken = asyncHandler(async (req, res) => {
+  if (!req.query.token) return ok(res, { valid: false }, 'Token tidak ditemukan');
+  const result = await authService.validatePasswordResetToken(req.query.token);
+  return ok(res, result, result.valid ? 'Token valid' : 'Token tidak valid');
+});
+
+const resetPassword = asyncHandler(async (req, res) => {
+  const result = await authService.resetPasswordWithToken(req.body, req);
+  return ok(res, result, result.message);
+});
+
 module.exports = {
   registrationStatus,
   register,
@@ -77,4 +93,7 @@ module.exports = {
   me,
   updateProfile,
   changePassword,
+  forgotPassword,
+  validateResetToken,
+  resetPassword,
 };

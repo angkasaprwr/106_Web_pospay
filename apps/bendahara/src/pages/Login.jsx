@@ -149,13 +149,9 @@ export default function Login() {
                   />
                   Ingat saya
                 </label>
-                <button
-                  type="button"
-                  onClick={() => toast.info('Hubungi administrator sekolah untuk reset password.')}
-                  className="font-medium text-pospay hover:underline"
-                >
+                <Link to="/lupa-kata-sandi" className="font-medium text-pospay hover:underline">
                   Lupa password?
-                </button>
+                </Link>
               </div>
 
               <button

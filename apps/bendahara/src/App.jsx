@@ -6,6 +6,8 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import VerifyRegister from './pages/VerifyRegister';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import Students from './pages/Students';
 import Bills from './pages/Bills';
@@ -37,6 +39,8 @@ export default function App() {
       <Route path="/login" element={<PublicOnly><Login /></PublicOnly>} />
       <Route path="/register" element={<PublicOnly><Register /></PublicOnly>} />
       <Route path="/register/verify" element={<PublicOnly><VerifyRegister /></PublicOnly>} />
+      <Route path="/lupa-kata-sandi" element={<PublicOnly><ForgotPassword /></PublicOnly>} />
+      <Route path="/lupa-kata-sandi/reset" element={<PublicOnly><ResetPassword /></PublicOnly>} />
       <Route
         path="/"
         element={

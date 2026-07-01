@@ -65,6 +65,10 @@ const env = {
     user: process.env.SMTP_USER || '',
     pass: process.env.SMTP_PASS || '',
   },
+
+  frontend: {
+    bendaharaUrl: process.env.FRONTEND_BENDAHARA_URL || 'http://127.0.0.1:5173',
+  },
 };
 
 module.exports = { env };

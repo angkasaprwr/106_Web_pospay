@@ -129,6 +129,7 @@ model User {
   notifications  Notification[]
   chatSessions   ChatSession[]
   chatMessages   ChatMessage[]
+  passwordResets PasswordResetToken[]
 
   @@index([role])
   @@index([isActive])
@@ -174,6 +175,21 @@ model RegistrationVerification {
 
   @@index([email])
   @@index([code])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email     String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([email])
   @@index([expiresAt])
 }
 

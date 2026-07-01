@@ -34,6 +34,19 @@ const updateProfileSchema = z.object({
   avatarUrl: z.string().optional(),
 });
 
+const forgotPasswordSchema = z.object({
+  email: z.string().email('Email tidak valid'),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().min(1, 'Token reset wajib diisi'),
+  password: z.string().min(6, 'Password minimal 6 karakter'),
+  confirmPassword: z.string().min(6, 'Konfirmasi password wajib diisi'),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: 'Konfirmasi password tidak cocok',
+  path: ['confirmPassword'],
+});
+
 module.exports = {
   registerSchema,
   verifyRegistrationSchema,
@@ -41,4 +54,6 @@ module.exports = {
   refreshSchema,
   changePasswordSchema,
   updateProfileSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
 };

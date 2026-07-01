@@ -195,6 +195,87 @@ async function changePassword(userId, currentPassword, newPassword, req) {
   await recordAudit({ userId, action: 'UPDATE', entity: 'User', entityId: userId, metadata: { field: 'password' }, req });
 }
 
+async function requestPasswordReset(email, req) {
+  if (!emailService.isSchoolEmail(email)) {
+    throw ApiError.badRequest(`Email harus menggunakan domain Gmail sekolah (@${env.school.emailDomain})`);
+  }
+
+  const user = await prisma.user.findFirst({
+    where: { email, role: 'BENDAHARA', isActive: true, emailVerified: true },
+  });
+
+  if (!user) {
+    return {
+      message: 'Jika email terdaftar, tautan reset telah dikirim ke Gmail sekolah Anda.',
+      emailSent: false,
+    };
+  }
+
+  const token = crypto.randomBytes(32).toString('hex');
+  const expiresAt = new Date(Date.now() + 30 * 60 * 1000);
+
+  await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
+  await prisma.passwordResetToken.create({
+    data: { token, userId: user.id, email, expiresAt },
+  });
+
+  const resetUrl = `${env.frontend.bendaharaUrl}/lupa-kata-sandi/reset?token=${token}`;
+  const mailResult = await emailService.sendPasswordResetLink(email, user.fullName, resetUrl);
+
+  await recordAudit({
+    userId: user.id,
+    action: 'UPDATE',
+    entity: 'User',
+    entityId: user.id,
+    metadata: { field: 'password-reset-request' },
+    req,
+  });
+
+  return {
+    message: mailResult.sent
+      ? 'Tautan reset kata sandi telah dikirim ke Gmail sekolah Anda.'
+      : 'SMTP belum dikonfigurasi. Gunakan tautan reset yang ditampilkan untuk pengujian developer.',
+    emailSent: mailResult.sent,
+    devResetUrl: mailResult.devResetUrl || null,
+  };
+}
+
+async function validatePasswordResetToken(token) {
+  const record = await prisma.passwordResetToken.findUnique({ where: { token } });
+  if (!record || record.usedAt) return { valid: false };
+  if (record.expiresAt < new Date()) return { valid: false, expired: true };
+  return { valid: true, email: record.email };
+}
+
+async function resetPasswordWithToken(input, req) {
+  const record = await prisma.passwordResetToken.findUnique({
+    where: { token: input.token },
+    include: { user: true },
+  });
+
+  if (!record || record.usedAt) throw ApiError.badRequest('Tautan reset tidak valid atau sudah digunakan');
+  if (record.expiresAt < new Date()) throw ApiError.badRequest('Tautan reset sudah kedaluwarsa. Silakan minta tautan baru.');
+  if (!record.user || record.user.role !== 'BENDAHARA') throw ApiError.forbidden('Reset hanya untuk akun bendahara');
+
+  const hashed = await bcrypt.hash(input.password, 10);
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: record.userId }, data: { password: hashed } }),
+    prisma.passwordResetToken.update({ where: { id: record.id }, data: { usedAt: new Date() } }),
+  ]);
+
+  await tokenService.revokeAllForUser(record.userId);
+  await recordAudit({
+    userId: record.userId,
+    action: 'UPDATE',
+    entity: 'User',
+    entityId: record.userId,
+    metadata: { field: 'password-reset' },
+    req,
+  });
+
+  return { message: 'Kata sandi berhasil diperbarui. Silakan login kembali.' };
+}
+
 module.exports = {
   isRegistrationOpen,
   requestRegistration,
@@ -206,5 +287,8 @@ module.exports = {
   getProfile,
   updateProfile,
   changePassword,
+  requestPasswordReset,
+  validatePasswordResetToken,
+  resetPasswordWithToken,
   sanitizeUser,
 };

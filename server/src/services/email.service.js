@@ -71,4 +71,50 @@ async function sendVerificationCode(email, code, fullName) {
   return { sent: true };
 }
 
-module.exports = { sendVerificationCode, isSchoolEmail };
+async function sendPasswordResetLink(email, fullName, resetUrl) {
+  const subject = 'Tautan Reset Kata Sandi POSPAY';
+  const text = [
+    `Yth. ${fullName},`,
+    '',
+    'Anda menerima permintaan reset kata sandi akun bendahara POSPAY.',
+    '',
+    'Klik tautan berikut untuk mengatur kata sandi baru:',
+    resetUrl,
+    '',
+    'Tautan berlaku 30 menit. Jika Anda tidak meminta reset, abaikan email ini.',
+    '',
+    `— POSPAY ${env.school.name}`,
+  ].join('\n');
+
+  const html = `
+    <div style="font-family:Inter,Arial,sans-serif;max-width:520px;margin:0 auto;padding:24px">
+      <h2 style="color:#0047AB;margin:0 0 12px">Reset Kata Sandi</h2>
+      <p>Yth. <strong>${fullName}</strong>,</p>
+      <p>Klik tombol di bawah untuk mengatur kata sandi baru akun bendahara POSPAY:</p>
+      <div style="text-align:center;margin:28px 0">
+        <a href="${resetUrl}" style="display:inline-block;background:#0047AB;color:#fff;text-decoration:none;padding:14px 28px;border-radius:8px;font-weight:600">Tautan Reset</a>
+      </div>
+      <p style="color:#64748b;font-size:14px">Tautan berlaku 30 menit. Notifikasi ini dikirim ke Gmail sekolah Anda.</p>
+      <p style="color:#94a3b8;font-size:12px;word-break:break-all">${resetUrl}</p>
+      <p style="color:#94a3b8;font-size:12px;margin-top:24px">POSPAY · ${env.school.name}</p>
+    </div>
+  `;
+
+  const transport = getTransporter();
+  if (!transport) {
+    logger.warn(`[DEV] Tautan reset kata sandi untuk ${email}: ${resetUrl}`);
+    return { sent: false, devResetUrl: resetUrl };
+  }
+
+  await transport.sendMail({
+    from: `"POSPAY ${env.school.name}" <${env.smtp.user}>`,
+    to: email,
+    subject,
+    text,
+    html,
+  });
+
+  return { sent: true };
+}
+
+module.exports = { sendVerificationCode, sendPasswordResetLink, isSchoolEmail };

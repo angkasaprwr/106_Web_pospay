@@ -126,6 +126,12 @@ SCHOOL_EMAIL_DOMAIN=smppusponegoro.sch.id
 ```
 Email pendaftar harus menggunakan domain sekolah (`@smppusponegoro.sch.id`).
 
+### Lupa kata sandi bendahara
+- Login → klik **Lupa password?** → `/lupa-kata-sandi`
+- Isi email Gmail sekolah → **Kirim Tautan Reset**
+- Klik tautan di Gmail → `/lupa-kata-sandi/reset?token=...` → atur kata sandi baru
+- Set `FRONTEND_BENDAHARA_URL=http://127.0.0.1:5173` di `server/.env` agar tautan reset benar
+
 ### 4. Menjalankan
 Tiga terminal terpisah (gunakan `127.0.0.1` agar konsisten dengan CORS):
 ```bash
@@ -161,7 +167,7 @@ Diatur via `REMINDER_CRON` (default `0 8 * * *`), `REMINDER_ENABLED`, dan
 
 Base URL: `/api`
 
-- `auth` — register (kirim kode Gmail), register/verify, login, refresh, logout, me, change-password
+- `auth` — register (kirim kode Gmail), register/verify, login, forgot-password, reset-password, refresh, logout, me, change-password
 - `students` — CRUD siswa, reset password, toggle akun
 - `bills` — daftar, buat satuan/massal, update, hapus
 - `payments` — daftar, catat, verifikasi, tolak
