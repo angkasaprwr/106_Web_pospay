@@ -157,6 +157,12 @@ export default function StatusPembayaranTab() {
     load();
   }, [load]);
 
+  useEffect(() => {
+    if (tagihanGroups.length > 0 && !filters.tagihanKey) {
+      setFilters((f) => ({ ...f, tagihanKey: tagihanGroups[0].key, page: 1 }));
+    }
+  }, [tagihanGroups]); // eslint-disable-line
+
   const filteredItems = useMemo(
     () => filterByStatus(allItems, filters.statusFilter, pendingBillIds),
     [allItems, filters.statusFilter, pendingBillIds],
@@ -241,8 +247,8 @@ export default function StatusPembayaranTab() {
               <option value="pending">Menunggu Verifikasi</option>
               <option value="unpaid">Belum Bayar</option>
             </select>
-            <div className="relative min-w-[180px] flex-1 sm:max-w-[200px]">
-              <Icon.Search width={16} height={16} className="absolute left-3 top-2.5 text-slate-400" />
+            <div className="relative min-w-[180px] flex-1 sm:max-w-[220px]">
+              <Icon.Search width={16} height={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm outline-none focus:border-pospay"
                 placeholder="Cari nama siswa..."
@@ -326,29 +332,35 @@ export default function StatusPembayaranTab() {
 
       <div className="space-y-4">
         <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
-          <h3 className="mb-4 font-semibold text-slate-900">Ringkasan Status</h3>
+          <h3 className="mb-1 font-semibold text-slate-900">Ringkasan Status</h3>
+          {selectedGroup && (
+            <p className="mb-4 text-sm text-slate-500">{selectedGroup.label}</p>
+          )}
           {summary.total === 0 ? (
             <p className="py-8 text-center text-sm text-slate-400">Belum ada data</p>
           ) : (
-            <>
-              <p className="mb-2 text-center text-sm font-medium text-slate-600">
-                {selectedGroup?.label || 'Semua Tagihan'}
-              </p>
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie data={summary.chart} dataKey="value" nameKey="name" innerRadius={55} outerRadius={80} paddingAngle={2}>
-                    {summary.chart.map((entry) => (
-                      <Cell key={entry.name} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip formatter={(v, name) => [`${v} siswa`, name]} />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="mt-2 space-y-2 text-sm">
+            <div className="flex flex-col items-center gap-4 sm:flex-row">
+              <div className="relative mx-auto h-[180px] w-[180px] shrink-0">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={summary.chart} dataKey="value" nameKey="name" innerRadius={52} outerRadius={78} paddingAngle={2} stroke="none">
+                      {summary.chart.map((entry) => (
+                        <Cell key={entry.name} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(v, name) => [`${v} siswa`, name]} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
+                  <span className="text-2xl font-bold text-slate-900">{summary.total}</span>
+                  <span className="text-xs text-slate-500">Siswa</span>
+                </div>
+              </div>
+              <div className="w-full flex-1 space-y-2.5 text-sm">
                 {summary.chart.map((c) => (
-                  <div key={c.name} className="flex items-center justify-between">
+                  <div key={c.name} className="flex items-center justify-between gap-2">
                     <span className="flex items-center gap-2 text-slate-600">
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: c.color }} />
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: c.color }} />
                       {c.name}
                     </span>
                     <span className="font-medium text-slate-800">{c.value} ({c.pct}%)</span>
@@ -359,7 +371,7 @@ export default function StatusPembayaranTab() {
                   <span>{summary.total} (100%)</span>
                 </div>
               </div>
-            </>
+            </div>
           )}
         </div>
 
