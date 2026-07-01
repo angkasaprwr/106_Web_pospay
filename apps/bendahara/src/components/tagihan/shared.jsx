@@ -1,0 +1,120 @@
+import { formatIDR, formatDate, BILL_STATUS } from '../../lib/format';
+
+export function StatCard({ label, value, icon: IconC, iconBg, iconColor }) {
+  return (
+    <div className="min-w-[130px] flex-1 rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <p className="text-xs text-slate-500">{label}</p>
+          <p className="mt-1 text-base font-bold text-slate-900 sm:text-lg">{value}</p>
+        </div>
+        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
+          <IconC width={20} height={20} className={iconColor} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function TagihanPagination({ meta, limit, onPage, onLimit }) {
+  if (!meta) return null;
+  const { page, total, totalPages } = meta;
+  const start = total === 0 ? 0 : (page - 1) * limit + 1;
+  const end = Math.min(page * limit, total);
+
+  const pages = [];
+  let startPage = Math.max(1, page - 2);
+  const endPage = Math.min(totalPages, startPage + 4);
+  if (endPage - startPage < 4) startPage = Math.max(1, endPage - 4);
+  for (let i = startPage; i <= endPage; i += 1) pages.push(i);
+
+  return (
+    <div className="flex flex-col items-center justify-between gap-4 border-t border-slate-100 px-4 py-4 text-sm text-slate-500 sm:flex-row">
+      <p>
+        Menampilkan {start} - {end} dari {total} data
+      </p>
+      <div className="flex items-center gap-1">
+        <button type="button" disabled={page <= 1} onClick={() => onPage(page - 1)} className="rounded-lg border border-slate-200 px-2 py-1.5 disabled:opacity-40">‹</button>
+        {pages.map((p) => (
+          <button
+            key={p}
+            type="button"
+            onClick={() => onPage(p)}
+            className={`min-w-[32px] rounded-lg px-2.5 py-1.5 font-medium ${p === page ? 'bg-pospay text-white' : 'text-slate-600 hover:bg-slate-50'}`}
+          >
+            {p}
+          </button>
+        ))}
+        <button type="button" disabled={page >= totalPages} onClick={() => onPage(page + 1)} className="rounded-lg border border-slate-200 px-2 py-1.5 disabled:opacity-40">›</button>
+      </div>
+      {onLimit && (
+        <div className="flex items-center gap-2 text-sm">
+          <span>Tampilkan</span>
+          <select value={limit} onChange={(e) => onLimit(Number(e.target.value))} className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm">
+            {[5, 10, 20, 50].map((n) => <option key={n} value={n}>{n}</option>)}
+          </select>
+          <span>data</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const FEE_BADGE = {
+  SPP: 'bg-blue-50 text-blue-700 ring-1 ring-blue-200',
+  GEDUNG: 'bg-indigo-50 text-indigo-700 ring-1 ring-indigo-200',
+  SERAGAM: 'bg-violet-50 text-violet-700 ring-1 ring-violet-200',
+  KEGIATAN: 'bg-purple-50 text-purple-700 ring-1 ring-purple-200',
+  UJIAN: 'bg-purple-50 text-purple-700 ring-1 ring-purple-200',
+};
+
+export function FeeTypeBadge({ feeType }) {
+  const code = feeType?.code || '';
+  const cls = FEE_BADGE[code] || 'bg-slate-50 text-slate-700 ring-1 ring-slate-200';
+  return (
+    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${cls}`}>
+      {feeType?.name || '-'}
+    </span>
+  );
+}
+
+export function billDisplayName(bill) {
+  if (bill.description) return bill.description;
+  const period = bill.period ? ` ${bill.period}` : '';
+  return `${bill.feeType?.name || 'Tagihan'}${period}`;
+}
+
+export function billStatusLabel(status) {
+  if (status === 'PAID') return { label: 'Lunas', cls: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' };
+  if (status === 'WAIVED') return { label: 'Dibebaskan', cls: 'bg-slate-50 text-slate-600 ring-1 ring-slate-200' };
+  return { label: 'Aktif', cls: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' };
+}
+
+export function formatBillDate(value) {
+  if (!value) return '-';
+  return new Date(value).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+export function exportBillsCsv(items) {
+  const header = 'Invoice,Nama Tagihan,Jenis,Periode,Nominal,Jatuh Tempo,Status,Siswa\n';
+  const rows = items.map((b) => {
+    const cols = [
+      b.invoiceNo,
+      billDisplayName(b),
+      b.feeType?.name,
+      b.period || '',
+      Number(b.amount),
+      b.dueDate ? formatDate(b.dueDate) : '',
+      BILL_STATUS[b.status]?.label || b.status,
+      b.student?.fullName,
+    ];
+    return cols.map((c) => `"${String(c || '').replace(/"/g, '""')}"`).join(',');
+  });
+  const blob = new Blob([header + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `daftar-tagihan-pospay-${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
