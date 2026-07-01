@@ -1,31 +1,28 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, useNavigate, Outlet, Link } from 'react-router-dom';
 import { Icon } from './Icons';
-import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
 import { formatDateTime } from '../lib/format';
+import AppFooter from './AppFooter';
 
 const NAV = [
   { to: '/', label: 'Beranda', icon: Icon.Dashboard, end: true },
   { to: '/siswa', label: 'Data Siswa', icon: Icon.Students },
   { to: '/tagihan', label: 'Tagihan', icon: Icon.Bills },
-  { to: '/pembayaran', label: 'Pembayaran', icon: Icon.Payment },
-  { to: '/dispensasi', label: 'Dispensasi', icon: Icon.Dispensation },
   { to: '/laporan', label: 'Laporan', icon: Icon.Report },
   { to: '/chatbot', label: 'Chatbot', icon: Icon.Chat },
-  { to: '/pengaturan', label: 'Pengaturan', icon: Icon.Settings },
 ];
 
 function Brand() {
   return (
-    <Link to="/" className="flex items-center gap-2 px-2">
-      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-white">
-        <Icon.School width={20} height={20} />
+    <Link to="/" className="flex items-center gap-3">
+      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-pospay text-white shadow-sm">
+        <Icon.School width={22} height={22} />
       </div>
-      <div>
-        <p className="text-sm font-bold leading-tight text-slate-900 dark:text-white">POSPAY</p>
-        <p className="text-[10px] uppercase tracking-wide text-slate-400">Bendahara</p>
+      <div className="hidden sm:block">
+        <p className="text-base font-bold leading-tight text-slate-900">POSPAY</p>
+        <p className="text-[11px] text-slate-500">Sistem Informasi Keuangan Sekolah</p>
       </div>
     </Link>
   );
@@ -66,30 +63,33 @@ function Notifications() {
 
   return (
     <div className="relative" ref={ref}>
-      <button onClick={() => setOpen((o) => !o)} className="btn-ghost relative rounded-lg p-2">
+      <button type="button" onClick={() => setOpen((o) => !o)} className="relative rounded-lg p-2 text-slate-600 hover:bg-slate-100">
         <Icon.Bell width={20} height={20} />
         {unread > 0 && (
-          <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+          <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
             {unread > 9 ? '9+' : unread}
           </span>
         )}
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-80 card z-40 overflow-hidden">
-          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800">
-            <span className="font-semibold">Notifikasi</span>
-            <button onClick={markAll} className="text-xs text-brand-600 hover:underline">
+        <div className="absolute right-0 z-40 mt-2 w-80 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
+          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+            <span className="font-semibold text-slate-800">Notifikasi</span>
+            <button type="button" onClick={markAll} className="text-xs text-pospay hover:underline">
               Tandai dibaca
             </button>
           </div>
-          <div className="max-h-96 overflow-y-auto scrollbar-thin">
+          <div className="max-h-96 overflow-y-auto">
             {items.length === 0 ? (
               <p className="px-4 py-8 text-center text-sm text-slate-400">Tidak ada notifikasi</p>
             ) : (
               items.map((n) => (
-                <div key={n.id} className={`border-b border-slate-100 px-4 py-3 dark:border-slate-800 ${!n.readAt ? 'bg-brand-50/40 dark:bg-brand-900/10' : ''}`}>
-                  <p className="text-sm font-medium text-slate-800 dark:text-slate-100">{n.title}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{n.body}</p>
+                <div
+                  key={n.id}
+                  className={`border-b border-slate-50 px-4 py-3 ${!n.readAt ? 'bg-blue-50/40' : ''}`}
+                >
+                  <p className="text-sm font-medium text-slate-800">{n.title}</p>
+                  <p className="text-xs text-slate-500">{n.body}</p>
                   <p className="mt-1 text-[10px] text-slate-400">{formatDateTime(n.createdAt)}</p>
                 </div>
               ))
@@ -119,29 +119,42 @@ function ProfileMenu() {
   };
 
   return (
-    <div className="relative" ref={ref}>
-      <button onClick={() => setOpen((o) => !o)} className="flex items-center gap-2 rounded-lg p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800">
-        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-600 text-sm font-bold text-white">
+    <div className="relative flex items-center gap-1" ref={ref}>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 hover:bg-slate-100"
+      >
+        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-pospay text-sm font-bold text-white">
           {(user?.fullName || 'B')[0].toUpperCase()}
         </div>
-        <span className="hidden text-sm font-medium sm:inline">{user?.fullName}</span>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-500">
+          <path d="M6 9l6 6 6-6" />
+        </svg>
       </button>
       {open && (
-        <div className="absolute right-0 mt-2 w-56 card z-40 overflow-hidden py-1">
-          <div className="border-b border-slate-200 px-4 py-3 dark:border-slate-800">
-            <p className="text-sm font-semibold">{user?.fullName}</p>
+        <div className="absolute right-0 top-full z-40 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+          <div className="border-b border-slate-100 px-4 py-3">
+            <p className="text-sm font-semibold text-slate-800">{user?.fullName}</p>
             <p className="text-xs text-slate-400">@{user?.username}</p>
           </div>
-          <button onClick={() => go('/profil')} className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800">
+          <button type="button" onClick={() => go('/profil')} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
             <Icon.User width={16} height={16} /> Profil Saya
           </button>
-          <button onClick={() => go('/pengaturan')} className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800">
+          <button type="button" onClick={() => go('/pembayaran')} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
+            <Icon.Payment width={16} height={16} /> Pembayaran
+          </button>
+          <button type="button" onClick={() => go('/dispensasi')} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
+            <Icon.Dispensation width={16} height={16} /> Dispensasi
+          </button>
+          <button type="button" onClick={() => go('/pengaturan')} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
             <Icon.Settings width={16} height={16} /> Pengaturan
           </button>
-          <button onClick={() => go('/pengaturan/tentang')} className="flex w-full items-center gap-2 px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-800">
-            <Icon.Info width={16} height={16} /> Bantuan
-          </button>
-          <button onClick={logout} className="flex w-full items-center gap-2 border-t border-slate-200 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:border-slate-800 dark:hover:bg-red-900/20">
+          <button
+            type="button"
+            onClick={logout}
+            className="flex w-full items-center gap-2 border-t border-slate-100 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+          >
             <Icon.Logout width={16} height={16} /> Logout
           </button>
         </div>
@@ -151,63 +164,79 @@ function ProfileMenu() {
 }
 
 export default function Layout() {
-  const { theme, toggle } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen bg-slate-50 dark:bg-slate-950">
-      {/* Sidebar */}
-      <aside
-        className={`fixed inset-y-0 left-0 z-40 w-64 transform border-r border-slate-200 bg-white transition-transform dark:border-slate-800 dark:bg-slate-900 lg:translate-x-0 ${
-          mobileOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        <div className="flex h-16 items-center border-b border-slate-200 px-4 dark:border-slate-800">
-          <Brand />
-        </div>
-        <nav className="flex flex-col gap-1 p-3">
-          {NAV.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              end={item.end}
-              onClick={() => setMobileOpen(false)}
-              className={({ isActive }) =>
-                `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
-                  isActive
-                    ? 'bg-brand-600 text-white shadow-sm'
-                    : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
-                }`
-              }
+    <div className="flex min-h-screen flex-col bg-slate-50">
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white shadow-sm">
+        <div className="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6">
+          <div className="flex items-center gap-4">
+            <button
+              type="button"
+              onClick={() => setMobileOpen((o) => !o)}
+              className="rounded-lg p-2 text-slate-600 hover:bg-slate-100 lg:hidden"
+              aria-label="Menu"
             >
-              <item.icon width={20} height={20} />
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
-      </aside>
-
-      {mobileOpen && <div className="fixed inset-0 z-30 bg-slate-900/50 lg:hidden" onClick={() => setMobileOpen(false)} />}
-
-      {/* Main */}
-      <div className="flex flex-1 flex-col lg:pl-64">
-        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white/80 px-4 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
-          <button onClick={() => setMobileOpen(true)} className="btn-ghost rounded-lg p-2 lg:hidden">
-            <Icon.Menu />
-          </button>
-          <div className="hidden lg:block" />
-          <div className="flex items-center gap-1">
-            <button onClick={toggle} className="btn-ghost rounded-lg p-2" title="Ganti tema">
-              {theme === 'dark' ? <Icon.Sun width={20} height={20} /> : <Icon.Moon width={20} height={20} />}
+              <Icon.Menu width={22} height={22} />
             </button>
+            <Brand />
+          </div>
+
+          <nav className="hidden h-16 items-stretch gap-0 lg:flex">
+            {NAV.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) =>
+                  `flex items-center gap-2 border-b-2 px-4 text-sm font-medium transition ${
+                    isActive
+                      ? 'border-pospay text-pospay'
+                      : 'border-transparent text-slate-600 hover:border-slate-200 hover:text-pospay'
+                  }`
+                }
+              >
+                <item.icon width={18} height={18} />
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+
+          <div className="flex items-center gap-1">
             <Notifications />
             <ProfileMenu />
           </div>
-        </header>
-        <main className="flex-1 p-4 sm:p-6">
-          <Outlet />
-        </main>
-      </div>
+        </div>
+
+        {mobileOpen && (
+          <nav className="border-t border-slate-100 bg-white px-4 py-3 lg:hidden">
+            <div className="flex flex-col gap-1">
+              {NAV.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  onClick={() => setMobileOpen(false)}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium ${
+                      isActive ? 'bg-pospay-50 text-pospay' : 'text-slate-600 hover:bg-slate-50'
+                    }`
+                  }
+                >
+                  <item.icon width={20} height={20} />
+                  {item.label}
+                </NavLink>
+              ))}
+            </div>
+          </nav>
+        )}
+      </header>
+
+      <main className="flex-1 px-4 py-6 sm:px-6">
+        <Outlet />
+      </main>
+
+      <AppFooter />
     </div>
   );
 }
