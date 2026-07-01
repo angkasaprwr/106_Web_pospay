@@ -63,9 +63,13 @@ async function requestRegistration(input, req) {
   const mailResult = await emailService.sendVerificationCode(input.email, code, input.fullName);
 
   return {
+    verificationId: pending.id,
+    email: input.email,
     message: mailResult.sent
-      ? 'Kode verifikasi telah dikirim ke email Gmail sekolah Anda.'
-      : 'Gagal mengirim email Gmail. Gunakan kode verifikasi yang ditampilkan untuk pengujian developer.',
+      ? 'Kode verifikasi telah dikirim ke email Gmail sekolah Anda. Periksa kotak masuk atau folder spam.'
+      : mailResult.smtpError
+        ? 'Gagal mengirim email Gmail. Gunakan kode verifikasi yang ditampilkan untuk pengujian developer.'
+        : 'Kode verifikasi siap. Periksa email atau gunakan kode di bawah (mode pengembangan).',
     emailSent: mailResult.sent,
     devCode: mailResult.devCode || null,
     smtpError: mailResult.smtpError || null,

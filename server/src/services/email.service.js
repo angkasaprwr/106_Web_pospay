@@ -3,21 +3,100 @@ const { env } = require('../config/env');
 const { logger } = require('../utils/logger');
 
 let transporter;
+let transporterVerified = false;
 
-function getTransporter() {
-  if (transporter) return transporter;
-  if (!env.smtp.user || !env.smtp.pass) return null;
+function isGmailHost() {
+  return env.smtp.host.includes('gmail.com');
+}
 
-  transporter = nodemailer.createTransport({
+function buildAuthConfig() {
+  const user = env.smtp.user;
+
+  if (env.smtp.authType === 'oauth2' && env.smtp.oauth.clientId && env.smtp.oauth.refreshToken) {
+    return {
+      type: 'OAuth2',
+      user,
+      clientId: env.smtp.oauth.clientId,
+      clientSecret: env.smtp.oauth.clientSecret,
+      refreshToken: env.smtp.oauth.refreshToken,
+    };
+  }
+
+  return { user, pass: env.smtp.pass };
+}
+
+function buildTransportOptions() {
+  const auth = buildAuthConfig();
+
+  if (isGmailHost()) {
+    return {
+      service: 'gmail',
+      auth,
+      pool: false,
+      tls: { minVersion: 'TLSv1.2' },
+    };
+  }
+
+  return {
     host: env.smtp.host,
     port: env.smtp.port,
     secure: env.smtp.secure,
-    auth: {
-      user: env.smtp.user,
-      pass: env.smtp.pass,
-    },
-  });
+    requireTLS: !env.smtp.secure,
+    auth,
+    pool: false,
+    tls: { minVersion: 'TLSv1.2' },
+  };
+}
+
+function resetTransporter() {
+  if (transporter && typeof transporter.close === 'function') {
+    transporter.close();
+  }
+  transporter = null;
+  transporterVerified = false;
+}
+
+function getTransporter() {
+  const hasOAuth = env.smtp.authType === 'oauth2' && env.smtp.oauth.refreshToken;
+  const hasAppPassword = Boolean(env.smtp.user && env.smtp.pass);
+
+  if (!hasOAuth && !hasAppPassword) return null;
+  if (!transporter) {
+    transporter = nodemailer.createTransport(buildTransportOptions());
+  }
   return transporter;
+}
+
+function smtpHelpMessage() {
+  return [
+    'Periksa SMTP_PASS (App Password Gmail 16 karakter, tanpa spasi).',
+    'Buat ulang di: https://myaccount.google.com/apppasswords',
+    'Pastikan 2FA aktif dan IMAP diaktifkan di pengaturan Gmail.',
+    'Di server/.env gunakan: SMTP_PASS="fls l wuff twdt z uey" (spasi otomatis dihapus).',
+  ].join(' ');
+}
+
+async function verifySmtpConnection() {
+  const transport = getTransporter();
+  if (!transport) {
+    logger.warn('SMTP tidak dikonfigurasi — email verifikasi memakai mode developer (devCode).');
+    return { ok: false, reason: 'missing_credentials' };
+  }
+
+  try {
+    await transport.verify();
+    transporterVerified = true;
+    logger.info(`SMTP Gmail terhubung (${env.smtp.user})`);
+    return { ok: true };
+  } catch (err) {
+    transporterVerified = false;
+    resetTransporter();
+    logger.error(`SMTP Gmail gagal: ${err.message}`);
+    if (String(err.message).includes('535') || err.code === 'EAUTH') {
+      logger.error(smtpHelpMessage());
+    }
+    return { ok: false, reason: err.message, code: err.code };
+  }
 }
 
 function isSchoolEmail(email) {
@@ -29,6 +108,41 @@ function isSchoolEmail(email) {
 
   const domain = env.school.emailDomain.toLowerCase();
   return normalized.endsWith(`@${domain}`);
+}
+
+async function sendMailWithRetry(mailOptions) {
+  const transport = getTransporter();
+  if (!transport) {
+    return { transport: null };
+  }
+
+  if (!transporterVerified) {
+    const check = await verifySmtpConnection();
+    if (!check.ok) {
+      return { error: new Error(check.reason || 'SMTP tidak tersedia') };
+    }
+  }
+
+  try {
+    await transport.sendMail(mailOptions);
+    return { sent: true };
+  } catch (err) {
+    if (err.code === 'EAUTH' || String(err.message).includes('535')) {
+      resetTransporter();
+      const retryTransport = getTransporter();
+      if (retryTransport) {
+        try {
+          await retryTransport.verify();
+          transporterVerified = true;
+          await retryTransport.sendMail(mailOptions);
+          return { sent: true };
+        } catch (retryErr) {
+          return { error: retryErr };
+        }
+      }
+    }
+    return { error: err };
+  }
 }
 
 async function sendVerificationCode(email, code, fullName) {
@@ -60,25 +174,28 @@ async function sendVerificationCode(email, code, fullName) {
     </div>
   `;
 
-  const transport = getTransporter();
-  if (!transport) {
+  const mailOptions = {
+    from: `"POSPAY ${env.school.name}" <${env.smtp.user}>`,
+    to: email,
+    subject,
+    text,
+    html,
+  };
+
+  if (!getTransporter()) {
     logger.warn(`[DEV] Kode verifikasi untuk ${email}: ${code}`);
     return { sent: false, devCode: code };
   }
 
-  try {
-    await transport.sendMail({
-      from: `"POSPAY ${env.school.name}" <${env.smtp.user}>`,
-      to: email,
-      subject,
-      text,
-      html,
-    });
+  const result = await sendMailWithRetry(mailOptions);
+  if (result.sent) {
+    logger.info(`Email verifikasi terkirim ke ${email}`);
     return { sent: true };
-  } catch (err) {
-    logger.error(`Gagal kirim email verifikasi ke ${email}: ${err.message}`);
-    return { sent: false, devCode: code, smtpError: err.message };
   }
+
+  const errMsg = result.error?.message || 'Gagal mengirim email';
+  logger.error(`Gagal kirim email verifikasi ke ${email}: ${errMsg}`);
+  return { sent: false, devCode: code, smtpError: errMsg };
 }
 
 async function sendPasswordResetLink(email, fullName, resetUrl) {
@@ -110,25 +227,34 @@ async function sendPasswordResetLink(email, fullName, resetUrl) {
     </div>
   `;
 
-  const transport = getTransporter();
-  if (!transport) {
+  const mailOptions = {
+    from: `"POSPAY ${env.school.name}" <${env.smtp.user}>`,
+    to: email,
+    subject,
+    text,
+    html,
+  };
+
+  if (!getTransporter()) {
     logger.warn(`[DEV] Tautan reset kata sandi untuk ${email}: ${resetUrl}`);
     return { sent: false, devResetUrl: resetUrl };
   }
 
-  try {
-    await transport.sendMail({
-      from: `"POSPAY ${env.school.name}" <${env.smtp.user}>`,
-      to: email,
-      subject,
-      text,
-      html,
-    });
+  const result = await sendMailWithRetry(mailOptions);
+  if (result.sent) {
+    logger.info(`Email reset kata sandi terkirim ke ${email}`);
     return { sent: true };
-  } catch (err) {
-    logger.error(`Gagal kirim email reset ke ${email}: ${err.message}`);
-    return { sent: false, devResetUrl: resetUrl, smtpError: err.message };
   }
+
+  const errMsg = result.error?.message || 'Gagal mengirim email';
+  logger.error(`Gagal kirim email reset ke ${email}: ${errMsg}`);
+  return { sent: false, devResetUrl: resetUrl, smtpError: errMsg };
 }
 
-module.exports = { sendVerificationCode, sendPasswordResetLink, isSchoolEmail };
+module.exports = {
+  sendVerificationCode,
+  sendPasswordResetLink,
+  isSchoolEmail,
+  verifySmtpConnection,
+  resetTransporter,
+};

@@ -3,6 +3,7 @@ const { env } = require('./config/env');
 const { prisma } = require('./config/prisma');
 const { logger } = require('./utils/logger');
 const fcm = require('./services/fcm.service');
+const emailService = require('./services/email.service');
 const { startReminderJob, stopReminderJob } = require('./jobs/reminder.job');
 
 async function bootstrap() {
@@ -13,6 +14,8 @@ async function bootstrap() {
   } catch (e) {
     logger.error('Gagal terhubung ke database. Periksa DATABASE_URL.', e.message);
   }
+
+  await emailService.verifySmtpConnection();
 
   fcm.init();
 

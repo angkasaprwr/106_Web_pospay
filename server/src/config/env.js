@@ -8,6 +8,14 @@ function bool(value, fallback = false) {
   return String(value).toLowerCase() === 'true';
 }
 
+/** Gmail App Password: strip spaces/quotes so "fls l wuff twdt z uey" works in .env */
+function normalizeSmtpPass(raw) {
+  return String(raw || '')
+    .replace(/['"]/g, '')
+    .replace(/\s+/g, '')
+    .trim();
+}
+
 const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   isProd: process.env.NODE_ENV === 'production',
@@ -63,8 +71,16 @@ const env = {
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
     port: parseInt(process.env.SMTP_PORT || '587', 10),
     secure: bool(process.env.SMTP_SECURE, false),
-    user: process.env.SMTP_USER || process.env.SCHOOL_GMAIL_ADDRESS || 'smppusponegorobrebess@gmail.com',
-    pass: process.env.SMTP_PASS || '',
+    user: (process.env.SMTP_USER || process.env.SCHOOL_GMAIL_ADDRESS || 'smppusponegorobrebess@gmail.com')
+      .toLowerCase()
+      .trim(),
+    pass: normalizeSmtpPass(process.env.SMTP_PASS),
+    authType: (process.env.SMTP_AUTH_TYPE || 'app_password').toLowerCase(),
+    oauth: {
+      clientId: process.env.GMAIL_CLIENT_ID || '',
+      clientSecret: process.env.GMAIL_CLIENT_SECRET || '',
+      refreshToken: process.env.GMAIL_REFRESH_TOKEN || '',
+    },
   },
 
   frontend: {

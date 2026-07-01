@@ -120,14 +120,26 @@ Akun default hasil seed:
 ### Gmail SMTP (verifikasi pendaftaran bendahara)
 Isi di `server/.env`:
 ```
+DATABASE_URL="postgresql://postgres:db123@127.0.0.1:5433/db_sikes?schema=public"
 SCHOOL_GMAIL_ADDRESS=smppusponegorobrebess@gmail.com
 SMTP_USER=smppusponegorobrebess@gmail.com
-SMTP_PASS=app-password-gmail-16-digit
+SMTP_PASS="fls l wuff twdt z uey"
 SCHOOL_EMAIL_DOMAIN=smppusponegoro.sch.id
 ```
 Email pendaftar dapat menggunakan domain sekolah (`@smppusponegoro.sch.id`) atau Gmail resmi sekolah (`smppusponegorobrebess@gmail.com`).
 
-Salin `.env.example` ke `server/.env`, lalu isi `SMTP_PASS` dengan App Password Gmail sekolah (16 karakter tanpa spasi). File `server/.env` tidak di-commit ke GitHub demi keamanan.
+Spasi pada App Password otomatis dihapus oleh backend. File `server/.env` tidak di-commit ke GitHub demi keamanan.
+
+**Uji SMTP setelah mengubah `.env`:**
+```bash
+cd server && npm run test:smtp
+```
+
+Jika muncul error `535 BadCredentials`:
+1. Pastikan 2FA aktif di Gmail sekolah
+2. Buat **App Password baru** di https://myaccount.google.com/apppasswords (pilih Mail / Other)
+3. Aktifkan IMAP di Gmail → Settings → Forwarding and POP/IMAP
+4. Restart backend: `npm run dev:server`
 
 ### Lupa kata sandi bendahara
 - Login → klik **Lupa password?** → `/lupa-kata-sandi`
