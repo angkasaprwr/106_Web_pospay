@@ -66,15 +66,19 @@ async function sendVerificationCode(email, code, fullName) {
     return { sent: false, devCode: code };
   }
 
-  await transport.sendMail({
-    from: `"POSPAY ${env.school.name}" <${env.smtp.user}>`,
-    to: email,
-    subject,
-    text,
-    html,
-  });
-
-  return { sent: true };
+  try {
+    await transport.sendMail({
+      from: `"POSPAY ${env.school.name}" <${env.smtp.user}>`,
+      to: email,
+      subject,
+      text,
+      html,
+    });
+    return { sent: true };
+  } catch (err) {
+    logger.error(`Gagal kirim email verifikasi ke ${email}: ${err.message}`);
+    return { sent: false, devCode: code, smtpError: err.message };
+  }
 }
 
 async function sendPasswordResetLink(email, fullName, resetUrl) {
@@ -112,15 +116,19 @@ async function sendPasswordResetLink(email, fullName, resetUrl) {
     return { sent: false, devResetUrl: resetUrl };
   }
 
-  await transport.sendMail({
-    from: `"POSPAY ${env.school.name}" <${env.smtp.user}>`,
-    to: email,
-    subject,
-    text,
-    html,
-  });
-
-  return { sent: true };
+  try {
+    await transport.sendMail({
+      from: `"POSPAY ${env.school.name}" <${env.smtp.user}>`,
+      to: email,
+      subject,
+      text,
+      html,
+    });
+    return { sent: true };
+  } catch (err) {
+    logger.error(`Gagal kirim email reset ke ${email}: ${err.message}`);
+    return { sent: false, devResetUrl: resetUrl, smtpError: err.message };
+  }
 }
 
 module.exports = { sendVerificationCode, sendPasswordResetLink, isSchoolEmail };
