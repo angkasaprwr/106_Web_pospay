@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
 import { Icon } from '../components/Icons';
 import { StatCard } from '../components/tagihan/shared';
@@ -37,8 +37,21 @@ async function countDispensations(status) {
 }
 
 export default function Bills() {
-  const [tab, setTab] = useState('daftar');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const initialTab = TABS.some((t) => t.id === tabParam) ? tabParam : 'daftar';
+  const [tab, setTab] = useState(initialTab);
   const [stats, setStats] = useState({ total: 0, paid: 0, pendingPay: 0, unpaid: 0, pendingDisp: 0 });
+
+  const selectTab = (id) => {
+    setTab(id);
+    if (id === 'daftar') {
+      searchParams.delete('tab');
+    } else {
+      searchParams.set('tab', id);
+    }
+    setSearchParams(searchParams, { replace: true });
+  };
 
   const loadStats = useCallback(async () => {
     try {
@@ -89,7 +102,7 @@ export default function Bills() {
           <button
             key={t.id}
             type="button"
-            onClick={() => setTab(t.id)}
+            onClick={() => selectTab(t.id)}
             className={`rounded-lg px-4 py-2.5 text-sm font-medium transition ${
               tab === t.id
                 ? 'bg-pospay text-white shadow-sm'

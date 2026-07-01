@@ -95,6 +95,54 @@ export function formatBillDate(value) {
   return new Date(value).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
 }
 
+export function formatClassLabel(name) {
+  if (!name) return '-';
+  const roman = { 7: 'VII', 8: 'VIII', 9: 'IX' };
+  const m = String(name).match(/^(\d)\s*(.*)$/);
+  if (!m) return name;
+  const grade = roman[Number(m[1])] || m[1];
+  const section = m[2] || '';
+  return section ? `${grade} ${section}`.trim() : grade;
+}
+
+export function paymentStatusDisplay(bill, pendingBillIds) {
+  if (bill.status === 'PAID') {
+    return { label: 'Lunas', cls: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200', key: 'lunas' };
+  }
+  if (pendingBillIds?.has(bill.id)) {
+    return { label: 'Menunggu Verifikasi', cls: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200', key: 'pending' };
+  }
+  return { label: 'Belum Bayar', cls: 'bg-red-50 text-red-700 ring-1 ring-red-200', key: 'unpaid' };
+}
+
+export function tagihanGroupKey(bill) {
+  return `${bill.feeTypeId || ''}|${bill.period || ''}|${bill.description || ''}`;
+}
+
+export function exportStatusCsv(items, pendingBillIds, paymentDates = {}) {
+  const header = 'No,Nama Siswa,Kelas,Tagihan,Nominal,Status,Tanggal Pembayaran\n';
+  const rows = items.map((b, i) => {
+    const st = paymentStatusDisplay(b, pendingBillIds);
+    const cols = [
+      i + 1,
+      b.student?.fullName,
+      formatClassLabel(b.student?.schoolClass?.name),
+      billDisplayName(b),
+      Number(b.amount),
+      st.label,
+      paymentDates[b.id] || '',
+    ];
+    return cols.map((c) => `"${String(c || '').replace(/"/g, '""')}"`).join(',');
+  });
+  const blob = new Blob([header + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `status-pembayaran-pospay-${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function exportBillsCsv(items) {
   const header = 'Invoice,Nama Tagihan,Jenis,Periode,Nominal,Jatuh Tempo,Status,Siswa\n';
   const rows = items.map((b) => {
