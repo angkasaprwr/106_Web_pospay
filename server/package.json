@@ -13,7 +13,8 @@
     "prisma:studio": "prisma studio",
     "prisma:seed": "node prisma/seed.js",
     "prisma:reset": "prisma migrate reset",
-    "test:smtp": "node scripts/test-smtp.js"
+    "test:smtp": "node scripts/test-smtp.js",
+    "gmail:oauth": "node scripts/gmail-oauth-setup.js"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
@@ -30,6 +31,7 @@
     "express": "^4.21.1",
     "express-rate-limit": "^7.4.1",
     "firebase-admin": "^12.7.0",
+    "googleapis": "^144.0.0",
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",

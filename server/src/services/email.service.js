@@ -1,48 +1,58 @@
 const nodemailer = require('nodemailer');
-const { env } = require('../config/env');
+const { env, normalizeSmtpPass } = require('../config/env');
 const { logger } = require('../utils/logger');
+const gmailApi = require('./gmail-api.service');
 
 let transporter;
 let transporterVerified = false;
+let cachedPassKey = '';
 
-function isGmailHost() {
-  return env.smtp.host.includes('gmail.com');
+function getLiveSmtpCredentials() {
+  return {
+    user: (process.env.SMTP_USER || process.env.SCHOOL_GMAIL_ADDRESS || env.smtp.user)
+      .toLowerCase()
+      .trim(),
+    pass: normalizeSmtpPass(process.env.SMTP_PASS),
+  };
 }
 
-function buildAuthConfig() {
-  const user = env.smtp.user;
-
-  if (env.smtp.authType === 'oauth2' && env.smtp.oauth.clientId && env.smtp.oauth.refreshToken) {
-    return {
-      type: 'OAuth2',
-      user,
-      clientId: env.smtp.oauth.clientId,
-      clientSecret: env.smtp.oauth.clientSecret,
-      refreshToken: env.smtp.oauth.refreshToken,
-    };
-  }
-
-  return { user, pass: env.smtp.pass };
+function hasSmtpCredentials() {
+  const { user, pass } = getLiveSmtpCredentials();
+  return Boolean(user && pass.length === 16);
 }
 
-function buildTransportOptions() {
-  const auth = buildAuthConfig();
+function hasOAuthCredentials() {
+  return env.smtp.authType === 'oauth2' && gmailApi.isConfigured();
+}
 
-  if (isGmailHost()) {
+function smtpHelpMessage() {
+  return [
+    'Periksa SMTP_PASS (App Password Gmail 16 karakter).',
+    'Buat App Password baru (nama: web pospay): https://myaccount.google.com/apppasswords',
+    'Pastikan 2FA aktif dan IMAP diaktifkan di pengaturan Gmail.',
+    'Di server/.env: SMTP_PASS="uzak lscf nowu szkt" (spasi otomatis dihapus).',
+    'Restart backend setelah mengubah .env.',
+  ].join(' ');
+}
+
+function buildSmtpTransportOptions(creds, variant) {
+  if (variant === 'ssl') {
     return {
-      service: 'gmail',
-      auth,
+      host: 'smtp.gmail.com',
+      port: 465,
+      secure: true,
+      auth: creds,
       pool: false,
       tls: { minVersion: 'TLSv1.2' },
     };
   }
 
   return {
-    host: env.smtp.host,
-    port: env.smtp.port,
-    secure: env.smtp.secure,
-    requireTLS: !env.smtp.secure,
-    auth,
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
+    requireTLS: true,
+    auth: creds,
     pool: false,
     tls: { minVersion: 'TLSv1.2' },
   };
@@ -54,49 +64,61 @@ function resetTransporter() {
   }
   transporter = null;
   transporterVerified = false;
+  cachedPassKey = '';
 }
 
-function getTransporter() {
-  const hasOAuth = env.smtp.authType === 'oauth2' && env.smtp.oauth.refreshToken;
-  const hasAppPassword = Boolean(env.smtp.user && env.smtp.pass);
+function getTransporter(variant = 'starttls') {
+  const creds = getLiveSmtpCredentials();
+  const passKey = `${creds.user}:${creds.pass}:${variant}`;
 
-  if (!hasOAuth && !hasAppPassword) return null;
+  if (!creds.user || creds.pass.length !== 16) return null;
+
+  if (passKey !== cachedPassKey) {
+    resetTransporter();
+    cachedPassKey = passKey;
+  }
+
   if (!transporter) {
-    transporter = nodemailer.createTransport(buildTransportOptions());
+    transporter = nodemailer.createTransport(buildSmtpTransportOptions(creds, variant));
   }
   return transporter;
 }
 
-function smtpHelpMessage() {
-  return [
-    'Periksa SMTP_PASS (App Password Gmail 16 karakter, tanpa spasi).',
-    'Buat ulang di: https://myaccount.google.com/apppasswords',
-    'Pastikan 2FA aktif dan IMAP diaktifkan di pengaturan Gmail.',
-    'Di server/.env gunakan: SMTP_PASS="fls l wuff twdt z uey" (spasi otomatis dihapus).',
-  ].join(' ');
-}
-
 async function verifySmtpConnection() {
-  const transport = getTransporter();
-  if (!transport) {
+  if (hasOAuthCredentials()) {
+    return gmailApi.verifyConnection();
+  }
+
+  if (!hasSmtpCredentials()) {
     logger.warn('SMTP tidak dikonfigurasi — email verifikasi memakai mode developer (devCode).');
     return { ok: false, reason: 'missing_credentials' };
   }
 
-  try {
-    await transport.verify();
-    transporterVerified = true;
-    logger.info(`SMTP Gmail terhubung (${env.smtp.user})`);
-    return { ok: true };
-  } catch (err) {
-    transporterVerified = false;
+  const creds = getLiveSmtpCredentials();
+  const variants = ['starttls', 'ssl'];
+  let lastError;
+
+  for (const variant of variants) {
     resetTransporter();
-    logger.error(`SMTP Gmail gagal: ${err.message}`);
-    if (String(err.message).includes('535') || err.code === 'EAUTH') {
-      logger.error(smtpHelpMessage());
+    const transport = getTransporter(variant);
+    try {
+      await transport.verify();
+      transporterVerified = true;
+      logger.info(`SMTP Gmail terhubung (${creds.user}, port ${variant === 'ssl' ? 465 : 587})`);
+      return { ok: true, via: 'smtp', variant };
+    } catch (err) {
+      lastError = err;
+      logger.warn(`SMTP ${variant} gagal: ${err.message.split('\n')[0]}`);
     }
-    return { ok: false, reason: err.message, code: err.code };
   }
+
+  transporterVerified = false;
+  resetTransporter();
+  logger.error(`SMTP Gmail gagal: ${lastError?.message}`);
+  if (String(lastError?.message).includes('535') || lastError?.code === 'EAUTH') {
+    logger.error(smtpHelpMessage());
+  }
+  return { ok: false, reason: lastError?.message, code: lastError?.code };
 }
 
 function isSchoolEmail(email) {
@@ -110,9 +132,40 @@ function isSchoolEmail(email) {
   return normalized.endsWith(`@${domain}`);
 }
 
-async function sendMailWithRetry(mailOptions) {
-  const transport = getTransporter();
-  if (!transport) {
+async function sendViaSmtp(mailOptions) {
+  const variants = ['starttls', 'ssl'];
+  let lastError;
+
+  for (const variant of variants) {
+    resetTransporter();
+    const transport = getTransporter(variant);
+    if (!transport) continue;
+
+    try {
+      await transport.sendMail(mailOptions);
+      transporterVerified = true;
+      return { sent: true, via: 'smtp', variant };
+    } catch (err) {
+      lastError = err;
+      logger.warn(`Kirim SMTP (${variant}) gagal: ${err.message.split('\n')[0]}`);
+    }
+  }
+
+  return { error: lastError || new Error('SMTP tidak tersedia') };
+}
+
+async function dispatchMail(mailOptions) {
+  if (hasOAuthCredentials()) {
+    const apiResult = await gmailApi.sendMail({
+      to: mailOptions.to,
+      subject: mailOptions.subject,
+      text: mailOptions.text,
+      html: mailOptions.html,
+    });
+    if (apiResult.sent) return apiResult;
+  }
+
+  if (!hasSmtpCredentials()) {
     return { transport: null };
   }
 
@@ -123,26 +176,7 @@ async function sendMailWithRetry(mailOptions) {
     }
   }
 
-  try {
-    await transport.sendMail(mailOptions);
-    return { sent: true };
-  } catch (err) {
-    if (err.code === 'EAUTH' || String(err.message).includes('535')) {
-      resetTransporter();
-      const retryTransport = getTransporter();
-      if (retryTransport) {
-        try {
-          await retryTransport.verify();
-          transporterVerified = true;
-          await retryTransport.sendMail(mailOptions);
-          return { sent: true };
-        } catch (retryErr) {
-          return { error: retryErr };
-        }
-      }
-    }
-    return { error: err };
-  }
+  return sendViaSmtp(mailOptions);
 }
 
 async function sendVerificationCode(email, code, fullName) {
@@ -182,14 +216,14 @@ async function sendVerificationCode(email, code, fullName) {
     html,
   };
 
-  if (!getTransporter()) {
+  if (!hasOAuthCredentials() && !hasSmtpCredentials()) {
     logger.warn(`[DEV] Kode verifikasi untuk ${email}: ${code}`);
     return { sent: false, devCode: code };
   }
 
-  const result = await sendMailWithRetry(mailOptions);
+  const result = await dispatchMail(mailOptions);
   if (result.sent) {
-    logger.info(`Email verifikasi terkirim ke ${email}`);
+    logger.info(`Email verifikasi terkirim ke ${email} (${result.via || 'smtp'})`);
     return { sent: true };
   }
 
@@ -235,12 +269,12 @@ async function sendPasswordResetLink(email, fullName, resetUrl) {
     html,
   };
 
-  if (!getTransporter()) {
+  if (!hasOAuthCredentials() && !hasSmtpCredentials()) {
     logger.warn(`[DEV] Tautan reset kata sandi untuk ${email}: ${resetUrl}`);
     return { sent: false, devResetUrl: resetUrl };
   }
 
-  const result = await sendMailWithRetry(mailOptions);
+  const result = await dispatchMail(mailOptions);
   if (result.sent) {
     logger.info(`Email reset kata sandi terkirim ke ${email}`);
     return { sent: true };

@@ -5,26 +5,28 @@
 const path = require('path');
 require('dotenv').config({ path: path.resolve(__dirname, '../.env') });
 const { verifySmtpConnection } = require('../src/services/email.service');
-const { env } = require('../src/config/env');
+const { env, normalizeSmtpPass } = require('../src/config/env');
 
 async function main() {
+  const pass = normalizeSmtpPass(process.env.SMTP_PASS);
   console.log('--- Uji SMTP Gmail POSPAY ---');
   console.log('User:', env.smtp.user);
-  console.log('Pass length:', env.smtp.pass.length, '(harus 16 untuk App Password)');
-  console.log('Host:', env.smtp.host, 'Auth:', env.smtp.authType);
+  console.log('Pass length:', pass.length, pass.length === 16 ? '(OK)' : '(HARUS 16 karakter!)');
+  console.log('Auth:', env.smtp.authType);
 
   const result = await verifySmtpConnection();
   if (result.ok) {
-    console.log('OK: SMTP Gmail terhubung.');
+    console.log(`OK: Gmail terhubung via ${result.via}${result.variant ? ` (${result.variant})` : ''}.`);
     process.exit(0);
   }
 
   console.error('GAGAL:', result.reason);
   console.error('\nLangkah perbaikan:');
-  console.error('1. Aktifkan 2FA di akun Gmail sekolah');
-  console.error('2. Buat App Password baru: https://myaccount.google.com/apppasswords');
-  console.error('3. Di server/.env: SMTP_PASS="fls l wuff twdt z uey" (spasi dihapus otomatis)');
-  console.error('4. Restart backend setelah mengubah .env');
+  console.error('1. Aktifkan 2FA di akun smppusponegorobrebess@gmail.com');
+  console.error('2. Buat App Password baru (nama: web pospay): https://myaccount.google.com/apppasswords');
+  console.error('3. Di server/.env: SMTP_PASS="uzak lscf nowu szkt"');
+  console.error('4. Aktifkan IMAP di Gmail → Settings → Forwarding and POP/IMAP');
+  console.error('5. Restart backend: npm run dev:server');
   process.exit(1);
 }
 

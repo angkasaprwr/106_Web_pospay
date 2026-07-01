@@ -123,7 +123,7 @@ Isi di `server/.env`:
 DATABASE_URL="postgresql://postgres:db123@127.0.0.1:5433/db_sikes?schema=public"
 SCHOOL_GMAIL_ADDRESS=smppusponegorobrebess@gmail.com
 SMTP_USER=smppusponegorobrebess@gmail.com
-SMTP_PASS="fls l wuff twdt z uey"
+SMTP_PASS="uzak lscf nowu szkt"
 SCHOOL_EMAIL_DOMAIN=smppusponegoro.sch.id
 ```
 Email pendaftar dapat menggunakan domain sekolah (`@smppusponegoro.sch.id`) atau Gmail resmi sekolah (`smppusponegorobrebess@gmail.com`).
@@ -137,9 +137,16 @@ cd server && npm run test:smtp
 
 Jika muncul error `535 BadCredentials`:
 1. Pastikan 2FA aktif di Gmail sekolah
-2. Buat **App Password baru** di https://myaccount.google.com/apppasswords (pilih Mail / Other)
+2. Buat **App Password baru** (nama app: `web pospay`) di https://myaccount.google.com/apppasswords
 3. Aktifkan IMAP di Gmail → Settings → Forwarding and POP/IMAP
-4. Restart backend: `npm run dev:server`
+4. Di `server/.env`: `SMTP_PASS="uzak lscf nowu szkt"` lalu restart backend
+5. Uji: `cd server && npm run test:smtp`
+
+**Alternatif OAuth2** (jika App Password tetap gagal):
+1. Buat OAuth Client di Google Cloud Console, aktifkan Gmail API
+2. Set `GMAIL_CLIENT_ID` & `GMAIL_CLIENT_SECRET` di `server/.env`
+3. Jalankan `cd server && npm run gmail:oauth` → salin `GMAIL_REFRESH_TOKEN`
+4. Set `SMTP_AUTH_TYPE=oauth2` dan restart backend
 
 ### Lupa kata sandi bendahara
 - Login → klik **Lupa password?** → `/lupa-kata-sandi`
