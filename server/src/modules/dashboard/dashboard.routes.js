@@ -35,6 +35,19 @@ router.get(
       where: { status: 'VERIFIED', verifiedAt: { gte: since } },
       select: { amount: true, verifiedAt: true },
     });
+    const recentPayments = await prisma.payment.findMany({
+      where: { status: { in: ['PENDING', 'VERIFIED'] } },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      select: {
+        id: true,
+        reference: true,
+        amount: true,
+        status: true,
+        createdAt: true,
+        bill: { select: { student: { select: { fullName: true, nis: true } }, feeType: { select: { name: true } } } },
+      },
+    });
     const monthly = {};
     for (let i = 0; i < 6; i += 1) {
       const d = new Date(since);
@@ -59,6 +72,17 @@ router.get(
         paid: toNumber(g._sum.paidAmount),
       })),
       monthlyPayments: Object.entries(monthly).map(([month, total]) => ({ month, total })),
+      recentPayments: recentPayments.map((p) => ({
+        id: p.id,
+        reference: p.reference,
+        amount: toNumber(p.amount),
+        status: p.status,
+        createdAt: p.createdAt,
+        studentName: p.bill?.student?.fullName || '-',
+        nis: p.bill?.student?.nis || '-',
+        feeType: p.bill?.feeType?.name || '-',
+      })),
+      collectionRate: totalBilled > 0 ? Math.round((totalPaid / totalBilled) * 100) : 0,
     });
   }),
 );
