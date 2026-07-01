@@ -127,6 +127,8 @@ SCHOOL_EMAIL_DOMAIN=smppusponegoro.sch.id
 ```
 Email pendaftar dapat menggunakan domain sekolah (`@smppusponegoro.sch.id`) atau Gmail resmi sekolah (`smppusponegorobrebess@gmail.com`).
 
+Salin `.env.example` ke `server/.env`, lalu isi `SMTP_PASS` dengan App Password Gmail sekolah (16 karakter tanpa spasi). File `server/.env` tidak di-commit ke GitHub demi keamanan.
+
 ### Lupa kata sandi bendahara
 - Login → klik **Lupa password?** → `/lupa-kata-sandi`
 - Isi email Gmail sekolah → **Kirim Tautan Reset**
