@@ -7,6 +7,7 @@ import { Spinner } from '../components/ui';
 import { Icon } from '../components/Icons';
 import VerifyIllustration from '../components/login/VerifyIllustration';
 import OtpInput from '../components/login/OtpInput';
+import GoogleGmailBadge from '../components/login/GoogleGmailBadge';
 import SchoolEmblem from '../components/login/SchoolEmblem';
 import PospayLogo from '../components/login/PospayLogo';
 
@@ -48,7 +49,6 @@ export default function VerifyRegister() {
 
   return (
     <div className="flex min-h-screen flex-col bg-white lg:flex-row">
-      {/* Panel kiri — branding */}
       <div className="relative flex w-full flex-col justify-between overflow-hidden bg-pospay px-6 py-8 text-white sm:px-10 sm:py-10 lg:w-1/2 lg:px-12 lg:py-12">
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.08]"
@@ -70,72 +70,93 @@ export default function VerifyRegister() {
         <div className="relative flex items-start gap-4">
           <SchoolEmblem size={52} />
           <div>
-            <p className="text-sm font-medium text-white/75">Studi Kasus</p>
+            <p className="text-sm font-medium text-white/75">Connect Google Gmail Sekolah</p>
             <p className="text-lg font-bold leading-snug sm:text-xl">SMP Pusponegoro Brebes</p>
             <p className="mt-2 max-w-md text-sm leading-relaxed text-white/80">
-              Kode verifikasi dikirim ke notifikasi Gmail sekolah yang Anda gunakan saat daftar. Bukan melalui SMS atau handphone.
+              Kode verifikasi dikirim ke akun Google Gmail sekolah yang terhubung. Bukan melalui SMS, WhatsApp, atau handphone.
             </p>
           </div>
         </div>
       </div>
 
-      {/* Panel kanan — input kode */}
       <div className="flex w-full flex-1 items-center justify-center bg-white px-4 py-10 sm:px-8 lg:w-1/2 lg:px-12">
         <div className="w-full max-w-[440px]">
-          {/* Step indicator */}
           <div className="mb-6 flex items-center justify-center gap-2 text-xs font-medium">
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-400">1. Daftar Akun</span>
+            <span className="flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-slate-400">
+              <span className="flex h-4 w-4 items-center justify-center rounded-full bg-slate-300 text-[10px] text-white">✓</span>
+              Daftar Akun
+            </span>
             <span className="text-slate-300">→</span>
-            <span className="rounded-full bg-pospay px-3 py-1 text-white">2. Kode Verifikasi</span>
+            <span className="flex items-center gap-1.5 rounded-full bg-pospay px-3 py-1.5 text-white shadow-sm">
+              <GoogleGmailBadge size={16} />
+              Kode Verifikasi
+            </span>
           </div>
 
           <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-[0_8px_40px_rgba(0,71,171,0.08)] sm:p-8">
             <div className="mb-6 text-center">
-              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-pospay-50 text-pospay">
-                <Icon.Mail width={28} height={28} />
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-white shadow-md ring-1 ring-slate-100">
+                <GoogleGmailBadge size={44} />
               </div>
               <h1 className="text-2xl font-extrabold text-pospay sm:text-[28px]">Kode Verifikasi</h1>
               <p className="mt-2 text-sm text-slate-500">
-                Masukkan kode 6 digit dari notifikasi Gmail sekolah Anda
+                Buka Google Gmail sekolah Anda dan masukkan kode 6 digit dari notifikasi
               </p>
             </div>
 
-            <div className="mb-6 flex items-center gap-3 rounded-xl border border-pospay-100 bg-pospay-50 px-4 py-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-pospay shadow-sm">
-                <Icon.Mail width={18} height={18} />
+            <div className="mb-5 rounded-xl border border-emerald-100 bg-emerald-50/60 px-4 py-3">
+              <div className="flex items-center gap-3">
+                <GoogleGmailBadge size={32} />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium text-emerald-700">Terhubung ke Google Gmail Sekolah</p>
+                  <p className="truncate text-sm font-semibold text-slate-800">{email}</p>
+                </div>
+                <span className="shrink-0 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase text-emerald-700">
+                  Aktif
+                </span>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs text-slate-500">Dikirim ke Gmail sekolah</p>
-                <p className="truncate text-sm font-semibold text-slate-800">{email}</p>
-              </div>
+            </div>
+
+            <div className="mb-6 rounded-lg border border-slate-100 bg-slate-50 px-4 py-3 text-xs leading-relaxed text-slate-500">
+              <p className="font-medium text-slate-600">Cara mendapatkan kode:</p>
+              <ol className="mt-2 list-inside list-decimal space-y-1">
+                <li>Buka aplikasi atau web <strong>Google Gmail</strong> sekolah</li>
+                <li>Cari notifikasi email dari POSPAY</li>
+                <li>Salin kode 6 digit ke form di bawah</li>
+              </ol>
             </div>
 
             {devCode && (
               <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-center text-sm text-amber-900">
-                <p className="font-medium">Mode pengujian developer</p>
+                <p className="font-medium">Mode pengujian developer (SMTP belum aktif)</p>
                 <p className="mt-1">
-                  Kode: <strong className="text-lg tracking-[0.3em]">{devCode}</strong>
+                  Kode Gmail simulasi: <strong className="text-lg tracking-[0.3em]">{devCode}</strong>
                 </p>
               </div>
             )}
 
             <form onSubmit={submit} className="space-y-6">
               <div>
-                <label className="mb-3 block text-center text-sm font-medium text-slate-700">
+                <label className="mb-3 block text-center text-sm font-semibold text-slate-700">
                   Masukkan Kode Verifikasi
                 </label>
                 <OtpInput value={code} onChange={setCode} length={6} />
                 <p className="mt-3 text-center text-xs text-slate-400">
-                  Kode berlaku 15 menit · Hanya dari Gmail sekolah
+                  Kode berlaku 15 menit · Hanya dari Google Gmail sekolah
                 </p>
               </div>
 
               <button
                 type="submit"
                 disabled={loading || code.length !== 6}
-                className="flex h-11 w-full items-center justify-center rounded-lg bg-pospay text-sm font-semibold text-white transition hover:bg-pospay-700 disabled:opacity-60"
+                className="flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-pospay text-sm font-semibold text-white shadow-lg shadow-pospay/20 transition hover:bg-pospay-700 disabled:opacity-60"
               >
-                {loading ? <Spinner size={18} className="text-white" /> : 'Verifikasi Akun'}
+                {loading ? <Spinner size={18} className="text-white" /> : (
+                  <>
+                    <Icon.Check width={18} height={18} />
+                    Verifikasi Akun
+                  </>
+                )}
               </button>
             </form>
 
@@ -146,7 +167,7 @@ export default function VerifyRegister() {
             </div>
 
             <p className="text-center text-sm text-slate-500">
-              Tidak menerima kode?{' '}
+              Tidak menerima kode di Gmail?{' '}
               <Link to="/register" className="font-semibold text-pospay hover:underline">
                 Daftar ulang
               </Link>
@@ -156,7 +177,7 @@ export default function VerifyRegister() {
           <div className="mt-6 border-t border-slate-100 pt-5 text-center">
             <div className="flex items-center justify-center gap-2 text-xs text-slate-400">
               <Icon.Shield width={14} height={14} className="text-pospay/70" />
-              <span>Verifikasi hanya melalui Gmail resmi sekolah</span>
+              <span>Verifikasi via Google Gmail sekolah · Data tersimpan PostgreSQL</span>
             </div>
             <p className="mt-3 text-xs text-slate-400">© {new Date().getFullYear()} POSPAY. All rights reserved.</p>
           </div>
