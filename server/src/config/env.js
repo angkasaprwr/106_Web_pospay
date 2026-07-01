@@ -56,13 +56,14 @@ const env = {
   school: {
     name: process.env.SCHOOL_NAME || 'SMP Pusponegoro Brebes',
     emailDomain: process.env.SCHOOL_EMAIL_DOMAIN || 'smppusponegoro.sch.id',
+    gmailAddress: (process.env.SCHOOL_GMAIL_ADDRESS || 'smppusponegorobrebess@gmail.com').toLowerCase(),
   },
 
   smtp: {
     host: process.env.SMTP_HOST || 'smtp.gmail.com',
     port: parseInt(process.env.SMTP_PORT || '587', 10),
     secure: bool(process.env.SMTP_SECURE, false),
-    user: process.env.SMTP_USER || '',
+    user: process.env.SMTP_USER || process.env.SCHOOL_GMAIL_ADDRESS || 'smppusponegorobrebess@gmail.com',
     pass: process.env.SMTP_PASS || '',
   },
 

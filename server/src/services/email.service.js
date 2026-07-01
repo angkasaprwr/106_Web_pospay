@@ -21,8 +21,14 @@ function getTransporter() {
 }
 
 function isSchoolEmail(email) {
+  const normalized = String(email || '').toLowerCase().trim();
+  if (!normalized) return false;
+
+  const schoolGmail = env.school.gmailAddress;
+  if (schoolGmail && normalized === schoolGmail) return true;
+
   const domain = env.school.emailDomain.toLowerCase();
-  return email.toLowerCase().endsWith(`@${domain}`);
+  return normalized.endsWith(`@${domain}`);
 }
 
 async function sendVerificationCode(email, code, fullName) {

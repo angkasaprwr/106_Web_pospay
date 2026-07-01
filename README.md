@@ -120,11 +120,12 @@ Akun default hasil seed:
 ### Gmail SMTP (verifikasi pendaftaran bendahara)
 Isi di `server/.env`:
 ```
-SMTP_USER=akun-gmail-sekolah@gmail.com
-SMTP_PASS=app-password-gmail
+SCHOOL_GMAIL_ADDRESS=smppusponegorobrebess@gmail.com
+SMTP_USER=smppusponegorobrebess@gmail.com
+SMTP_PASS=app-password-gmail-16-digit
 SCHOOL_EMAIL_DOMAIN=smppusponegoro.sch.id
 ```
-Email pendaftar harus menggunakan domain sekolah (`@smppusponegoro.sch.id`).
+Email pendaftar dapat menggunakan domain sekolah (`@smppusponegoro.sch.id`) atau Gmail resmi sekolah (`smppusponegorobrebess@gmail.com`).
 
 ### Lupa kata sandi bendahara
 - Login → klik **Lupa password?** → `/lupa-kata-sandi`

@@ -34,7 +34,9 @@ async function requestRegistration(input, req) {
 
   if (!input.email) throw ApiError.badRequest('Email Gmail sekolah wajib diisi');
   if (!emailService.isSchoolEmail(input.email)) {
-    throw ApiError.badRequest(`Email harus menggunakan domain Gmail sekolah (@${env.school.emailDomain})`);
+    throw ApiError.badRequest(
+      `Email harus menggunakan domain sekolah (@${env.school.emailDomain}) atau Gmail resmi sekolah (${env.school.gmailAddress})`,
+    );
   }
 
   const existing = await prisma.user.findFirst({
@@ -197,7 +199,9 @@ async function changePassword(userId, currentPassword, newPassword, req) {
 
 async function requestPasswordReset(email, req) {
   if (!emailService.isSchoolEmail(email)) {
-    throw ApiError.badRequest(`Email harus menggunakan domain Gmail sekolah (@${env.school.emailDomain})`);
+    throw ApiError.badRequest(
+      `Email harus menggunakan domain sekolah (@${env.school.emailDomain}) atau Gmail resmi sekolah (${env.school.gmailAddress})`,
+    );
   }
 
   const user = await prisma.user.findFirst({

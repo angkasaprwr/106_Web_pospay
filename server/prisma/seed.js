@@ -19,7 +19,7 @@ async function main() {
         npsn: '20326000',
         address: 'Jl. Pendidikan No. 1, Brebes, Jawa Tengah',
         phone: '(0283) 123456',
-        email: 'info@smppusponegoro.sch.id',
+        email: 'smppusponegorobrebess@gmail.com',
         headmaster: 'Drs. Pusponegoro, M.Pd.',
         treasurer: 'Siti Bendahara, S.E.',
       },
