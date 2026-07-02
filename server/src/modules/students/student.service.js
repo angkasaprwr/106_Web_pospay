@@ -16,13 +16,6 @@ function cleanData(input) {
   return data;
 }
 
-function defaultPasswordFromNisAndBirth(nis, birthDate) {
-  if (!birthDate) return null;
-  const d = new Date(birthDate);
-  const day = String(d.getUTCDate()).padStart(2, '0');
-  return `${nis}-${day}`;
-}
-
 async function generateNextNis() {
   const year = new Date().getFullYear().toString().slice(-2);
   const prefix = `${year}01`;
@@ -55,9 +48,10 @@ async function create(input, actorId, req) {
     if (input.createAccount !== false) {
       const usernameExists = await tx.user.findUnique({ where: { username: nis } });
       if (usernameExists) throw ApiError.conflict('Username (NIS) sudah digunakan akun lain');
-      const rawPassword = input.password
-        || defaultPasswordFromNisAndBirth(nis, input.birthDate)
-        || env.studentDefaultPassword;
+      const rawPassword = (input.password || '').trim();
+      if (!rawPassword || rawPassword.length < 6) {
+        throw ApiError.badRequest('Password wajib diisi (minimal 6 karakter)');
+      }
       const hashed = await bcrypt.hash(rawPassword, 10);
       const user = await tx.user.create({
         data: {
@@ -127,4 +121,4 @@ async function toggleAccount(id, isActive, actorId, req) {
   await recordAudit({ userId: actorId, action: 'UPDATE', entity: 'User', entityId: student.userId, metadata: { isActive }, req });
 }
 
-module.exports = { list, getById, create, update, remove, resetPassword, toggleAccount, generateNextNis, defaultPasswordFromNisAndBirth };
+module.exports = { list, getById, create, update, remove, resetPassword, toggleAccount, generateNextNis };

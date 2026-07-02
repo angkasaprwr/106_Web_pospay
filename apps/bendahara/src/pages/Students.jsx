@@ -288,6 +288,7 @@ export default function Students() {
           parentName: parentName || '',
           parentPhone: parentPhone || '',
           address: address || '',
+          password: nis.length >= 6 ? nis : `${nis}123456`.slice(0, 12),
           createAccount: true,
         });
         ok += 1;

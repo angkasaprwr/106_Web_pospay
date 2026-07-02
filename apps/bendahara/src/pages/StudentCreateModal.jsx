@@ -14,14 +14,6 @@ function formatClassLabel(name) {
   return section ? `${grade} ${section}`.trim() : grade;
 }
 
-function previewPassword(nis, birthDate) {
-  if (!nis) return '';
-  if (!birthDate) return `${nis}-XX`;
-  const d = new Date(birthDate);
-  const day = String(d.getUTCDate()).padStart(2, '0');
-  return `${nis}-${day}`;
-}
-
 function AutoBadge() {
   return (
     <span className="absolute right-3 top-1/2 -translate-y-1/2 rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">
@@ -60,7 +52,7 @@ export default function StudentCreateModal({ open, onClose, classes, onSaved }) 
   const toast = useToast();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ nis: '', fullName: '', classId: '', birthDate: '' });
+  const [form, setForm] = useState({ nis: '', fullName: '', classId: '', birthDate: '', password: '' });
   const [suggestedNis, setSuggestedNis] = useState('');
 
   useEffect(() => {
@@ -70,7 +62,7 @@ export default function StudentCreateModal({ open, onClose, classes, onSaved }) 
       .then(({ data }) => {
         const nis = data.data.nis || '';
         setSuggestedNis(nis);
-        setForm({ nis, fullName: '', classId: '', birthDate: '' });
+        setForm({ nis, fullName: '', classId: '', birthDate: '', password: '' });
       })
       .catch((e) => toast.error(apiError(e)))
       .finally(() => setLoading(false));
@@ -93,6 +85,14 @@ export default function StudentCreateModal({ open, onClose, classes, onSaved }) 
       toast.error('Nama lengkap wajib diisi');
       return;
     }
+    if (!form.password.trim()) {
+      toast.error('Password wajib diisi');
+      return;
+    }
+    if (form.password.trim().length < 6) {
+      toast.error('Password minimal 6 karakter');
+      return;
+    }
     setSaving(true);
     try {
       await api.post('/students', {
@@ -100,6 +100,7 @@ export default function StudentCreateModal({ open, onClose, classes, onSaved }) 
         fullName: form.fullName.trim(),
         classId: form.classId || '',
         birthDate: form.birthDate || undefined,
+        password: form.password.trim(),
         createAccount: true,
       });
       toast.success('Akun siswa berhasil dibuat');
@@ -114,7 +115,6 @@ export default function StudentCreateModal({ open, onClose, classes, onSaved }) 
 
   if (!open) return null;
 
-  const passwordPreview = previewPassword(form.nis.trim(), form.birthDate);
   const usernamePreview = form.nis.trim();
 
   return (
@@ -221,17 +221,19 @@ export default function StudentCreateModal({ open, onClose, classes, onSaved }) 
                     </div>
                   </div>
                   <div>
-                    <FormLabel hint="Password default: NIS-2 angka terakhir tanggal lahir.">
-                      Password (Default)
+                    <FormLabel hint="Password harus diketik manual oleh bendahara (minimal 6 karakter).">
+                      Password
                     </FormLabel>
-                    <div className="relative">
-                      <input
-                        className={`${FORM_READONLY} pr-24 font-mono`}
-                        value={passwordPreview}
-                        readOnly
-                      />
-                      <AutoBadge />
-                    </div>
+                    <input
+                      type="password"
+                      className={`${FORM_INPUT} font-mono`}
+                      placeholder="Masukkan password akun siswa"
+                      value={form.password}
+                      onChange={(e) => setForm({ ...form, password: e.target.value })}
+                      required
+                      minLength={6}
+                      autoComplete="new-password"
+                    />
                   </div>
                 </div>
               </section>
