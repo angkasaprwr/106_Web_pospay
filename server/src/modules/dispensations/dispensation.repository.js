@@ -29,7 +29,7 @@ class DispensationRepository extends BaseRepository {
       orderBy: { createdAt: 'desc' },
       include: {
         student: { select: { id: true, nis: true, fullName: true } },
-        bill: { select: { id: true, invoiceNo: true, amount: true, feeType: { select: { name: true } } } },
+        bill: { select: { id: true, invoiceNo: true, amount: true, period: true, description: true, academicYearId: true, feeType: { select: { name: true } } } },
         reviewedBy: { select: { fullName: true } },
       },
     });
