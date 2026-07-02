@@ -91,9 +91,25 @@ async function handleMessage({ sessionId, message, user }) {
     }
     const hours = await workingHours.list();
     const reply =
-      'Saat ini di luar jam kerja, sehingga bendahara belum dapat dihubungi secara langsung. Silakan tinggalkan pesan Anda, atau saya dapat membantu menjawab pertanyaan umum seputar tagihan dan pembayaran. Jam kerja layanan: Senin–Jumat.';
+      'Saat ini di luar jam kerja bendahara. Percakapan Anda akan dijawab otomatis oleh Assistant (AI). Silakan sampaikan pertanyaan Anda.';
     const saved = await saveAssistant(session.id, reply, { handover: true, outsideHours: true, hours });
-    return { sessionId: session.id, status: session.status, message: saved };
+    await prisma.chatSession.update({ where: { id: session.id }, data: { status: 'BOT' } });
+    return { sessionId: session.id, status: 'BOT', message: saved };
+  }
+
+  const withinHours = await workingHours.isWithinWorkingHours();
+
+  // Saat jam operasional aktif: antrekan ke bendahara, tanpa balasan AI otomatis.
+  if (withinHours) {
+    if (session.status === 'BOT') {
+      await prisma.chatSession.update({ where: { id: session.id }, data: { status: 'WAITING_HUMAN' } });
+    }
+    return { sessionId: session.id, status: 'WAITING_HUMAN', message: null, awaitingHumanReply: true };
+  }
+
+  // Di luar jam operasional: Assistant (AI) aktif otomatis.
+  if (session.status === 'WAITING_HUMAN') {
+    await prisma.chatSession.update({ where: { id: session.id }, data: { status: 'BOT' } });
   }
 
   const context = { studentId: user?.studentId || null, userId: user?.id || null, lastMessage: message };
@@ -328,6 +344,10 @@ async function getSessionDetail(sessionId) {
   const name = student?.fullName || session.user?.fullName || session.guestName || 'Tamu';
   const lastMsg = session.messages[session.messages.length - 1];
   const replied = lastMsg?.role === 'HUMAN' || lastMsg?.role === 'ASSISTANT';
+  const withinHours = await workingHours.isWithinWorkingHours();
+  const handlerLabel = withinHours || session.status === 'WAITING_HUMAN' || session.status === 'HUMAN'
+    ? 'Bendahara (Anda)'
+    : 'Assistant (AI)';
 
   return {
     id: session.id,
@@ -343,9 +363,7 @@ async function getSessionDetail(sessionId) {
     }),
     replyStatus: session.status === 'CLOSED' ? 'Selesai' : replied ? 'Dibalas' : 'Belum Dibalas',
     lastAnswerSource: lastAnswerSource(session.messages),
-    handlerLabel: session.status === 'WAITING_HUMAN' || session.status === 'HUMAN'
-      ? 'Bendahara (Anda)'
-      : 'Assistant (AI)',
+    handlerLabel,
     timeline: buildTimeline(session.messages),
     messages: session.messages,
   };

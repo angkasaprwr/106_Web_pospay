@@ -56,7 +56,15 @@ router.get('/sessions/:id/messages', authenticate, asyncHandler(async (req, res)
 router.get('/status', authenticate, asyncHandler(async (req, res) => {
   const open = await workingHours.isWithinWorkingHours();
   const summary = await workingHours.getSummary();
-  return ok(res, { workingHoursOpen: open, aiEnabled: gemini.isEnabled(), workingHours: summary });
+  const aiConfigured = gemini.isEnabled();
+  return ok(res, {
+    workingHoursOpen: open,
+    aiEnabled: aiConfigured,
+    assistantActive: !open && aiConfigured,
+    adminActive: open,
+    answerSource: open ? 'Admin (Bendahara)' : (aiConfigured ? 'Assistant (AI)' : 'FAQ'),
+    workingHours: summary,
+  });
 }));
 
 // ---- Treasurer-only management ----

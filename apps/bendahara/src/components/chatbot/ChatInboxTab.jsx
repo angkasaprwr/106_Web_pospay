@@ -203,51 +203,28 @@ export default function ChatInboxTab({ onNavigateTab }) {
           </nav>
         </div>
 
-        <div className="space-y-3 p-4">
+        <div className="p-4">
           <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
             <p className="text-xs font-semibold text-slate-700">Status Jam Kerja</p>
             <div className="mt-2 flex items-start gap-2">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-pospay">
+              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-pospay">
                 <Icon.Clock width={16} height={16} />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-slate-800">{whSummary?.label || 'Jam Kerja'}</p>
-                <p className="text-xs text-slate-500">{whSummary?.range || '-'}</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-sm font-medium text-slate-800">{whSummary?.label || 'Jam Kerja'}</p>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${whSummary?.isOpen ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                    {whSummary?.isOpen ? 'Aktif' : 'Nonaktif'}
+                  </span>
+                </div>
+                <p className="mt-0.5 text-xs text-slate-500">{whSummary?.range || '-'}</p>
               </div>
-              <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${whSummary?.isOpen ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                {whSummary?.isOpen ? 'Aktif' : 'Nonaktif'}
-              </span>
             </div>
             <p className="mt-2 text-[11px] leading-relaxed text-slate-400">
-              Percakapan saat jam kerja akan dijawab oleh Bendahara langsung.
+              {whSummary?.isOpen
+                ? 'Percakapan saat jam kerja akan dijawab oleh Bendahara langsung.'
+                : 'Percakapan di luar jam kerja dijawab otomatis oleh Assistant (AI) secara tergenerate.'}
             </p>
-          </div>
-
-          <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
-            <p className="text-xs font-semibold text-slate-700">Sumber Jawaban</p>
-            <div className="mt-2 space-y-2">
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-600">Assistant (AI)</span>
-                <span className={`rounded-full px-2 py-0.5 font-semibold ${statusInfo?.aiEnabled ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                  {statusInfo?.aiEnabled ? 'Aktif' : 'Nonaktif'}
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400">Menjawab otomatis di luar jam kerja berdasarkan sumber jawaban.</p>
-              <div className="flex items-center justify-between text-xs">
-                <span className="text-slate-600">Admin (Bendahara)</span>
-                <span className={`rounded-full px-2 py-0.5 font-semibold ${whSummary?.isOpen ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                  Aktif
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-400">Menjawab manual saat jam kerja aktif.</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => onNavigateTab?.('qa')}
-              className="mt-3 w-full rounded-lg border border-pospay/30 px-3 py-2 text-xs font-medium text-pospay hover:bg-pospay/5"
-            >
-              Lihat Sumber Jawaban
-            </button>
           </div>
         </div>
       </aside>
@@ -402,7 +379,7 @@ export default function ChatInboxTab({ onNavigateTab }) {
 
               {detail.status !== 'CLOSED' && (
                 <div className="mx-auto mt-4 max-w-lg rounded-xl border border-blue-100 bg-blue-50/80 px-4 py-2.5 text-center text-xs text-blue-800">
-                  Percakapan ini ditangani oleh: <strong>{detail.handlerLabel}</strong>
+                  Percakapan ini ditangani oleh: <strong>{statusInfo?.answerSource || detail.handlerLabel}</strong>
                   {whSummary?.range && <> | Jam kerja aktif: {whSummary.range}</>}
                 </div>
               )}

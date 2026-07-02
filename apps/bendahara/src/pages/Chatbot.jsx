@@ -372,8 +372,28 @@ function WorkingHours() {
             </span>
           </div>
           <p className="mt-3 text-xs text-slate-500">
-            Di luar jam kerja, chatbot akan dijawab oleh Assistant (AI) menggunakan Google Gemini 2.5 Flash dengan Function Calling + RAG.
+            {whSummary?.isOpen
+              ? 'Saat jam operasional aktif, percakapan dijawab oleh Bendahara secara manual.'
+              : 'Saat jam operasional nonaktif, Assistant (AI) aktif otomatis (Gemini 2.5 Flash + RAG).'}
           </p>
+        </div>
+
+        <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+          <p className="text-sm font-semibold text-slate-900">Sumber Jawaban</p>
+          <div className="mt-3 space-y-3">
+            <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2.5 text-sm">
+              <span className="text-slate-700">Assistant (AI)</span>
+              <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusInfo?.assistantActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                {statusInfo?.assistantActive ? 'Aktif' : 'Nonaktif'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2.5 text-sm">
+              <span className="text-slate-700">Admin (Bendahara)</span>
+              <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusInfo?.adminActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                {statusInfo?.adminActive ? 'Aktif' : 'Nonaktif'}
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
