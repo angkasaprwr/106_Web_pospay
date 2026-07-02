@@ -37,4 +37,9 @@ const toggleAccount = asyncHandler(async (req, res) => {
   return ok(res, null, 'Status akun diperbarui');
 });
 
-module.exports = { list, detail, create, update, remove, resetPassword, toggleAccount };
+const nextNis = asyncHandler(async (req, res) => {
+  const nis = await service.generateNextNis();
+  return ok(res, { nis });
+});
+
+module.exports = { list, detail, create, update, remove, resetPassword, toggleAccount, nextNis };

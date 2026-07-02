@@ -1,7 +1,7 @@
 const { z } = require('zod');
 
 const createStudentSchema = z.object({
-  nis: z.string().min(1, 'NIS wajib diisi'),
+  nis: z.string().min(1, 'NIS wajib diisi').optional(),
   nisn: z.string().optional().or(z.literal('')),
   fullName: z.string().min(2, 'Nama lengkap wajib diisi'),
   gender: z.enum(['L', 'P']).optional(),

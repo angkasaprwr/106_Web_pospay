@@ -13,6 +13,7 @@ const router = Router();
 
 router.use(authenticate, authorize('BENDAHARA'));
 
+router.get('/next-nis', controller.nextNis);
 router.get('/', validate({ query: listStudentSchema }), controller.list);
 router.post('/', validate({ body: createStudentSchema }), controller.create);
 router.get('/:id', controller.detail);
