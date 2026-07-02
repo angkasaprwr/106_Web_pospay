@@ -75,7 +75,8 @@ export default function Login() {
           <div>
             <p className="text-sm font-medium text-white/75">Studi Kasus</p>
             <p className="text-lg font-bold leading-snug sm:text-xl">SMP Pusponegoro Brebes</p>
-            <p className="mt-2 max-w-md text-sm leading-relaxed text-white/80">
+            <div className="my-3 h-px w-full max-w-xs bg-white/30" />
+            <p className="max-w-md text-sm leading-relaxed text-white/80">
               POSPAY membantu pengelolaan keuangan sekolah menjadi lebih teratur, transparan, dan mudah diakses.
             </p>
           </div>
@@ -83,7 +84,7 @@ export default function Login() {
       </div>
 
       {/* Panel kanan — form login */}
-      <div className="flex w-full flex-1 items-center justify-center bg-slate-50 px-4 py-10 sm:px-8 lg:w-1/2 lg:px-12">
+      <div className="flex w-full flex-1 items-center justify-center bg-white px-4 py-10 sm:px-8 lg:w-1/2 lg:px-12">
         <div className="w-full max-w-[420px]">
           <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-[0_8px_40px_rgba(0,71,171,0.08)] sm:p-8">
             <div className="mb-8">
@@ -169,14 +170,14 @@ export default function Login() {
                 {loading ? <Spinner size={18} className="text-white" /> : 'Masuk'}
               </button>
             </form>
-          </div>
 
-          <div className="mt-6 border-t border-slate-200 pt-5 text-center">
-            <div className="flex items-center justify-center gap-2 text-xs text-slate-400">
-              <Icon.Shield width={14} height={14} className="text-pospay/70" />
-              <span>Halaman ini hanya untuk akses siswa.</span>
+            <div className="mt-6 border-t border-slate-200 pt-5 text-center">
+              <div className="flex items-center justify-center gap-2 text-xs text-slate-400">
+                <Icon.Shield width={14} height={14} className="text-pospay/70" />
+                <span>Halaman ini hanya untuk akses siswa.</span>
+              </div>
+              <p className="mt-3 text-xs text-slate-400">© {new Date().getFullYear()} POSPAY. All rights reserved.</p>
             </div>
-            <p className="mt-3 text-xs text-slate-400">© {new Date().getFullYear()} POSPAY. All rights reserved.</p>
           </div>
         </div>
       </div>
