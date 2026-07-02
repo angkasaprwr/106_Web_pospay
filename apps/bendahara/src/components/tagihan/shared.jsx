@@ -1,12 +1,13 @@
 import { formatIDR, formatDate, BILL_STATUS } from '../../lib/format';
 
-export function StatCard({ label, value, icon: IconC, iconBg, iconColor }) {
+export function StatCard({ label, value, subtext, icon: IconC, iconBg, iconColor }) {
   return (
     <div className="min-w-[130px] flex-1 rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
       <div className="flex items-center justify-between gap-2">
         <div>
           <p className="text-xs text-slate-500">{label}</p>
           <p className="mt-1 text-base font-bold text-slate-900 sm:text-lg">{value}</p>
+          {subtext && <p className="text-[11px] text-slate-400">{subtext}</p>}
         </div>
         <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
           <IconC width={20} height={20} className={iconColor} />
