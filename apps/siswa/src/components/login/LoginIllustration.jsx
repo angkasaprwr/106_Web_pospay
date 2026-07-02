@@ -8,14 +8,14 @@ export default function LoginIllustration() {
       <circle cx="128" cy="91" r="3" fill="#FFD166" />
       <circle cx="138" cy="91" r="3" fill="#06D6A0" />
       <rect x="108" y="108" width="90" height="60" rx="6" fill="#F1F5F9" />
-      <path d="M115 155 L130 135 L145 145 L165 120 L185 155" stroke="#0047AB" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="165" cy="120" r="3" fill="#0047AB" />
+      <path d="M115 155 L130 135 L145 145 L165 120 L185 155" stroke="#1a48a0" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+      <circle cx="165" cy="120" r="3" fill="#1a48a0" />
       <rect x="210" y="108" width="90" height="60" rx="6" fill="#F1F5F9" />
-      <circle cx="255" cy="138" r="22" stroke="#0047AB" strokeWidth="8" fill="none" strokeDasharray="50 100" transform="rotate(-90 255 138)" />
+      <circle cx="255" cy="138" r="22" stroke="#1a48a0" strokeWidth="8" fill="none" strokeDasharray="50 100" transform="rotate(-90 255 138)" />
       <circle cx="255" cy="138" r="22" stroke="#60A5FA" strokeWidth="8" fill="none" strokeDasharray="30 100" transform="rotate(30 255 138)" />
       <rect x="108" y="178" width="192" height="28" rx="4" fill="#E8F0FE" />
       <rect x="320" y="95" width="52" height="34" rx="8" fill="#fff" fillOpacity="0.9" stroke="rgba(255,255,255,0.5)" />
-      <text x="346" y="117" textAnchor="middle" fill="#0047AB" fontSize="14" fontWeight="700">Rp</text>
+      <text x="346" y="117" textAnchor="middle" fill="#1a48a0" fontSize="14" fontWeight="700">Rp</text>
       <rect x="55" y="130" width="44" height="32" rx="10" fill="#fff" fillOpacity="0.15" />
       <circle cx="77" cy="146" r="3" fill="#fff" fillOpacity="0.8" />
       <circle cx="67" cy="146" r="3" fill="#fff" fillOpacity="0.8" />
