@@ -50,6 +50,12 @@ function FormLabel({ children, hint }) {
   );
 }
 
+const FORM_INPUT =
+  'w-full rounded-xl border border-white/80 bg-gradient-to-br from-white via-white to-sky-50/50 px-3 py-2.5 text-sm text-slate-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_1px_2px_rgba(15,23,42,0.04)] backdrop-blur-md placeholder:text-slate-400 outline-none transition focus:border-pospay/30 focus:ring-2 focus:ring-pospay/15 dark:border-slate-200 dark:bg-white dark:from-white dark:via-white dark:to-white dark:text-slate-800 dark:placeholder:text-slate-400 [color-scheme:light]';
+
+const FORM_READONLY =
+  'w-full rounded-xl border border-white/80 bg-gradient-to-br from-white via-slate-50/70 to-white px-3 py-2.5 text-sm text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_1px_2px_rgba(15,23,42,0.04)] backdrop-blur-md outline-none dark:border-slate-200 dark:bg-white dark:from-white dark:via-white dark:to-white dark:text-slate-700 [color-scheme:light]';
+
 export default function StudentCreateModal({ open, onClose, classes, onSaved }) {
   const toast = useToast();
   const [loading, setLoading] = useState(false);
@@ -142,7 +148,7 @@ export default function StudentCreateModal({ open, onClose, classes, onSaved }) 
                     </FormLabel>
                     <div className="flex gap-2">
                       <input
-                        className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-pospay focus:ring-2 focus:ring-pospay/20"
+                        className={FORM_INPUT}
                         placeholder="Masukkan NIS siswa"
                         value={form.nis}
                         onChange={(e) => setForm({ ...form, nis: e.target.value })}
@@ -153,7 +159,7 @@ export default function StudentCreateModal({ open, onClose, classes, onSaved }) 
                           type="button"
                           title="Gunakan saran NIS otomatis"
                           onClick={() => setForm({ ...form, nis: suggestedNis })}
-                          className="shrink-0 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                          className="shrink-0 rounded-xl border border-white/80 bg-gradient-to-br from-white to-sky-50/60 px-3 text-xs font-medium text-slate-600 shadow-sm backdrop-blur-md hover:from-sky-50/80 hover:to-white dark:border-slate-200 dark:bg-white dark:text-slate-600"
                         >
                           Saran
                         </button>
@@ -163,7 +169,7 @@ export default function StudentCreateModal({ open, onClose, classes, onSaved }) 
                   <div>
                     <FormLabel>Nama Lengkap</FormLabel>
                     <input
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-pospay focus:ring-2 focus:ring-pospay/20"
+                      className={FORM_INPUT}
                       placeholder="Masukkan nama lengkap siswa"
                       value={form.fullName}
                       onChange={(e) => setForm({ ...form, fullName: e.target.value })}
@@ -174,7 +180,7 @@ export default function StudentCreateModal({ open, onClose, classes, onSaved }) 
                     <FormLabel>Kelas</FormLabel>
                     <div className="relative">
                       <select
-                        className="w-full appearance-none rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none focus:border-pospay focus:ring-2 focus:ring-pospay/20"
+                        className={`${FORM_INPUT} appearance-none`}
                         value={form.classId}
                         onChange={(e) => setForm({ ...form, classId: e.target.value })}
                       >
@@ -190,7 +196,7 @@ export default function StudentCreateModal({ open, onClose, classes, onSaved }) 
                     <FormLabel>Tanggal Lahir</FormLabel>
                     <input
                       type="date"
-                      className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-pospay focus:ring-2 focus:ring-pospay/20"
+                      className={FORM_INPUT}
                       value={form.birthDate}
                       onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
                     />
@@ -207,7 +213,7 @@ export default function StudentCreateModal({ open, onClose, classes, onSaved }) 
                     </FormLabel>
                     <div className="relative">
                       <input
-                        className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-3 pr-24 text-sm text-slate-700 outline-none"
+                        className={`${FORM_READONLY} pr-24`}
                         value={usernamePreview}
                         readOnly
                       />
@@ -220,7 +226,7 @@ export default function StudentCreateModal({ open, onClose, classes, onSaved }) 
                     </FormLabel>
                     <div className="relative">
                       <input
-                        className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-3 pr-24 font-mono text-sm text-slate-700 outline-none"
+                        className={`${FORM_READONLY} pr-24 font-mono`}
                         value={passwordPreview}
                         readOnly
                       />
