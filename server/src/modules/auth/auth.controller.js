@@ -21,9 +21,14 @@ const registrationStatus = asyncHandler(async (req, res) => {
 });
 
 const register = asyncHandler(async (req, res) => {
-  const result = await authService.register(req.body, req);
+  const result = await authService.requestRegistration(req.body, req);
+  return created(res, result, result.message);
+});
+
+const verifyRegister = asyncHandler(async (req, res) => {
+  const result = await authService.verifyRegistration(req.body, req);
   setRefreshCookie(res, result.refreshToken);
-  return created(res, result, 'Akun bendahara berhasil dibuat');
+  return created(res, result, 'Akun bendahara berhasil diverifikasi dan dibuat');
 });
 
 const login = asyncHandler(async (req, res) => {
@@ -62,13 +67,33 @@ const changePassword = asyncHandler(async (req, res) => {
   return ok(res, null, 'Password berhasil diubah, silakan login kembali');
 });
 
+const forgotPassword = asyncHandler(async (req, res) => {
+  const result = await authService.requestPasswordReset(req.body.email, req);
+  return ok(res, result, result.message);
+});
+
+const validateResetToken = asyncHandler(async (req, res) => {
+  if (!req.query.token) return ok(res, { valid: false }, 'Token tidak ditemukan');
+  const result = await authService.validatePasswordResetToken(req.query.token);
+  return ok(res, result, result.valid ? 'Token valid' : 'Token tidak valid');
+});
+
+const resetPassword = asyncHandler(async (req, res) => {
+  const result = await authService.resetPasswordWithToken(req.body, req);
+  return ok(res, result, result.message);
+});
+
 module.exports = {
   registrationStatus,
   register,
+  verifyRegister,
   login,
   refresh,
   logout,
   me,
   updateProfile,
   changePassword,
+  forgotPassword,
+  validateResetToken,
+  resetPassword,
 };

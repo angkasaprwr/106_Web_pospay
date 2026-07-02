@@ -106,18 +106,19 @@ enum NotificationStatus {
 // ------------------------------------------------------------
 
 model User {
-  id        String   @id @default(cuid())
-  username  String   @unique
-  email     String?  @unique
-  password  String
-  fullName  String
-  phone     String?
-  avatarUrl String?
-  role      Role     @default(SISWA)
-  isActive  Boolean  @default(true)
-  lastLogin DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id            String   @id @default(cuid())
+  username      String   @unique
+  email         String?  @unique
+  password      String
+  fullName      String
+  phone         String?
+  avatarUrl     String?
+  role          Role     @default(SISWA)
+  isActive      Boolean  @default(true)
+  emailVerified Boolean  @default(false)
+  lastLogin     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   student        Student?
   refreshTokens  RefreshToken[]
@@ -128,6 +129,7 @@ model User {
   notifications  Notification[]
   chatSessions   ChatSession[]
   chatMessages   ChatMessage[]
+  passwordResets PasswordResetToken[]
 
   @@index([role])
   @@index([isActive])
@@ -158,6 +160,37 @@ model DeviceToken {
   updatedAt DateTime @updatedAt
 
   @@index([userId])
+}
+
+model RegistrationVerification {
+  id        String    @id @default(cuid())
+  email     String
+  code      String
+  fullName  String
+  username  String
+  password  String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([email])
+  @@index([code])
+  @@index([expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  token     String    @unique
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  email     String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([email])
+  @@index([expiresAt])
 }
 
 // ------------------------------------------------------------

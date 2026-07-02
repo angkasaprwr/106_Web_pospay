@@ -58,8 +58,12 @@ sesi live/human handover, kelola Q&A, dokumen RAG, jam kerja), Pengaturan (profi
 sekolah, pengguna & akun, metode pembayaran, data master, backup & restore,
 keamanan, tentang), Profil Saya.
 
-Registrasi bendahara **hanya dapat dilakukan sekali saat instalasi**, setelah itu
-otomatis nonaktif.
+Registrasi bendahara melalui halaman `/register` dengan **verifikasi kode via Gmail sekolah**.
+Setelah mengisi form dan klik **Daftar Akun**, pengguna diarahkan ke halaman **Kode Verifikasi**
+(`/register/verify`). Kode 6 digit dikirim ke email Gmail resmi sekolah (bukan SMS/handphone).
+
+Untuk pengujian developer (CRUD register), set `REGISTRATION_ALWAYS_OPEN=true` di `server/.env`.
+Jika SMTP Gmail belum dikonfigurasi, kode verifikasi ditampilkan di mode developer.
 
 ### Role Siswa
 Login dengan **NIS** (password default dibuat bendahara), Beranda, Tagihan
@@ -110,16 +114,55 @@ Akun default hasil seed:
 - **Siswa** → username `2025001`–`2025004`, password `siswa123`
 
 > Untuk menguji alur registrasi instalasi, jalankan seed dengan
-> `SEED_DEFAULT_BENDAHARA=false npm run prisma:seed` (atau reset DB) agar belum ada
-> akun bendahara, lalu daftar via halaman `/register` aplikasi bendahara.
+> `SEED_DEFAULT_BENDAHARA=false npm run prisma:seed` agar belum ada akun bendahara,
+> lalu daftar via halaman `/register` aplikasi bendahara dan verifikasi di `/register/verify`.
+
+### Gmail SMTP (verifikasi pendaftaran bendahara)
+Isi di `server/.env`:
+```
+DATABASE_URL="postgresql://postgres:db123@127.0.0.1:5433/db_sikes?schema=public"
+SCHOOL_GMAIL_ADDRESS=smppusponegorobrebess@gmail.com
+SMTP_USER=smppusponegorobrebess@gmail.com
+SMTP_PASS="uzak lscf nowu szkt"
+SCHOOL_EMAIL_DOMAIN=smppusponegoro.sch.id
+```
+Email pendaftar dapat menggunakan domain sekolah (`@smppusponegoro.sch.id`) atau Gmail resmi sekolah (`smppusponegorobrebess@gmail.com`).
+
+Spasi pada App Password otomatis dihapus oleh backend. File `server/.env` tidak di-commit ke GitHub demi keamanan.
+
+**Uji SMTP setelah mengubah `.env`:**
+```bash
+cd server && npm run test:smtp
+```
+
+Jika muncul error `535 BadCredentials`:
+1. Pastikan 2FA aktif di Gmail sekolah
+2. Buat **App Password baru** (nama app: `web pospay`) di https://myaccount.google.com/apppasswords
+3. Aktifkan IMAP di Gmail → Settings → Forwarding and POP/IMAP
+4. Di `server/.env`: `SMTP_PASS="uzak lscf nowu szkt"` lalu restart backend
+5. Uji: `cd server && npm run test:smtp`
+
+**Alternatif OAuth2** (jika App Password tetap gagal):
+1. Buat OAuth Client di Google Cloud Console, aktifkan Gmail API
+2. Set `GMAIL_CLIENT_ID` & `GMAIL_CLIENT_SECRET` di `server/.env`
+3. Jalankan `cd server && npm run gmail:oauth` → salin `GMAIL_REFRESH_TOKEN`
+4. Set `SMTP_AUTH_TYPE=oauth2` dan restart backend
+
+### Lupa kata sandi bendahara
+- Login → klik **Lupa password?** → `/lupa-kata-sandi`
+- Isi email Gmail sekolah → **Kirim Tautan Reset**
+- Klik tautan di Gmail → `/lupa-kata-sandi/reset?token=...` → atur kata sandi baru
+- Set `FRONTEND_BENDAHARA_URL=http://127.0.0.1:5173` di `server/.env` agar tautan reset benar
 
 ### 4. Menjalankan
-Tiga terminal terpisah:
+Tiga terminal terpisah (gunakan `127.0.0.1` agar konsisten dengan CORS):
 ```bash
-npm run dev:server      # http://localhost:4000
-npm run dev:bendahara   # http://localhost:5173
-npm run dev:siswa       # http://localhost:5174
+npm run dev:server      # http://127.0.0.1:4000
+cd apps/bendahara && npx vite --port 5173 --host 127.0.0.1   # http://127.0.0.1:5173/login
+cd apps/siswa && npx vite --port 5174 --host 127.0.0.1       # http://127.0.0.1:5174/login
 ```
+
+Halaman login bendahara: **http://127.0.0.1:5173/login**
 
 ---
 
@@ -146,7 +189,7 @@ Diatur via `REMINDER_CRON` (default `0 8 * * *`), `REMINDER_ENABLED`, dan
 
 Base URL: `/api`
 
-- `auth` — register (sekali), login, refresh, logout, me, change-password
+- `auth` — register (kirim kode Gmail), register/verify, login, forgot-password, reset-password, refresh, logout, me, change-password
 - `students` — CRUD siswa, reset password, toggle akun
 - `bills` — daftar, buat satuan/massal, update, hapus
 - `payments` — daftar, catat, verifikasi, tolak
