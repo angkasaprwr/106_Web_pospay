@@ -217,7 +217,7 @@ export default function VerifikasiPembayaranTab({ onStatsChange }) {
               value={filters.tagihanKey}
               onChange={(e) => setFilters({ ...filters, tagihanKey: e.target.value, page: 1 })}
             >
-              <option value="">Semua Tagihan</option>
+              <option value="">Pilih Tagihan</option>
               {tagihanGroups.map((g) => (
                 <option key={g.key} value={g.key}>{g.label}</option>
               ))}
@@ -373,7 +373,7 @@ export default function VerifikasiPembayaranTab({ onStatsChange }) {
                 </ResponsiveContainer>
                 <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
                   <span className="text-2xl font-bold text-slate-900">{summary.total}</span>
-                  <span className="text-xs text-slate-500">Pembayaran</span>
+                  <span className="text-xs text-slate-500">Total</span>
                 </div>
               </div>
               <div className="w-full flex-1 space-y-2.5 text-sm">

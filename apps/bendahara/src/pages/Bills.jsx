@@ -96,6 +96,12 @@ export default function Bills() {
     loadVerifikasiStats();
   }, [loadStats, loadVerifikasiStats]);
 
+  useEffect(() => {
+    if (TABS.some((t) => t.id === tabParam) && tabParam !== tab) {
+      setTab(tabParam);
+    }
+  }, [tabParam]); // eslint-disable-line
+
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div>
@@ -108,11 +114,11 @@ export default function Bills() {
       <div className="flex flex-wrap gap-3">
         {tab === 'verifikasi' ? (
           <>
-            <StatCard label="Menunggu Verifikasi" value={`${verifStats.pending} Pembayaran`} icon={Icon.Clock} iconBg="bg-amber-50" iconColor="text-amber-500" />
-            <StatCard label="Lunas" value={`${verifStats.verified} Pembayaran`} icon={Icon.Check} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
-            <StatCard label="Ditolak" value={`${verifStats.rejected} Pembayaran`} icon={Icon.X} iconBg="bg-red-50" iconColor="text-red-500" />
+            <StatCard label="Menunggu Verifikasi" value={String(verifStats.pending)} icon={Icon.Clock} iconBg="bg-amber-50" iconColor="text-amber-500" />
+            <StatCard label="Lunas" value={String(verifStats.verified)} icon={Icon.Check} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
+            <StatCard label="Ditolak" value={String(verifStats.rejected)} icon={Icon.X} iconBg="bg-red-50" iconColor="text-red-500" />
             <StatCard label="Total Nominal" value={formatIDR(verifStats.totalNominal)} icon={Icon.Money} iconBg="bg-blue-50" iconColor="text-blue-600" />
-            <StatCard label="Hari Ini" value={`${verifStats.todayPending} Menunggu Verifikasi`} icon={Icon.Bills} iconBg="bg-indigo-50" iconColor="text-indigo-600" />
+            <StatCard label="Hari Ini" value={`${verifStats.todayPending} Menunggu`} icon={Icon.Clock} iconBg="bg-indigo-50" iconColor="text-indigo-600" />
           </>
         ) : (
           <>
