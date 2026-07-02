@@ -31,13 +31,16 @@ export default function Reports() {
     }
   }, [tabParam]); // eslint-disable-line
 
+  const pageTitle = tab === 'tunggakan' ? 'Laporan Tunggakan & Dispensasi' : 'Laporan';
+  const pageDesc = tab === 'tunggakan'
+    ? 'Kelola dan cetak laporan tunggakan pembayaran siswa serta laporan dispensasi.'
+    : 'Kelola dan cetak laporan keuangan sekolah dengan mudah.';
+
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Laporan</h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Kelola dan cetak laporan keuangan sekolah dengan mudah.
-        </p>
+        <h1 className="text-2xl font-bold text-pospay sm:text-3xl">{pageTitle}</h1>
+        <p className="mt-1 text-sm text-slate-500">{pageDesc}</p>
       </div>
 
       <div className="flex flex-wrap gap-2">
