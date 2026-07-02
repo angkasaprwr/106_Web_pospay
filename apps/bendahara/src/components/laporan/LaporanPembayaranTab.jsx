@@ -123,7 +123,7 @@ export default function LaporanPembayaranTab() {
               onClick={() => setExportOpen((v) => !v)}
               className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
-              <Icon.Upload width={18} height={18} />
+              <Icon.Download width={18} height={18} />
               Export Laporan
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg>
             </button>
@@ -189,8 +189,8 @@ export default function LaporanPembayaranTab() {
                             <td className="px-3 py-3 text-right font-medium">{r.totalIncomeFormatted}</td>
                           </tr>
                         ))}
-                        {totalRow && (
-                          <tr className="border-t-2 border-slate-200 bg-slate-50 font-semibold text-slate-900">
+                        {totalRow && rows.length > 0 && (
+                          <tr className="border-t-2 border-blue-100 bg-blue-50/60 font-semibold text-slate-900">
                             <td className="px-3 py-3" colSpan={3}>TOTAL</td>
                             <td className="px-3 py-3 text-center">{totalRow.totalTagihan}</td>
                             <td className="px-3 py-3 text-center">{totalRow.totalDibayar}</td>
@@ -244,9 +244,9 @@ export default function LaporanPembayaranTab() {
                       <p className="text-lg font-bold text-slate-900">{stats.totalIncomeFormatted}</p>
                       <p className="text-xs text-slate-500">dari {stats.totalTransactions} transaksi</p>
                     </div>
-                    {stats.growthPct !== 0 && (
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${stats.growthPct >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
-                        {stats.growthPct >= 0 ? '↑' : '↓'} {Math.abs(stats.growthPct)}% Dibandingkan tahun {Number(filters.year) - 1}
+                    {(stats.growthPct !== 0 || stats.totalIncome > 0) && (
+                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${stats.growthPct >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>
+                        {stats.growthPct >= 0 ? '↑' : '↓'} {Math.abs(stats.growthPct || 0)}% Dibandingkan tahun {Number(filters.year) - 1}
                       </span>
                     )}
                   </div>
