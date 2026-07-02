@@ -15,6 +15,11 @@ function setDownloadName(res, name) {
 }
 
 // ----- Payment report -----
+router.get('/payments/summary', asyncHandler(async (req, res) => {
+  const data = await service.paymentReportDashboard(req.query);
+  return ok(res, data, 'Ringkasan laporan pembayaran');
+}));
+
 router.get('/payments', asyncHandler(async (req, res) => {
   const { payments, total } = await service.paymentReport(req.query);
   return ok(res, { rows: service.paymentRows(payments), total, totalFormatted: formatIDR(total) }, 'Laporan pembayaran');
