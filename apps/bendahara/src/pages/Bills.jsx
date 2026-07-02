@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api } from '../lib/api';
+import { formatIDR } from '../lib/format';
 import { Icon } from '../components/Icons';
 import { StatCard } from '../components/tagihan/shared';
 import DaftarTagihanTab from '../components/tagihan/DaftarTagihanTab';
 import StatusPembayaranTab from '../components/tagihan/StatusPembayaranTab';
-import VerifikasiPembayaranTab from '../components/tagihan/VerifikasiPembayaranTab';
+import VerifikasiPembayaranTab, { fetchVerifikasiStats } from '../components/tagihan/VerifikasiPembayaranTab';
 import TunggakanDispensasiTab from '../components/tagihan/TunggakanDispensasiTab';
 
 const TABS = [
@@ -42,6 +43,7 @@ export default function Bills() {
   const initialTab = TABS.some((t) => t.id === tabParam) ? tabParam : 'daftar';
   const [tab, setTab] = useState(initialTab);
   const [stats, setStats] = useState({ total: 0, paid: 0, pendingPay: 0, unpaid: 0, pendingDisp: 0 });
+  const [verifStats, setVerifStats] = useState({ pending: 0, verified: 0, rejected: 0, totalNominal: 0, todayPending: 0 });
 
   const selectTab = (id) => {
     setTab(id);
@@ -52,6 +54,14 @@ export default function Bills() {
     }
     setSearchParams(searchParams, { replace: true });
   };
+
+  const loadVerifikasiStats = useCallback(async () => {
+    try {
+      setVerifStats(await fetchVerifikasiStats());
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const loadStats = useCallback(async () => {
     try {
@@ -78,7 +88,13 @@ export default function Bills() {
 
   useEffect(() => {
     loadStats();
-  }, [loadStats]);
+    loadVerifikasiStats();
+  }, [loadStats, loadVerifikasiStats]);
+
+  const refreshAllStats = useCallback(() => {
+    loadStats();
+    loadVerifikasiStats();
+  }, [loadStats, loadVerifikasiStats]);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
@@ -90,11 +106,23 @@ export default function Bills() {
       </div>
 
       <div className="flex flex-wrap gap-3">
-        <StatCard label="Total Tagihan" value={`${stats.total} Tagihan`} icon={Icon.Bills} iconBg="bg-blue-50" iconColor="text-blue-600" />
-        <StatCard label="Lunas" value={`${stats.paid} Tagihan`} icon={Icon.Check} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
-        <StatCard label="Menunggu Verifikasi" value={`${stats.pendingPay} Tagihan`} icon={Icon.Clock} iconBg="bg-amber-50" iconColor="text-amber-500" />
-        <StatCard label="Belum Bayar" value={`${stats.unpaid} Tagihan`} icon={Icon.Warning} iconBg="bg-red-50" iconColor="text-red-500" />
-        <StatCard label="Pengajuan Dispensasi" value={`${stats.pendingDisp} Menunggu`} icon={Icon.User} iconBg="bg-purple-50" iconColor="text-purple-600" />
+        {tab === 'verifikasi' ? (
+          <>
+            <StatCard label="Menunggu Verifikasi" value={`${verifStats.pending} Pembayaran`} icon={Icon.Clock} iconBg="bg-amber-50" iconColor="text-amber-500" />
+            <StatCard label="Lunas" value={`${verifStats.verified} Pembayaran`} icon={Icon.Check} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
+            <StatCard label="Ditolak" value={`${verifStats.rejected} Pembayaran`} icon={Icon.X} iconBg="bg-red-50" iconColor="text-red-500" />
+            <StatCard label="Total Nominal" value={formatIDR(verifStats.totalNominal)} icon={Icon.Money} iconBg="bg-blue-50" iconColor="text-blue-600" />
+            <StatCard label="Hari Ini" value={`${verifStats.todayPending} Menunggu Verifikasi`} icon={Icon.Bills} iconBg="bg-indigo-50" iconColor="text-indigo-600" />
+          </>
+        ) : (
+          <>
+            <StatCard label="Total Tagihan" value={`${stats.total} Tagihan`} icon={Icon.Bills} iconBg="bg-blue-50" iconColor="text-blue-600" />
+            <StatCard label="Lunas" value={`${stats.paid} Tagihan`} icon={Icon.Check} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
+            <StatCard label="Menunggu Verifikasi" value={`${stats.pendingPay} Tagihan`} icon={Icon.Clock} iconBg="bg-amber-50" iconColor="text-amber-500" />
+            <StatCard label="Belum Bayar" value={`${stats.unpaid} Tagihan`} icon={Icon.Warning} iconBg="bg-red-50" iconColor="text-red-500" />
+            <StatCard label="Pengajuan Dispensasi" value={`${stats.pendingDisp} Menunggu`} icon={Icon.User} iconBg="bg-purple-50" iconColor="text-purple-600" />
+          </>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -114,9 +142,9 @@ export default function Bills() {
         ))}
       </div>
 
-      {tab === 'daftar' && <DaftarTagihanTab onStatsChange={loadStats} />}
+      {tab === 'daftar' && <DaftarTagihanTab onStatsChange={refreshAllStats} />}
       {tab === 'status' && <StatusPembayaranTab />}
-      {tab === 'verifikasi' && <VerifikasiPembayaranTab />}
+      {tab === 'verifikasi' && <VerifikasiPembayaranTab onStatsChange={refreshAllStats} />}
       {tab === 'tunggakan' && <TunggakanDispensasiTab />}
 
       <Link
