@@ -118,44 +118,67 @@ function ProfileMenu() {
     navigate(path);
   };
 
+  const handleLogout = async () => {
+    setOpen(false);
+    await logout();
+  };
+
   return (
     <div className="relative flex items-center gap-1" ref={ref}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
         className="flex items-center gap-2 rounded-lg py-1 pl-1 pr-2 hover:bg-slate-100"
+        aria-expanded={open}
+        aria-haspopup="menu"
       >
         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-pospay text-sm font-bold text-white">
           {(user?.fullName || 'B')[0].toUpperCase()}
         </div>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="text-slate-500">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          className={`text-slate-500 transition ${open ? 'rotate-180' : ''}`}
+        >
           <path d="M6 9l6 6 6-6" />
         </svg>
       </button>
       {open && (
-        <div className="absolute right-0 top-full z-40 mt-2 w-56 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
-          <div className="border-b border-slate-100 px-4 py-3">
-            <p className="text-sm font-semibold text-slate-800">{user?.fullName}</p>
-            <p className="text-xs text-slate-400">@{user?.username}</p>
-          </div>
-          <button type="button" onClick={() => go('/profil')} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
-            <Icon.User width={16} height={16} /> Profil Saya
-          </button>
-          <button type="button" onClick={() => go('/pembayaran')} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
-            <Icon.Payment width={16} height={16} /> Pembayaran
-          </button>
-          <button type="button" onClick={() => go('/dispensasi')} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
-            <Icon.Dispensation width={16} height={16} /> Dispensasi
-          </button>
-          <button type="button" onClick={() => go('/pengaturan')} className="flex w-full items-center gap-2 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50">
-            <Icon.Settings width={16} height={16} /> Pengaturan
+        <div
+          role="menu"
+          className="absolute right-0 top-full z-40 mt-2 w-56 overflow-hidden rounded-2xl border border-slate-200 bg-white py-2 shadow-xl"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => go('/profil')}
+            className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-800 transition hover:bg-slate-50"
+          >
+            <Icon.User width={18} height={18} className="shrink-0 text-slate-800" />
+            Profil Saya
           </button>
           <button
             type="button"
-            onClick={logout}
-            className="flex w-full items-center gap-2 border-t border-slate-100 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+            role="menuitem"
+            onClick={() => go('/pengaturan')}
+            className="group flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-slate-800 transition hover:bg-blue-50 hover:text-blue-600"
           >
-            <Icon.Logout width={16} height={16} /> Logout
+            <Icon.Settings width={18} height={18} className="shrink-0 text-slate-800 transition group-hover:text-blue-600" />
+            Pengaturan
+          </button>
+          <div className="my-1 border-t border-slate-200" role="separator" />
+          <button
+            type="button"
+            role="menuitem"
+            onClick={handleLogout}
+            className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+          >
+            <Icon.Logout width={18} height={18} className="shrink-0 text-red-600" />
+            Logout
           </button>
         </div>
       )}
