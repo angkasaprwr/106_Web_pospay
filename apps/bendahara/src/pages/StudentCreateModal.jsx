@@ -55,12 +55,17 @@ export default function StudentCreateModal({ open, onClose, classes, onSaved }) 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ nis: '', fullName: '', classId: '', birthDate: '' });
+  const [suggestedNis, setSuggestedNis] = useState('');
 
   useEffect(() => {
     if (!open) return undefined;
     setLoading(true);
     api.get('/students/next-nis')
-      .then(({ data }) => setForm({ nis: data.data.nis, fullName: '', classId: '', birthDate: '' }))
+      .then(({ data }) => {
+        const nis = data.data.nis || '';
+        setSuggestedNis(nis);
+        setForm({ nis, fullName: '', classId: '', birthDate: '' });
+      })
       .catch((e) => toast.error(apiError(e)))
       .finally(() => setLoading(false));
 
@@ -73,6 +78,11 @@ export default function StudentCreateModal({ open, onClose, classes, onSaved }) 
 
   const save = async (e) => {
     e.preventDefault();
+    const nis = form.nis.trim();
+    if (!nis) {
+      toast.error('NIS wajib diisi');
+      return;
+    }
     if (!form.fullName.trim()) {
       toast.error('Nama lengkap wajib diisi');
       return;
@@ -80,7 +90,7 @@ export default function StudentCreateModal({ open, onClose, classes, onSaved }) 
     setSaving(true);
     try {
       await api.post('/students', {
-        nis: form.nis,
+        nis,
         fullName: form.fullName.trim(),
         classId: form.classId || '',
         birthDate: form.birthDate || undefined,
@@ -98,7 +108,8 @@ export default function StudentCreateModal({ open, onClose, classes, onSaved }) 
 
   if (!open) return null;
 
-  const passwordPreview = previewPassword(form.nis, form.birthDate);
+  const passwordPreview = previewPassword(form.nis.trim(), form.birthDate);
+  const usernamePreview = form.nis.trim();
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-sm">
@@ -126,16 +137,27 @@ export default function StudentCreateModal({ open, onClose, classes, onSaved }) 
                 <SectionHeader icon={Icon.User} title="Data Siswa" />
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                   <div>
-                    <FormLabel hint="NIS dibuat otomatis oleh sistem dan digunakan sebagai username.">
+                    <FormLabel hint="NIS dapat diisi manual atau gunakan saran otomatis. Digunakan sebagai username login.">
                       NIS (Username)
                     </FormLabel>
-                    <div className="relative">
+                    <div className="flex gap-2">
                       <input
-                        className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-3 pr-24 text-sm text-slate-700 outline-none"
+                        className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-pospay focus:ring-2 focus:ring-pospay/20"
+                        placeholder="Masukkan NIS siswa"
                         value={form.nis}
-                        readOnly
+                        onChange={(e) => setForm({ ...form, nis: e.target.value })}
+                        required
                       />
-                      <AutoBadge />
+                      {suggestedNis && (
+                        <button
+                          type="button"
+                          title="Gunakan saran NIS otomatis"
+                          onClick={() => setForm({ ...form, nis: suggestedNis })}
+                          className="shrink-0 rounded-lg border border-slate-200 px-3 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                        >
+                          Saran
+                        </button>
+                      )}
                     </div>
                   </div>
                   <div>
@@ -180,13 +202,13 @@ export default function StudentCreateModal({ open, onClose, classes, onSaved }) 
                 <SectionHeader icon={Icon.Lock} title="Akun Login" />
                 <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
                   <div>
-                    <FormLabel hint="NIS akan digunakan sebagai username login siswa.">
+                    <FormLabel hint="Username mengikuti NIS yang diisi (manual atau otomatis).">
                       Username (NIS)
                     </FormLabel>
                     <div className="relative">
                       <input
                         className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-3 pr-24 text-sm text-slate-700 outline-none"
-                        value={form.nis}
+                        value={usernamePreview}
                         readOnly
                       />
                       <AutoBadge />

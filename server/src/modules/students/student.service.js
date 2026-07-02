@@ -46,7 +46,7 @@ async function getById(id) {
 }
 
 async function create(input, actorId, req) {
-  const nis = input.nis || await generateNextNis();
+  const nis = (input.nis || '').trim() || await generateNextNis();
   const existing = await studentRepository.findByNis(nis);
   if (existing) throw ApiError.conflict('NIS sudah terdaftar');
 
