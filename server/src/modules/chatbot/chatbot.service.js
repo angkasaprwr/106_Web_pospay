@@ -67,8 +67,20 @@ async function handleMessage({ sessionId, message, user }) {
     data: { sessionId: session.id, role: 'USER', content: message, senderId: user?.id || null },
   });
 
+  // Already handled by treasurer — only persist the student message.
+  if (session.status === 'HUMAN') {
+    return { sessionId: session.id, status: 'HUMAN', message: null, awaitingHumanReply: true };
+  }
+
   // Human handover flow.
-  if (wantsHuman(message) || session.status === 'WAITING_HUMAN' || session.status === 'HUMAN') {
+  if (session.status === 'WAITING_HUMAN') {
+    const open = await workingHours.isWithinWorkingHours();
+    if (open) {
+      return { sessionId: session.id, status: 'WAITING_HUMAN', message: null, awaitingHumanReply: true };
+    }
+  }
+
+  if (wantsHuman(message)) {
     const open = await workingHours.isWithinWorkingHours();
     if (open) {
       await prisma.chatSession.update({ where: { id: session.id }, data: { status: 'WAITING_HUMAN' } });
@@ -136,22 +148,207 @@ async function agentReply({ sessionId, message, agent }) {
 }
 
 async function getSessionMessages(sessionId) {
-  return prisma.chatMessage.findMany({ where: { sessionId }, orderBy: { createdAt: 'asc' } });
+  return prisma.chatMessage.findMany({
+    where: { sessionId },
+    orderBy: { createdAt: 'asc' },
+    include: { sender: { select: { fullName: true, role: true } } },
+  });
+}
+
+function initialsFromName(name) {
+  if (!name) return '?';
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase();
+}
+
+function formatClassRoman(name) {
+  if (!name) return '-';
+  const roman = { 7: 'VII', 8: 'VIII', 9: 'IX' };
+  const m = String(name).match(/^(\d)\s*(.*)$/);
+  if (!m) return name;
+  const grade = roman[Number(m[1])] || m[1];
+  return m[2] ? `${grade} ${m[2]}`.trim() : grade;
+}
+
+function mapSessionRow(session) {
+  const lastMsg = session.messages[0];
+  const student = session.user?.student;
+  const name = student?.fullName || session.user?.fullName || session.guestName || 'Tamu';
+  const unread = lastMsg?.role === 'USER' && session.status !== 'CLOSED' ? 1 : 0;
+  const needsReply = session.status === 'WAITING_HUMAN' || (lastMsg?.role === 'USER' && session.status !== 'CLOSED' && session.status !== 'BOT');
+
+  return {
+    id: session.id,
+    status: session.status,
+    studentName: name,
+    initials: initialsFromName(name),
+    nis: student?.nis || session.user?.username || '-',
+    className: formatClassRoman(student?.schoolClass?.name),
+    lastMessage: lastMsg?.content || '',
+    lastMessageAt: lastMsg?.createdAt || session.updatedAt,
+    unread,
+    needsReply,
+    messageCount: session._count?.messages || 0,
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt,
+  };
+}
+
+function lastAnswerSource(messages) {
+  const reversed = [...messages].reverse();
+  const last = reversed.find((m) => m.role === 'HUMAN' || m.role === 'ASSISTANT');
+  if (!last) return '-';
+  return last.role === 'HUMAN' ? 'Admin (Bendahara)' : 'Assistant (AI)';
+}
+
+function buildTimeline(messages) {
+  return messages.map((m) => {
+    let actor = 'Sistem';
+    let action = 'Pesan';
+    if (m.role === 'USER') {
+      actor = 'Siswa';
+      action = 'Pesan dikirim';
+    } else if (m.role === 'HUMAN') {
+      actor = 'Bendahara';
+      action = 'Jawaban dikirim';
+    } else if (m.role === 'ASSISTANT') {
+      actor = 'Assistant (AI)';
+      action = 'Jawaban otomatis';
+    }
+    return {
+      id: m.id,
+      at: m.createdAt,
+      atFormatted: new Date(m.createdAt).toLocaleString('id-ID', {
+        day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+      }),
+      actor,
+      action,
+      preview: m.content.slice(0, 80),
+    };
+  });
 }
 
 async function listSessions(query = {}) {
+  const page = Math.max(1, parseInt(query.page, 10) || 1);
+  const limit = Math.min(50, Math.max(1, parseInt(query.limit, 10) || 6));
+  const skip = (page - 1) * limit;
   const where = {};
-  if (query.status) where.status = query.status;
-  return prisma.chatSession.findMany({
-    where,
-    orderBy: { updatedAt: 'desc' },
-    take: 50,
+
+  if (query.filter === 'unreplied') {
+    where.status = { in: ['WAITING_HUMAN', 'HUMAN'] };
+  } else if (query.filter === 'done') {
+    where.status = 'CLOSED';
+  }
+
+  if (query.search) {
+    const q = String(query.search).trim();
+    if (q) {
+      where.OR = [
+        { guestName: { contains: q, mode: 'insensitive' } },
+        { user: { fullName: { contains: q, mode: 'insensitive' } } },
+        { user: { username: { contains: q, mode: 'insensitive' } } },
+        { user: { student: { fullName: { contains: q, mode: 'insensitive' } } } },
+        { user: { student: { nis: { contains: q, mode: 'insensitive' } } } },
+      ];
+    }
+  }
+
+  const [sessions, total, counts] = await Promise.all([
+    prisma.chatSession.findMany({
+      where,
+      orderBy: { updatedAt: 'desc' },
+      skip,
+      take: limit,
+      include: {
+        user: {
+          select: {
+            fullName: true,
+            username: true,
+            student: {
+              select: {
+                nis: true,
+                fullName: true,
+                schoolClass: { select: { name: true } },
+              },
+            },
+          },
+        },
+        messages: { orderBy: { createdAt: 'desc' }, take: 1 },
+        _count: { select: { messages: true } },
+      },
+    }),
+    prisma.chatSession.count({ where }),
+    Promise.all([
+      prisma.chatSession.count(),
+      prisma.chatSession.count({ where: { status: { in: ['WAITING_HUMAN', 'HUMAN'] } } }),
+      prisma.chatSession.count({ where: { status: 'CLOSED' } }),
+    ]),
+  ]);
+
+  let rows = sessions.map(mapSessionRow);
+  if (query.filter === 'unreplied') {
+    rows = rows.filter((r) => r.needsReply);
+  }
+
+  return {
+    rows,
+    meta: {
+      page,
+      limit,
+      total,
+      totalPages: Math.max(1, Math.ceil(total / limit)),
+      counts: { all: counts[0], unreplied: counts[1], done: counts[2] },
+    },
+  };
+}
+
+async function getSessionDetail(sessionId) {
+  const session = await prisma.chatSession.findUnique({
+    where: { id: sessionId },
     include: {
-      user: { select: { fullName: true, username: true } },
-      messages: { orderBy: { createdAt: 'desc' }, take: 1 },
-      _count: { select: { messages: true } },
+      user: {
+        include: {
+          student: { include: { schoolClass: true } },
+        },
+      },
+      messages: {
+        orderBy: { createdAt: 'asc' },
+        include: { sender: { select: { fullName: true, role: true } } },
+      },
     },
   });
+  if (!session) throw ApiError.notFound('Sesi chat tidak ditemukan');
+
+  const student = session.user?.student;
+  const name = student?.fullName || session.user?.fullName || session.guestName || 'Tamu';
+  const lastMsg = session.messages[session.messages.length - 1];
+  const replied = lastMsg?.role === 'HUMAN' || lastMsg?.role === 'ASSISTANT';
+
+  return {
+    id: session.id,
+    status: session.status,
+    studentName: name,
+    initials: initialsFromName(name),
+    nis: student?.nis || session.user?.username || '-',
+    className: formatClassRoman(student?.schoolClass?.name),
+    studentId: student?.id || null,
+    startedAt: session.createdAt,
+    startedAtFormatted: new Date(session.createdAt).toLocaleString('id-ID', {
+      day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    }),
+    replyStatus: session.status === 'CLOSED' ? 'Selesai' : replied ? 'Dibalas' : 'Belum Dibalas',
+    lastAnswerSource: lastAnswerSource(session.messages),
+    handlerLabel: session.status === 'WAITING_HUMAN' || session.status === 'HUMAN'
+      ? 'Bendahara (Anda)'
+      : 'Assistant (AI)',
+    timeline: buildTimeline(session.messages),
+    messages: session.messages,
+  };
 }
 
 async function closeSession(sessionId) {
@@ -162,6 +359,7 @@ module.exports = {
   handleMessage,
   agentReply,
   getSessionMessages,
+  getSessionDetail,
   listSessions,
   closeSession,
 };
