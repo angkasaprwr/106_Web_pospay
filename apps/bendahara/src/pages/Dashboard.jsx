@@ -16,6 +16,7 @@ import { Icon } from '../components/Icons';
 import { Spinner } from '../components/ui';
 import { formatIDR, formatDateTime } from '../lib/format';
 import { formatClassLabel } from '../components/tagihan/shared';
+import { fetchTunggakanStats } from '../components/tagihan/TunggakanDispensasiTab';
 import WalletIllustration from '../components/dashboard/WalletIllustration';
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -62,22 +63,25 @@ export default function Dashboard() {
   const [dashboard, setDashboard] = useState(null);
   const [paymentReport, setPaymentReport] = useState(null);
   const [arrearsReport, setArrearsReport] = useState(null);
+  const [tunggakanStats, setTunggakanStats] = useState(null);
   const [notifications, setNotifications] = useState([]);
   const [unread, setUnread] = useState(0);
 
   const load = useCallback(async () => {
     try {
-      const [dashRes, payRes, arrRes, notifRes] = await Promise.all([
+      const [dashRes, payRes, arrRes, notifRes, tunggakanRes] = await Promise.all([
         api.get('/dashboard'),
         api.get(`/reports/payments/summary?year=${CURRENT_YEAR}`),
         api.get('/reports/arrears/summary'),
         api.get('/notifications?limit=5'),
+        fetchTunggakanStats(),
       ]);
       setDashboard(dashRes.data.data);
       setPaymentReport(payRes.data.data);
       setArrearsReport(arrRes.data.data);
       setNotifications(notifRes.data.data || []);
       setUnread(notifRes.data.meta?.unread || 0);
+      setTunggakanStats(tunggakanRes);
     } catch {
       /* keep previous data on transient errors */
     } finally {
@@ -112,9 +116,10 @@ export default function Dashboard() {
   const paidCount = billStatusMap.PAID || 0;
   const totalStudents = dashboard?.students?.total || 0;
   const activeStudents = dashboard?.students?.active || 0;
-  const tunggakanStudents = arrearsReport?.stats?.totalStudents || 0;
-  const tunggakanNominal = arrearsReport?.stats?.totalNominal || 0;
-  const pendingDisp = dashboard?.pending?.dispensations || 0;
+  const tunggakanStudents = tunggakanStats?.totalStudents ?? arrearsReport?.stats?.totalStudents ?? 0;
+  const tunggakanNominal = tunggakanStats?.totalNominal ?? arrearsReport?.stats?.totalNominal ?? 0;
+  const pendingDisp = tunggakanStats?.pendingDisp ?? dashboard?.pending?.dispensations ?? 0;
+  const approvedDisp = tunggakanStats?.approvedStudents ?? 0;
 
   const chartData = useMemo(() => {
     const chart = paymentReport?.chart || [];
@@ -164,7 +169,9 @@ export default function Dashboard() {
     {
       label: 'Belum Dibayar (Tunggakan)',
       value: String(tunggakanStudents),
-      sub: tunggakanStudents > 0 ? formatIDR(tunggakanNominal) : 'Tidak ada tunggakan',
+      sub: tunggakanStudents > 0
+        ? `${formatIDR(tunggakanNominal)}${approvedDisp > 0 ? ` · ${approvedDisp} dispensasi disetujui` : ''}`
+        : 'Tidak ada tunggakan',
       icon: Icon.Warning,
       iconBg: 'bg-red-50 dark:bg-red-950/40',
       iconColor: 'text-red-500 dark:text-red-400',
