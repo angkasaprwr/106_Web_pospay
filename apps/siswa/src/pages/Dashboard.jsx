@@ -6,10 +6,10 @@ import { Icon } from '../components/Icons';
 import { Spinner } from '../components/ui';
 
 const FINANCE_STATS = [
-  { label: 'Total Tagihan', value: '—', valueColor: 'text-blue-600', icon: Icon.Bills, iconBg: 'bg-blue-50', iconColor: 'text-blue-600' },
-  { label: 'Sudah Dibayar', value: '—', valueColor: 'text-emerald-600', icon: Icon.CheckCircle, iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600' },
-  { label: 'Belum Dibayar', value: '—', valueColor: 'text-amber-500', icon: Icon.Clock, iconBg: 'bg-amber-50', iconColor: 'text-amber-500' },
-  { label: 'Tunggakan', value: '—', valueColor: 'text-red-500', icon: Icon.Warning, iconBg: 'bg-red-50', iconColor: 'text-red-500' },
+  { label: 'Total Tagihan', value: '—', valueColor: 'text-[#0056D2]', icon: Icon.Bills, iconBg: 'bg-blue-50', iconColor: 'text-[#0056D2]' },
+  { label: 'Sudah Dibayar', value: '—', valueColor: 'text-[#28A745]', icon: Icon.CheckCircle, iconBg: 'bg-emerald-50', iconColor: 'text-[#28A745]' },
+  { label: 'Belum Dibayar', value: '—', valueColor: 'text-[#FD7E14]', icon: Icon.Clock, iconBg: 'bg-orange-50', iconColor: 'text-[#FD7E14]' },
+  { label: 'Tunggakan', value: '—', valueColor: 'text-[#DC3545]', icon: Icon.Warning, iconBg: 'bg-red-50', iconColor: 'text-[#DC3545]' },
 ];
 
 const WEEKDAYS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
@@ -29,7 +29,7 @@ function MegaphoneIllustration() {
     <div className="flex h-32 w-32 shrink-0 items-center justify-center">
       <svg width="80" height="80" viewBox="0 0 80 80" fill="none" aria-hidden>
         <ellipse cx="40" cy="68" rx="28" ry="6" fill="#c7d2fe" fillOpacity="0.5" />
-        <path d="M14 36 L50 22 L50 58 L14 44 Z" fill="#0047AB" />
+        <path d="M14 36 L50 22 L50 58 L14 44 Z" fill="#0056D2" />
         <path d="M50 30 C60 30 68 36 68 44 C68 52 60 58 50 58" stroke="#3b82f6" strokeWidth="5" fill="none" />
         <rect x="8" y="34" width="8" height="14" rx="2" fill="#60a5fa" />
         <path d="M20 48 L14 64 L28 56 Z" fill="#f59e0b" />
@@ -129,7 +129,7 @@ export default function Dashboard() {
                 <p className="text-xs text-slate-500">Informasi terbaru dari bendahara sekolah.</p>
               </div>
             </div>
-            <div className="overflow-hidden rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-50 p-6">
+            <div className="overflow-hidden rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 via-purple-50/80 to-indigo-50 p-6">
               <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center">
                 <MegaphoneIllustration />
                 <div className="min-w-0 flex-1 text-center sm:text-left">
@@ -258,7 +258,7 @@ export default function Dashboard() {
 
       <Link
         to="/bantuan"
-        className="fixed bottom-6 right-4 z-30 flex max-w-sm items-center gap-3 rounded-full bg-[#0047AB] py-3 pl-3 pr-6 text-white shadow-xl hover:bg-[#003D96] hover:shadow-2xl sm:right-8"
+        className="fixed bottom-6 right-4 z-30 flex max-w-sm items-center gap-3 rounded-full bg-[#0056D2] py-3 pl-3 pr-6 text-white shadow-xl hover:bg-[#004BB8] hover:shadow-2xl sm:right-8"
       >
         <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/15">
           <Icon.Chat width={24} height={24} />

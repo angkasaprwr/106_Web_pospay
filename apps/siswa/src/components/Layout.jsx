@@ -186,7 +186,7 @@ export default function Layout() {
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-100">
-      <header className="sticky top-0 z-30 w-full bg-[#0047AB] shadow-lg">
+      <header className="sticky top-0 z-30 w-full bg-[#0056D2] shadow-lg">
         <div className="mx-auto grid h-[68px] max-w-7xl grid-cols-[auto_1fr_auto] items-stretch gap-2 px-4 sm:px-6 lg:grid-cols-[1fr_auto_1fr]">
           <div className="flex items-center gap-2">
             <button
@@ -260,7 +260,7 @@ export default function Layout() {
         )}
       </header>
 
-      <main className="flex-1 bg-[#f0f2f8]">
+      <main className="flex-1 bg-[#F8F9FA]">
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
           <Outlet />
         </div>
