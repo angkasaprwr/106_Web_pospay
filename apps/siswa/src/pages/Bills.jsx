@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { useToast } from '../context/ToastContext';
 import { Icon } from '../components/Icons';
 
@@ -8,13 +7,6 @@ const STEPS = [
   { num: 1, label: 'Bayar Tagihan', icon: Icon.Bills, active: true },
   { num: 2, label: 'Konfirmasi Pembayaran', icon: Icon.CheckCircle, active: false },
   { num: 3, label: 'Pembayaran Berhasil', icon: Icon.Check, active: false },
-];
-
-const PAYMENT_METHODS = [
-  { id: 'va', label: 'Virtual Account' },
-  { id: 'qris', label: 'QRIS' },
-  { id: 'ewallet', label: 'e-Wallet' },
-  { id: 'minimarket', label: 'Minimarket' },
 ];
 
 function StepIndicator() {
@@ -41,43 +33,6 @@ function StepIndicator() {
   );
 }
 
-function PaymentMethodIcon({ id }) {
-  const cls = 'text-[#0056D2] dark:text-blue-400';
-  if (id === 'va') {
-    return (
-      <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={cls}>
-        <rect x="2" y="5" width="20" height="14" rx="2" />
-        <path d="M2 10h20" />
-      </svg>
-    );
-  }
-  if (id === 'qris') {
-    return (
-      <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={cls}>
-        <rect x="3" y="3" width="7" height="7" rx="1" />
-        <rect x="14" y="3" width="7" height="7" rx="1" />
-        <rect x="3" y="14" width="7" height="7" rx="1" />
-        <path d="M14 14h2v2h-2zM18 14h3v3h-3zM14 18h2v3h-2zM18 18h3v3h-3z" />
-      </svg>
-    );
-  }
-  if (id === 'ewallet') {
-    return (
-      <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={cls}>
-        <rect x="2" y="6" width="20" height="14" rx="2" />
-        <path d="M2 10h20" />
-        <circle cx="17" cy="13" r="1.5" fill="currentColor" />
-      </svg>
-    );
-  }
-  return (
-    <svg width={28} height={28} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className={cls}>
-      <path d="M3 9l9-6 9 6v11a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9z" />
-      <path d="M9 22V12h6v10" />
-    </svg>
-  );
-}
-
 function DetailRow({ label, value }) {
   return (
     <div className="flex items-center justify-between border-b border-slate-100 py-3 last:border-0 dark:border-slate-800">
@@ -89,7 +44,6 @@ function DetailRow({ label, value }) {
 
 export default function Bills() {
   const toast = useToast();
-  const [paymentMethod, setPaymentMethod] = useState('va');
 
   const handleDispensasi = () => {
     toast.info('Pengajuan dispensasi akan tersedia setelah data tagihan diisi melalui portal bendahara.');
@@ -156,32 +110,14 @@ export default function Bills() {
         <div className="space-y-5 xl:col-span-7">
           <section className={`${CARD} p-5`}>
             <h2 className="mb-4 font-bold text-slate-800 dark:text-slate-100">Pilih Metode Pembayaran</h2>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              {PAYMENT_METHODS.map((m) => {
-                const selected = paymentMethod === m.id;
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setPaymentMethod(m.id)}
-                    className={`relative flex flex-col items-center gap-2 rounded-xl border-2 p-4 transition ${
-                      selected
-                        ? 'border-[#0056D2] bg-blue-50/50 dark:border-blue-500 dark:bg-blue-950/30'
-                        : 'border-slate-200 bg-white hover:border-slate-300 dark:border-slate-700 dark:bg-slate-800/50 dark:hover:border-slate-600'
-                    }`}
-                  >
-                    {selected && (
-                      <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-[#0056D2] text-white dark:bg-blue-500">
-                        <Icon.Check width={12} height={12} strokeWidth={3} />
-                      </span>
-                    )}
-                    <PaymentMethodIcon id={m.id} />
-                    <span className={`text-center text-xs font-semibold ${selected ? 'text-[#0056D2] dark:text-blue-400' : 'text-slate-600 dark:text-slate-300'}`}>
-                      {m.label}
-                    </span>
-                  </button>
-                );
-              })}
+            <div className="flex min-h-[160px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-6 py-8 text-center dark:border-slate-700 dark:bg-slate-800/50">
+              <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-[#0056D2] dark:bg-blue-950/50 dark:text-blue-400">
+                <Icon.Money width={24} height={24} />
+              </span>
+              <p className="font-semibold text-slate-700 dark:text-slate-200">Belum ada metode pembayaran</p>
+              <p className="mt-2 max-w-sm text-sm text-slate-500 dark:text-slate-400">
+                Metode pembayaran akan tampil setelah bendahara mengatur opsi pembayaran di portal bendahara.
+              </p>
             </div>
           </section>
 
