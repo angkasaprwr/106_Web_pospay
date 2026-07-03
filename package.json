@@ -12,6 +12,7 @@
     "dev:server": "npm --workspace server run dev",
     "dev:bendahara": "npm --workspace apps/bendahara run dev",
     "dev:siswa": "npm --workspace apps/siswa run dev",
+    "dev:all": "bash scripts/start-pospay-dev.sh",
     "build:bendahara": "npm --workspace apps/bendahara run build",
     "build:siswa": "npm --workspace apps/siswa run build",
     "build": "npm run build:bendahara && npm run build:siswa",
