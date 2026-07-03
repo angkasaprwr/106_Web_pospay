@@ -20,7 +20,7 @@ export function ToastProvider({ children }) {
 
   const toast = {
     success: (m) => push('success', m),
-    error: (m) => push('error', m),
+    error: (m) => { if (!m) return; push('error', m); },
     info: (m) => push('info', m),
   };
 

@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { api, setAuthSession, clearAuthSession, getToken } from '../lib/api';
+import { api, setAuthSession, clearAuthSession, getToken, getRefreshToken } from '../lib/api';
 
 const AuthContext = createContext();
 
@@ -9,6 +9,12 @@ export function AuthProvider({ children }) {
 
   const loadProfile = useCallback(async () => {
     if (!getToken()) {
+      setLoading(false);
+      return;
+    }
+    if (!getRefreshToken()) {
+      clearAuthSession();
+      setUser(null);
       setLoading(false);
       return;
     }
@@ -41,7 +47,8 @@ export function AuthProvider({ children }) {
   };
 
   const logout = async () => {
-    try { await api.post('/auth/logout', {}); } catch { /* ignore */ }
+    const refreshToken = getRefreshToken();
+    try { await api.post('/auth/logout', refreshToken ? { refreshToken } : {}); } catch { /* ignore */ }
     clearAuthSession();
     setUser(null);
   };

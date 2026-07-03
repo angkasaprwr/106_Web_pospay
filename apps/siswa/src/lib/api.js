@@ -35,6 +35,15 @@ export function clearAuthSession() {
   setRefreshToken(null);
 }
 
+export function isSessionError(err) {
+  return Boolean(err?.isSessionError);
+}
+
+function markSessionError(error) {
+  error.isSessionError = true;
+  return error;
+}
+
 api.interceptors.request.use((config) => {
   const token = getToken();
   if (token) config.headers.Authorization = `Bearer ${token}`;
@@ -59,14 +68,19 @@ api.interceptors.response.use(
       if (!window.location.pathname.includes('/login')) {
         window.location.href = '/login';
       }
-      return Promise.reject(error);
+      return Promise.reject(markSessionError(error));
     }
 
     if (error.response?.status === 401 && !original._retry && !original.url.includes('/auth/')) {
       original._retry = true;
+      const storedRefresh = getRefreshToken();
+      if (!storedRefresh) {
+        clearAuthSession();
+        if (!window.location.pathname.includes('/login')) window.location.href = '/login';
+        return Promise.reject(markSessionError(error));
+      }
       try {
-        const storedRefresh = getRefreshToken();
-        refreshing = refreshing || api.post('/auth/refresh', storedRefresh ? { refreshToken: storedRefresh } : {});
+        refreshing = refreshing || api.post('/auth/refresh', { refreshToken: storedRefresh });
         const { data } = await refreshing;
         refreshing = null;
         const newToken = data?.data?.accessToken;
@@ -92,5 +106,6 @@ api.interceptors.response.use(
 );
 
 export function apiError(err, fallback = 'Terjadi kesalahan') {
+  if (isSessionError(err)) return null;
   return err?.response?.data?.message || err?.message || fallback;
 }

@@ -32,7 +32,8 @@ export default function ClassManagementSection({ onClassesChange }) {
       const active = list.find((y) => y.isActive);
       if (active && !yearFilter) setYearFilter(active.id);
       return list;
-    } catch {
+    } catch (e) {
+      toast.error(apiError(e));
       return [];
     }
   }, [yearFilter]);

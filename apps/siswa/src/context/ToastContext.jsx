@@ -12,7 +12,7 @@ export function ToastProvider({ children }) {
     setTimeout(() => remove(id), 4000);
   }, [remove]);
 
-  const toast = { success: (m) => push('success', m), error: (m) => push('error', m), info: (m) => push('info', m) };
+  const toast = { success: (m) => push('success', m), error: (m) => { if (!m) return; push('error', m); }, info: (m) => push('info', m) };
   const styles = {
     success: 'border-emerald-500 bg-emerald-50 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200',
     error: 'border-red-500 bg-red-50 text-red-800 dark:bg-red-900/40 dark:text-red-200',
