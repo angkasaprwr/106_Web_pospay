@@ -4,12 +4,39 @@ const { toNumber } = require('../../utils/money');
 const { outstanding } = require('../bills/bill.helper');
 
 async function resolveStudent(user) {
-  if (!user.studentId) throw ApiError.forbidden('Akun ini bukan akun siswa');
-  const student = await prisma.student.findUnique({
-    where: { id: user.studentId },
-    include: { schoolClass: { include: { academicYear: true } } },
+  const include = { schoolClass: { include: { academicYear: true } } };
+
+  if (user.studentId) {
+    const student = await prisma.student.findUnique({
+      where: { id: user.studentId },
+      include,
+    });
+    if (student) return student;
+  }
+
+  // Fallback: akun siswa belum terhubung lewat relasi — cari berdasarkan userId atau NIS (username).
+  let student = await prisma.student.findFirst({
+    where: {
+      OR: [
+        { userId: user.id },
+        { nis: user.username },
+      ],
+    },
+    include,
   });
-  if (!student) throw ApiError.notFound('Data siswa tidak ditemukan');
+
+  if (!student) {
+    throw ApiError.forbidden('Akun ini belum terhubung ke data siswa. Hubungi bendahara sekolah.');
+  }
+
+  if (!student.userId) {
+    student = await prisma.student.update({
+      where: { id: student.id },
+      data: { userId: user.id },
+      include,
+    });
+  }
+
   return student;
 }
 

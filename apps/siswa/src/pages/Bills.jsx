@@ -4,6 +4,7 @@ import { api, apiError } from '../lib/api';
 import { useToast } from '../context/ToastContext';
 import { formatIDR, formatDate, BILL_STATUS } from '../lib/format';
 import { saveBillPaymentDraft } from '../lib/billPaymentSession';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { Spinner, Badge } from '../components/ui';
 import { Icon } from '../components/Icons';
 
@@ -74,11 +75,13 @@ export default function Bills() {
   const [bills, setBills] = useState([]);
   const [methods, setMethods] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [accountError, setAccountError] = useState('');
   const [selectedBillId, setSelectedBillId] = useState('');
   const [selectedMethodId, setSelectedMethodId] = useState('');
 
   const loadData = useCallback(async () => {
     setLoading(true);
+    setAccountError('');
     try {
       const [billsRes, methodsRes] = await Promise.all([
         api.get('/portal/bills?limit=100'),
@@ -99,8 +102,16 @@ export default function Bills() {
         return activeMethods[0]?.id || '';
       });
     } catch (e) {
-      const msg = apiError(e);
-      if (msg) toast.error(msg);
+      const status = e.response?.status;
+      const message = e.response?.data?.message || '';
+      if (status === 403 && message.toLowerCase().includes('siswa')) {
+        setAccountError(message);
+        setBills([]);
+        setMethods([]);
+      } else {
+        const msg = apiError(e);
+        if (msg) toast.error(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -108,10 +119,9 @@ export default function Bills() {
 
   useEffect(() => {
     loadData();
-    const onFocus = () => loadData();
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
   }, [loadData]);
+
+  useLiveRefresh(loadData, 10000);
 
   const selectedBill = useMemo(
     () => bills.find((b) => b.id === selectedBillId) || null,
@@ -172,6 +182,12 @@ export default function Bills() {
       </div>
 
       <StepIndicator activeStep={1} />
+
+      {accountError && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-200">
+          {accountError}
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         <div className="xl:col-span-5">

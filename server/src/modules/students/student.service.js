@@ -46,24 +46,47 @@ async function create(input, actorId, req) {
   const result = await prisma.$transaction(async (tx) => {
     let userId = null;
     if (input.createAccount !== false) {
-      const usernameExists = await tx.user.findUnique({ where: { username: nis } });
-      if (usernameExists) throw ApiError.conflict('Username (NIS) sudah digunakan akun lain');
-      const rawPassword = (input.password || '').trim();
-      if (!rawPassword || rawPassword.length < 6) {
-        throw ApiError.badRequest('Password wajib diisi (minimal 6 karakter)');
+      const existingUser = await tx.user.findUnique({ where: { username: nis } });
+      if (existingUser) {
+        if (existingUser.role !== 'SISWA') {
+          throw ApiError.conflict('Username (NIS) sudah digunakan akun lain');
+        }
+        const linkedStudent = await tx.student.findFirst({ where: { userId: existingUser.id } });
+        if (linkedStudent) {
+          throw ApiError.conflict('Akun siswa dengan NIS ini sudah terhubung ke data siswa lain');
+        }
+        const rawPassword = (input.password || '').trim();
+        if (rawPassword && rawPassword.length >= 6) {
+          const hashed = await bcrypt.hash(rawPassword, 10);
+          await tx.user.update({
+            where: { id: existingUser.id },
+            data: { password: hashed, fullName: input.fullName, phone: input.phone || null, isActive: true },
+          });
+        } else {
+          await tx.user.update({
+            where: { id: existingUser.id },
+            data: { fullName: input.fullName, phone: input.phone || null, isActive: true },
+          });
+        }
+        userId = existingUser.id;
+      } else {
+        const rawPassword = (input.password || '').trim();
+        if (!rawPassword || rawPassword.length < 6) {
+          throw ApiError.badRequest('Password wajib diisi (minimal 6 karakter)');
+        }
+        const hashed = await bcrypt.hash(rawPassword, 10);
+        const user = await tx.user.create({
+          data: {
+            username: nis,
+            password: hashed,
+            fullName: input.fullName,
+            phone: input.phone || null,
+            role: 'SISWA',
+            isActive: true,
+          },
+        });
+        userId = user.id;
       }
-      const hashed = await bcrypt.hash(rawPassword, 10);
-      const user = await tx.user.create({
-        data: {
-          username: nis,
-          password: hashed,
-          fullName: input.fullName,
-          phone: input.phone || null,
-          role: 'SISWA',
-          isActive: true,
-        },
-      });
-      userId = user.id;
     }
 
     return tx.student.create({
