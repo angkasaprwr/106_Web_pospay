@@ -5,6 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../lib/api';
 import { formatDateTime } from '../lib/format';
+import PospayLogo from './login/PospayLogo';
 
 const NAV = [
   { to: '/', label: 'Beranda', icon: Icon.Home, end: true },
@@ -15,12 +16,10 @@ const NAV = [
 function Brand() {
   return (
     <Link to="/" className="flex items-center gap-3">
-      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white text-pospay shadow-sm">
-        <Icon.School width={22} height={22} />
-      </div>
+      <PospayLogo size={40} className="rounded-lg" />
       <div className="hidden sm:block">
-        <p className="text-base font-bold leading-tight text-white">POSPAY</p>
-        <p className="text-[11px] text-white/75">Sistem Informasi Keuangan Sekolah</p>
+        <p className="text-base font-bold leading-tight tracking-wide text-white">POSPAY</p>
+        <p className="text-[11px] text-white/80">Sistem Informasi Keuangan Sekolah</p>
       </div>
     </Link>
   );
@@ -75,25 +74,25 @@ function Notifications() {
         )}
       </button>
       {open && (
-        <div className="absolute right-0 z-40 mt-2 w-80 max-w-[90vw] overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-800 shadow-lg">
-          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+        <div className="absolute right-0 z-40 mt-2 w-80 max-w-[90vw] overflow-hidden rounded-xl border border-slate-200 bg-white text-slate-800 shadow-lg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-slate-700">
             <span className="font-semibold">Notifikasi</span>
-            <button type="button" onClick={markAll} className="text-xs text-pospay hover:underline">
+            <button type="button" onClick={markAll} className="text-xs text-pospay hover:underline dark:text-blue-400">
               Tandai dibaca
             </button>
           </div>
           <div className="max-h-96 overflow-y-auto scrollbar-thin">
             {items.length === 0 ? (
-              <p className="px-4 py-8 text-center text-sm text-slate-400">Belum ada notifikasi</p>
+              <p className="px-4 py-8 text-center text-sm text-slate-400 dark:text-slate-500">Belum ada notifikasi</p>
             ) : (
               items.map((n) => (
                 <div
                   key={n.id}
-                  className={`border-b border-slate-100 px-4 py-3 ${!n.readAt ? 'bg-pospay-50/40' : ''}`}
+                  className={`border-b border-slate-100 px-4 py-3 dark:border-slate-800 ${!n.readAt ? 'bg-pospay-50/40 dark:bg-blue-950/30' : ''}`}
                 >
-                  <p className="text-sm font-medium">{n.title}</p>
-                  <p className="text-xs text-slate-500">{n.body}</p>
-                  <p className="mt-1 text-[10px] text-slate-400">{formatDateTime(n.createdAt)}</p>
+                  <p className="text-sm font-medium dark:text-slate-100">{n.title}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">{n.body}</p>
+                  <p className="mt-1 text-[10px] text-slate-400 dark:text-slate-500">{formatDateTime(n.createdAt)}</p>
                 </div>
               ))
             )}
@@ -141,36 +140,36 @@ function ProfileMenu() {
         <Icon.ChevronRight width={16} height={16} className="rotate-90 text-white/80" />
       </button>
       {open && (
-        <div className="absolute right-0 z-40 mt-2 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-slate-800 shadow-lg">
-          <div className="border-b border-slate-100 px-4 py-3">
+        <div className="absolute right-0 z-40 mt-2 w-52 overflow-hidden rounded-xl border border-slate-200 bg-white py-1 text-slate-800 shadow-lg dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100">
+          <div className="border-b border-slate-100 px-4 py-3 dark:border-slate-700">
             <p className="text-sm font-semibold">{user?.fullName}</p>
-            <p className="text-xs text-slate-400">NIS: {user?.username}</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500">NIS: {user?.username}</p>
           </div>
           <button
             type="button"
             onClick={() => { setOpen(false); navigate('/profil'); }}
-            className="flex w-full items-center gap-2 px-4 py-2.5 text-sm hover:bg-slate-50"
+            className="flex w-full items-center gap-2 px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
           >
             <Icon.User width={16} height={16} /> Profil Saya
           </button>
           <button
             type="button"
             onClick={() => { setOpen(false); navigate('/bantuan'); }}
-            className="flex w-full items-center gap-2 px-4 py-2.5 text-sm hover:bg-slate-50"
+            className="flex w-full items-center gap-2 px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
           >
             <Icon.Chat width={16} height={16} /> Bantuan / Chatbot
           </button>
           <button
             type="button"
             onClick={() => { setOpen(false); navigate('/pengaturan'); }}
-            className="flex w-full items-center gap-2 px-4 py-2.5 text-sm hover:bg-slate-50"
+            className="flex w-full items-center gap-2 px-4 py-2.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
           >
             <Icon.Settings width={16} height={16} /> Pengaturan
           </button>
           <button
             type="button"
             onClick={logout}
-            className="flex w-full items-center gap-2 border-t border-slate-100 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50"
+            className="flex w-full items-center gap-2 border-t border-slate-100 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 dark:border-slate-700 dark:text-red-400 dark:hover:bg-red-950/30"
           >
             <Icon.Logout width={16} height={16} /> Logout
           </button>
