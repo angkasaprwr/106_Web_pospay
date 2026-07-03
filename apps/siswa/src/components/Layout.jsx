@@ -7,7 +7,7 @@ import { api } from '../lib/api';
 import { formatDateTime } from '../lib/format';
 
 const NAV = [
-  { to: '/', label: 'Beranda', icon: Icon.Dashboard, end: true },
+  { to: '/', label: 'Beranda', icon: Icon.Home, end: true },
   { to: '/tagihan', label: 'Tagihan', icon: Icon.Bills },
   { to: '/riwayat', label: 'Riwayat', icon: Icon.History },
 ];
@@ -178,8 +178,8 @@ export default function Layout() {
   return (
     <div className="flex min-h-screen flex-col bg-slate-100">
       <header className="sticky top-0 z-30 bg-pospay shadow-md">
-        <div className="mx-auto flex h-16 max-w-7xl items-stretch justify-between gap-2 px-4 sm:px-6">
-          <div className="flex items-center gap-3">
+        <div className="mx-auto grid h-16 max-w-7xl grid-cols-[auto_1fr_auto] items-stretch gap-2 px-4 sm:px-6 lg:grid-cols-[1fr_auto_1fr]">
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setMobileOpen((o) => !o)}
@@ -193,7 +193,7 @@ export default function Layout() {
             <Brand />
           </div>
 
-          <nav className="hidden items-stretch lg:flex">
+          <nav className="hidden items-stretch justify-center lg:flex">
             {NAV.map((item) => (
               <NavLink
                 key={item.to}
@@ -213,14 +213,14 @@ export default function Layout() {
             ))}
           </nav>
 
-          <div className="flex items-center gap-1 sm:gap-2">
+          <div className="flex items-center justify-end gap-1 sm:gap-2">
             <button
               type="button"
               onClick={toggle}
               className="rounded-lg border border-white/25 p-2 text-white hover:bg-white/10"
               aria-label="Ubah tema"
             >
-              {theme === 'dark' ? <Icon.Sun width={20} height={20} /> : <Icon.Sun width={20} height={20} />}
+              {theme === 'dark' ? <Icon.Sun width={20} height={20} /> : <Icon.Moon width={20} height={20} />}
             </button>
             <Notifications />
             <ProfileMenu />

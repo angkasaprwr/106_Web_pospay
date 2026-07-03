@@ -1,6 +1,9 @@
+import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { Icon } from '../components/Icons';
+import { Spinner } from '../components/ui';
 
 const FINANCE_STATS = [
   { label: 'Total Tagihan', value: '—', valueColor: 'text-blue-600', icon: Icon.Bills, iconBg: 'bg-blue-50', iconColor: 'text-blue-600' },
@@ -11,14 +14,25 @@ const FINANCE_STATS = [
 
 const WEEKDAYS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
 
+function formatClassLabel(name) {
+  if (!name) return '—';
+  const roman = { 7: 'VII', 8: 'VIII', 9: 'IX' };
+  const m = String(name).match(/^(\d)\s*(.*)$/);
+  if (!m) return name;
+  const grade = roman[Number(m[1])] || m[1];
+  const section = m[2] || '';
+  return section ? `${grade} ${section}`.trim() : grade;
+}
+
 function MegaphoneIllustration() {
   return (
-    <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-100 to-violet-50 shadow-inner">
-      <svg width="64" height="64" viewBox="0 0 64 64" fill="none" aria-hidden>
-        <path d="M10 28 L42 16 L42 48 L10 36 Z" fill="#1a48a0" fillOpacity="0.9" />
-        <path d="M42 24 C50 24 56 28 56 32 C56 36 50 40 42 40" stroke="#1a48a0" strokeWidth="4" fill="none" />
-        <rect x="6" y="26" width="6" height="12" rx="2" fill="#60a5fa" />
-        <path d="M16 40 L12 54 L24 48 Z" fill="#f59e0b" />
+    <div className="flex h-32 w-32 shrink-0 items-center justify-center">
+      <svg width="80" height="80" viewBox="0 0 80 80" fill="none" aria-hidden>
+        <ellipse cx="40" cy="68" rx="28" ry="6" fill="#c7d2fe" fillOpacity="0.5" />
+        <path d="M14 36 L50 22 L50 58 L14 44 Z" fill="#1a48a0" />
+        <path d="M50 30 C60 30 68 36 68 44 C68 52 60 58 50 58" stroke="#3b82f6" strokeWidth="5" fill="none" />
+        <rect x="8" y="34" width="8" height="14" rx="2" fill="#60a5fa" />
+        <path d="M20 48 L14 64 L28 56 Z" fill="#f59e0b" />
       </svg>
     </div>
   );
@@ -26,17 +40,12 @@ function MegaphoneIllustration() {
 
 function FinanceStatCard({ label, value, valueColor, icon: IconC, iconBg, iconColor }) {
   return (
-    <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="text-xs text-slate-500">{label}</p>
-          <p className={`mt-1 text-lg font-bold ${valueColor}`}>{value}</p>
-          <p className="mt-0.5 text-[10px] text-slate-400">Menunggu data</p>
-        </div>
-        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
-          <IconC width={20} height={20} className={iconColor} />
-        </div>
+    <div className="flex flex-1 flex-col rounded-xl border border-slate-100 bg-slate-50/50 p-4">
+      <div className={`mb-2 flex h-9 w-9 items-center justify-center rounded-lg ${iconBg}`}>
+        <IconC width={18} height={18} className={iconColor} />
       </div>
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className={`mt-1 text-base font-bold ${valueColor}`}>{value}</p>
     </div>
   );
 }
@@ -55,14 +64,14 @@ function MiniCalendar() {
 
   return (
     <div>
-      <div className="mb-3 flex items-center justify-center gap-4 text-sm font-medium text-slate-700">
+      <div className="mb-4 flex items-center justify-center gap-6 text-sm font-semibold text-slate-700">
         <button type="button" className="text-slate-400 hover:text-pospay" aria-label="Bulan sebelumnya">‹</button>
-        <span className="min-w-[120px] text-center capitalize">{monthLabel}</span>
+        <span className="min-w-[130px] text-center capitalize">{monthLabel}</span>
         <button type="button" className="text-slate-400 hover:text-pospay" aria-label="Bulan berikutnya">›</button>
       </div>
-      <div className="grid grid-cols-7 gap-1 text-center text-[11px]">
+      <div className="grid grid-cols-7 gap-1 text-center text-xs">
         {WEEKDAYS.map((d, i) => (
-          <div key={d} className={`py-1 font-semibold ${i >= 5 ? 'text-red-400' : 'text-slate-500'}`}>{d}</div>
+          <div key={d} className={`py-2 font-semibold ${i >= 5 ? 'text-red-400' : 'text-slate-500'}`}>{d}</div>
         ))}
         {cells.map((day, idx) => {
           const col = idx % 7;
@@ -70,31 +79,45 @@ function MiniCalendar() {
           return (
             <div
               key={idx}
-              className={`flex h-9 flex-col items-center justify-center rounded-lg text-slate-700 ${
-                isWeekend ? 'text-red-500' : ''
-              } ${day === now.getDate() ? 'bg-pospay/10 font-semibold text-pospay ring-1 ring-pospay/25' : ''}`}
+              className={`flex h-10 items-center justify-center rounded-lg ${
+                isWeekend ? 'font-medium text-red-500' : 'text-slate-700'
+              } ${day === now.getDate() ? 'bg-pospay text-white font-bold shadow-sm' : ''}`}
             >
               {day || ''}
             </div>
           );
         })}
       </div>
-      <div className="mt-4 rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-3 py-4 text-center text-xs text-slate-400">
-        Jadwal pembayaran akan ditampilkan setelah data tersedia dari bendahara.
-      </div>
+      <p className="mt-4 text-center text-xs text-slate-400">
+        Jadwal pembayaran akan ditampilkan setelah data tersedia.
+      </p>
     </div>
   );
 }
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const displayName = user?.fullName || '—';
-  const initial = (user?.fullName || 'S').charAt(0).toUpperCase();
+  const [profile, setProfile] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+
+  useEffect(() => {
+    api.get('/auth/me')
+      .then(({ data }) => setProfile(data.data))
+      .catch(() => {})
+      .finally(() => setProfileLoading(false));
+  }, []);
+
+  const displayName = profile?.fullName || user?.fullName || '—';
+  const nis = profile?.username || user?.username || '—';
+  const classLabel = formatClassLabel(profile?.student?.schoolClass?.name);
+  const initial = (displayName !== '—' ? displayName : 'S').charAt(0).toUpperCase();
+  const photoUrl = profile?.avatarUrl || profile?.student?.photoUrl;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-        <div className="space-y-5 lg:col-span-2">
+    <div className="mx-auto max-w-7xl space-y-6 pb-8">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+        {/* Kolom kiri — Pengumuman & Catatan */}
+        <div className="space-y-5 xl:col-span-5">
           <section>
             <div className="mb-3 flex items-center gap-2">
               <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-pospay text-white">
@@ -107,26 +130,26 @@ export default function Dashboard() {
                 <p className="text-xs text-slate-500">Informasi terbaru dari bendahara sekolah.</p>
               </div>
             </div>
-            <div className="overflow-hidden rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50/90 via-white to-indigo-50/50 p-5 shadow-sm">
-              <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
+            <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+              <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center">
                 <MegaphoneIllustration />
                 <div className="min-w-0 flex-1 text-center sm:text-left">
-                  <span className="inline-block rounded-md bg-violet-200/60 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-violet-800">
+                  <span className="inline-block rounded-full bg-violet-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-violet-700">
                     Pengumuman
                   </span>
-                  <p className="mt-3 text-base font-semibold leading-snug text-slate-800">
+                  <p className="mt-3 text-lg font-bold leading-snug text-slate-800">
                     Belum ada pengumuman
                   </p>
-                  <p className="mt-2 flex items-center justify-center gap-1.5 text-xs text-slate-500 sm:justify-start">
-                    <Icon.Clock width={14} height={14} />
-                    Informasi dari bendahara akan tampil di sini.
+                  <p className="mt-2 flex items-center justify-center gap-1.5 text-sm text-slate-500 sm:justify-start">
+                    <Icon.Clock width={15} height={15} />
+                    Informasi dari bendahara akan tampil setelah data tersedia.
                   </p>
                 </div>
               </div>
             </div>
           </section>
 
-          <section className="rounded-xl border border-sky-100 bg-gradient-to-br from-sky-50 to-white p-4 shadow-sm">
+          <section className="rounded-xl border border-sky-100 bg-sky-50/80 p-4">
             <div className="flex gap-3">
               <Icon.Info width={20} height={20} className="mt-0.5 shrink-0 text-sky-600" />
               <div>
@@ -139,45 +162,61 @@ export default function Dashboard() {
           </section>
         </div>
 
-        <div className="space-y-5 lg:col-span-3">
+        {/* Kolom kanan */}
+        <div className="space-y-5 xl:col-span-7">
           <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
-            <h2 className="mb-4 font-bold text-slate-800">Informasi Profil Singkat</h2>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-              <div className="flex h-24 w-24 shrink-0 items-center justify-center self-center rounded-full bg-gradient-to-br from-pospay-100 to-sky-100 text-3xl font-bold text-pospay ring-4 ring-slate-50 shadow-md sm:self-auto">
-                {initial}
+            <h2 className="mb-4 text-base font-bold text-slate-800">Informasi Profil Singkat</h2>
+            {profileLoading ? (
+              <div className="flex h-28 items-center justify-center">
+                <Spinner size={28} />
               </div>
-              <div className="min-w-0 flex-1 text-center sm:text-left">
-                <p className="flex items-center justify-center gap-2 text-lg font-bold text-slate-900 sm:justify-start">
-                  <Icon.User width={18} height={18} className="text-pospay" />
-                  {displayName}
-                </p>
-                <p className="mt-1 flex items-center justify-center gap-2 text-sm text-slate-500 sm:justify-start">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
-                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
-                  </svg>
-                  Kelas: —
-                </p>
-                <Link
-                  to="/profil"
-                  className="mt-3 inline-flex items-center gap-2 rounded-lg border-2 border-pospay/40 px-4 py-2 text-sm font-semibold text-pospay hover:bg-pospay-50"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <rect x="2" y="5" width="20" height="14" rx="2" />
-                    <path d="M2 10h20" />
-                  </svg>
-                  Lihat Profil
-                </Link>
+            ) : (
+              <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center">
+                {photoUrl ? (
+                  <img
+                    src={photoUrl}
+                    alt={displayName}
+                    className="h-24 w-24 shrink-0 rounded-full object-cover ring-4 ring-slate-100 shadow-md"
+                  />
+                ) : (
+                  <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-pospay-100 to-sky-100 text-3xl font-bold text-pospay ring-4 ring-slate-50 shadow-md">
+                    {initial}
+                  </div>
+                )}
+                <div className="min-w-0 flex-1 text-center sm:text-left">
+                  <p className="flex items-center justify-center gap-2 text-lg font-bold text-slate-900 sm:justify-start">
+                    <Icon.User width={18} height={18} className="text-pospay" />
+                    {displayName}
+                  </p>
+                  <p className="mt-1 flex items-center justify-center gap-2 text-sm text-slate-600 sm:justify-start">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                      <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+                    </svg>
+                    Kelas: {classLabel}
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-400">NIS: {nis}</p>
+                  <Link
+                    to="/profil"
+                    className="mt-3 inline-flex items-center gap-2 rounded-lg border-2 border-pospay px-4 py-2 text-sm font-semibold text-pospay hover:bg-pospay-50"
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <rect x="2" y="5" width="20" height="14" rx="2" />
+                      <path d="M2 10h20" />
+                    </svg>
+                    Lihat Profil
+                  </Link>
+                </div>
               </div>
-            </div>
+            )}
           </section>
 
-          <section>
-            <div className="mb-3">
+          <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
+            <div className="mb-4">
               <h2 className="font-bold text-slate-800">Ringkasan Keuangan</h2>
               <p className="text-xs text-slate-500">Ringkasan kondisi pembayaran Anda saat ini.</p>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               {FINANCE_STATS.map((s) => (
                 <FinanceStatCard key={s.label} {...s} />
               ))}
@@ -202,8 +241,8 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <footer className="border-t border-slate-200 pt-6 pb-4">
-        <div className="flex flex-col items-center justify-between gap-4 text-sm sm:flex-row">
+      <footer className="border-t border-slate-200 pt-6">
+        <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full bg-pospay-50 text-pospay ring-1 ring-pospay/20">
               <Icon.School width={20} height={20} />
@@ -219,10 +258,10 @@ export default function Dashboard() {
 
       <Link
         to="/bantuan"
-        className="fixed bottom-6 right-4 z-30 flex max-w-sm items-center gap-3 rounded-full bg-gradient-to-r from-pospay to-pospay-700 py-3 pl-3 pr-5 text-white shadow-xl hover:shadow-2xl sm:right-6"
+        className="fixed bottom-6 right-4 z-30 flex max-w-sm items-center gap-3 rounded-full bg-gradient-to-r from-pospay to-blue-700 py-3 pl-3 pr-6 text-white shadow-xl hover:shadow-2xl sm:right-8"
       >
-        <span className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/20">
-          <Icon.Chat width={22} height={22} />
+        <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/15">
+          <Icon.Chat width={24} height={24} />
           <span className="absolute -right-0.5 -top-0.5 h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-pospay" />
         </span>
         <span className="text-left text-sm leading-tight">
