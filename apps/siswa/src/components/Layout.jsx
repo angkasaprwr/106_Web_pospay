@@ -117,6 +117,7 @@ function ProfileMenu() {
   }, []);
 
   const initial = (user?.fullName || 'S').charAt(0).toUpperCase();
+  const photoUrl = user?.avatarUrl || user?.student?.photoUrl;
 
   return (
     <div className="relative" ref={ref}>
@@ -126,9 +127,17 @@ function ProfileMenu() {
         className="flex items-center gap-1.5 rounded-full py-1 pl-1 pr-2 hover:bg-white/10"
         aria-label="Menu profil"
       >
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-sm font-bold text-pospay ring-2 ring-white/30">
-          {initial}
-        </span>
+        {photoUrl ? (
+          <img
+            src={photoUrl}
+            alt={user?.fullName || 'Profil'}
+            className="h-9 w-9 rounded-full object-cover ring-2 ring-white/40"
+          />
+        ) : (
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-sm font-bold text-pospay ring-2 ring-white/30">
+            {initial}
+          </span>
+        )}
         <Icon.ChevronRight width={16} height={16} className="rotate-90 text-white/80" />
       </button>
       {open && (
@@ -177,8 +186,8 @@ export default function Layout() {
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-100">
-      <header className="sticky top-0 z-30 bg-pospay shadow-md">
-        <div className="mx-auto grid h-16 max-w-7xl grid-cols-[auto_1fr_auto] items-stretch gap-2 px-4 sm:px-6 lg:grid-cols-[1fr_auto_1fr]">
+      <header className="sticky top-0 z-30 w-full bg-[#0047AB] shadow-lg">
+        <div className="mx-auto grid h-[68px] max-w-7xl grid-cols-[auto_1fr_auto] items-stretch gap-2 px-4 sm:px-6 lg:grid-cols-[1fr_auto_1fr]">
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -200,10 +209,10 @@ export default function Layout() {
                 to={item.to}
                 end={item.end}
                 className={({ isActive }) =>
-                  `flex items-center gap-2 border-b-2 px-5 text-sm font-medium transition ${
+                  `flex h-full items-center gap-2 border-b-[3px] px-6 text-sm font-semibold transition ${
                     isActive
                       ? 'border-white text-white'
-                      : 'border-transparent text-white/75 hover:border-white/40 hover:text-white'
+                      : 'border-transparent text-white/80 hover:border-white/50 hover:text-white'
                   }`
                 }
               >
@@ -220,7 +229,7 @@ export default function Layout() {
               className="rounded-lg border border-white/25 p-2 text-white hover:bg-white/10"
               aria-label="Ubah tema"
             >
-              {theme === 'dark' ? <Icon.Sun width={20} height={20} /> : <Icon.Moon width={20} height={20} />}
+              {theme === 'dark' ? <Icon.Moon width={20} height={20} /> : <Icon.Sun width={20} height={20} />}
             </button>
             <Notifications />
             <ProfileMenu />
