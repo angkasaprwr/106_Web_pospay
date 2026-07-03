@@ -148,9 +148,11 @@ export default function Dashboard() {
             </div>
           </section>
 
-          <section className="rounded-xl border border-sky-100 bg-white p-4 shadow-sm">
+          <section className="rounded-xl border border-sky-200 bg-sky-50 p-4 shadow-sm">
             <div className="flex gap-3">
-              <Icon.Info width={20} height={20} className="mt-0.5 shrink-0 text-sky-600" />
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-sky-100 text-sky-600">
+                <Icon.Info width={18} height={18} />
+              </span>
               <div>
                 <p className="font-semibold text-sky-900">Catatan</p>
                 <p className="mt-1 text-sm leading-relaxed text-sky-800">
