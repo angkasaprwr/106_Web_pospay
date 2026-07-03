@@ -25,6 +25,11 @@ const paymentMethods = asyncHandler(async (req, res) => {
   return ok(res, methods, 'Metode pembayaran');
 });
 
+const catalogSyncVersion = asyncHandler(async (req, res) => {
+  const version = await portalService.catalogSyncVersion(req.user);
+  return ok(res, version, 'Versi sinkronisasi katalog');
+});
+
 const submitPayment = asyncHandler(async (req, res) => {
   if (req.file) req.body.proofUrl = publicUrl('proofs', req.file.filename);
   const payment = await paymentService.create(req.body, { actor: req.user, asTreasurer: false, req });
@@ -52,6 +57,7 @@ module.exports = {
   listBills,
   billDetail,
   paymentMethods,
+  catalogSyncVersion,
   submitPayment,
   listPayments,
   submitDispensation,

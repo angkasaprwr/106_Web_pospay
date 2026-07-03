@@ -148,6 +148,29 @@ async function paymentMethods() {
   return prisma.paymentMethod.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } });
 }
 
+/** Versi ringan untuk deteksi perubahan tagihan / metode pembayaran tanpa memuat seluruh data. */
+async function catalogSyncVersion(user) {
+  const student = await resolveStudent(user);
+  const [billAgg, methodAgg] = await Promise.all([
+    prisma.bill.aggregate({
+      where: { studentId: student.id },
+      _max: { updatedAt: true },
+      _count: { id: true },
+    }),
+    prisma.paymentMethod.aggregate({
+      where: { isActive: true },
+      _max: { updatedAt: true },
+      _count: { id: true },
+    }),
+  ]);
+  const billsUpdated = billAgg._max.updatedAt?.toISOString() || '';
+  const methodsUpdated = methodAgg._max.updatedAt?.toISOString() || '';
+  return {
+    billsVersion: `${billAgg._count.id}:${billsUpdated}`,
+    methodsVersion: `${methodAgg._count.id}:${methodsUpdated}`,
+  };
+}
+
 module.exports = {
   resolveStudent,
   dashboard,
@@ -156,4 +179,5 @@ module.exports = {
   listPayments,
   listDispensations,
   paymentMethods,
+  catalogSyncVersion,
 };

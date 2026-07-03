@@ -16,6 +16,7 @@ router.get('/dashboard', controller.dashboard);
 router.get('/bills', controller.listBills);
 router.get('/bills/:id', controller.billDetail);
 router.get('/payment-methods', controller.paymentMethods);
+router.get('/catalog-sync-version', controller.catalogSyncVersion);
 router.post('/payments', proofUpload.single('proof'), validate({ body: createPaymentSchema }), controller.submitPayment);
 router.get('/payments', controller.listPayments);
 router.post('/dispensations', attachmentUpload.single('attachment'), validate({ body: createDispensationSchema }), controller.submitDispensation);

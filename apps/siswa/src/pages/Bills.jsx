@@ -4,7 +4,7 @@ import { api, apiError } from '../lib/api';
 import { useToast } from '../context/ToastContext';
 import { formatIDR, formatDate, BILL_STATUS } from '../lib/format';
 import { saveBillPaymentDraft } from '../lib/billPaymentSession';
-import { useLiveRefresh } from '../hooks/useLiveRefresh';
+import { usePortalCatalogSync } from '../hooks/usePortalCatalogSync';
 import { Spinner, Badge } from '../components/ui';
 import { Icon } from '../components/Icons';
 
@@ -74,14 +74,16 @@ export default function Bills() {
   const navigate = useNavigate();
   const [bills, setBills] = useState([]);
   const [methods, setMethods] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [accountError, setAccountError] = useState('');
   const [selectedBillId, setSelectedBillId] = useState('');
   const [selectedMethodId, setSelectedMethodId] = useState('');
 
-  const loadData = useCallback(async () => {
-    setLoading(true);
-    setAccountError('');
+  const loadData = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) {
+      setInitialLoading(true);
+      setAccountError('');
+    }
     try {
       const [billsRes, methodsRes] = await Promise.all([
         api.get('/portal/bills?limit=100'),
@@ -89,39 +91,48 @@ export default function Bills() {
       ]);
       const allBills = billsRes.data?.data || [];
       const payable = allBills.filter((b) => PAYABLE_STATUSES.includes(b.status));
+      const activeMethods = methodsRes.data?.data || [];
       setBills(payable);
-      setMethods(methodsRes.data?.data || []);
+      setMethods(activeMethods);
 
       setSelectedBillId((prev) => {
         if (prev && payable.some((b) => b.id === prev)) return prev;
         return payable[0]?.id || '';
       });
       setSelectedMethodId((prev) => {
-        const activeMethods = methodsRes.data?.data || [];
         if (prev && activeMethods.some((m) => m.id === prev)) return prev;
         return activeMethods[0]?.id || '';
       });
     } catch (e) {
-      const status = e.response?.status;
-      const message = e.response?.data?.message || '';
-      if (status === 403 && message.toLowerCase().includes('siswa')) {
-        setAccountError(message);
-        setBills([]);
-        setMethods([]);
-      } else {
-        const msg = apiError(e);
-        if (msg) toast.error(msg);
+      if (!silent) {
+        const status = e.response?.status;
+        const message = e.response?.data?.message || '';
+        if (status === 403 && message.toLowerCase().includes('siswa')) {
+          setAccountError(message);
+          setBills([]);
+          setMethods([]);
+        } else {
+          const msg = apiError(e);
+          if (msg) toast.error(msg);
+        }
       }
     } finally {
-      setLoading(false);
+      if (!silent) setInitialLoading(false);
     }
   }, [toast]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  const { setVersionSnapshot } = usePortalCatalogSync(loadData, { intervalMs: 60000 });
 
-  useLiveRefresh(loadData, 10000);
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      await loadData({ silent: false });
+      if (active) await setVersionSnapshot();
+    })();
+    return () => {
+      active = false;
+    };
+  }, [loadData, setVersionSnapshot]);
 
   const selectedBill = useMemo(
     () => bills.find((b) => b.id === selectedBillId) || null,
@@ -197,7 +208,7 @@ export default function Bills() {
               <p className="text-xs text-slate-500 dark:text-slate-400">Pilih tagihan yang ingin Anda bayar.</p>
             </div>
 
-            {loading ? (
+            {initialLoading ? (
               <div className="flex min-h-[280px] items-center justify-center">
                 <Spinner size={32} />
               </div>
@@ -272,7 +283,7 @@ export default function Bills() {
         <div className="space-y-5 xl:col-span-7">
           <section className={`${CARD} p-5`}>
             <h2 className="mb-4 font-bold text-slate-800 dark:text-slate-100">Pilih Metode Pembayaran</h2>
-            {loading ? (
+            {initialLoading ? (
               <div className="flex min-h-[160px] items-center justify-center">
                 <Spinner size={28} />
               </div>
@@ -341,7 +352,7 @@ export default function Bills() {
             <button
               type="button"
               onClick={handlePay}
-              disabled={loading || !selectedBill || !selectedMethod || hasPendingPayment || totalDue <= 0}
+              disabled={initialLoading || !selectedBill || !selectedMethod || hasPendingPayment || totalDue <= 0}
               className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#0056D2] py-3.5 text-sm font-bold text-white shadow-md transition hover:bg-[#004BB8] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-500"
             >
               <Icon.Money width={20} height={20} />

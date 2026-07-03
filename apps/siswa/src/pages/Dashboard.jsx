@@ -5,7 +5,6 @@ import { useAuth } from '../context/AuthContext';
 import { Icon } from '../components/Icons';
 import { Spinner } from '../components/ui';
 import { formatDateTime } from '../lib/format';
-import { useLiveRefresh } from '../hooks/useLiveRefresh';
 
 const BILL_NOTIFICATION_TYPES = new Set(['BILL_UNPAID_REMINDER', 'REMINDER']);
 
@@ -153,8 +152,6 @@ export default function Dashboard() {
   useEffect(() => {
     loadAnnouncements();
   }, [loadAnnouncements]);
-
-  useLiveRefresh(loadAnnouncements, 15000);
 
   useEffect(() => {
     api.get('/auth/me')

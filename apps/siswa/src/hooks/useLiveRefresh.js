@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 
-/** Refetch when tab gains focus or on a fixed interval (sinkron setelah CRUD bendahara). */
+/** @deprecated Prefer usePortalCatalogSync for tagihan/metode pembayaran. */
 export function useLiveRefresh(callback, intervalMs = 10000) {
   useEffect(() => {
     const onVisible = () => {
