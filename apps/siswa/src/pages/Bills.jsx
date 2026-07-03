@@ -1,33 +1,41 @@
+import { Link } from 'react-router-dom';
 import { useToast } from '../context/ToastContext';
 import { Icon } from '../components/Icons';
 
 const CARD = 'rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900';
 
-const STEPS = [
-  { num: 1, label: 'Bayar Tagihan', icon: Icon.Bills, active: true },
-  { num: 2, label: 'Konfirmasi Pembayaran', icon: Icon.CheckCircle, active: false },
-  { num: 3, label: 'Pembayaran Berhasil', icon: Icon.Check, active: false },
+const STEP_DEFS = [
+  { num: 1, label: 'Bayar Tagihan', icon: Icon.Bills, path: '/tagihan' },
+  { num: 2, label: 'Konfirmasi Pembayaran', icon: Icon.CheckCircle, path: '/tagihan/konfirmasi' },
+  { num: 3, label: 'Pembayaran Berhasil', icon: Icon.Check, path: '/pembayaran-berhasil' },
 ];
 
-function StepIndicator() {
+function StepIndicator({ activeStep = 1 }) {
   return (
     <nav className="mb-6 overflow-x-auto rounded-xl border border-slate-100 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
-      <div className="flex min-w-[520px]">
-        {STEPS.map((step, idx) => (
-          <div
-            key={step.num}
-            className={`flex flex-1 items-center justify-center gap-2 border-b-[3px] px-4 py-4 text-sm font-semibold ${
-              step.active
-                ? 'border-[#0056D2] text-[#0056D2] dark:border-blue-400 dark:text-blue-400'
-                : 'border-transparent text-slate-400 dark:text-slate-500'
-            } ${idx > 0 ? 'border-l border-slate-100 dark:border-slate-800' : ''}`}
-          >
-            <step.icon width={18} height={18} />
-            <span>
-              {step.num}. {step.label}
-            </span>
-          </div>
-        ))}
+      <div className="flex min-w-[560px]">
+        {STEP_DEFS.map((step, idx) => {
+          const active = step.num === activeStep;
+          const content = (
+            <>
+              <step.icon width={18} height={18} />
+              <span>{step.num}. {step.label}</span>
+            </>
+          );
+          const cls = `flex flex-1 items-center justify-center gap-2 border-b-[3px] px-3 py-4 text-sm font-semibold sm:px-4 ${
+            active
+              ? 'border-[#0056D2] text-[#0056D2] dark:border-blue-400 dark:text-blue-400'
+              : 'border-transparent text-slate-400 dark:text-slate-500'
+          } ${idx > 0 ? 'border-l border-slate-100 dark:border-slate-800' : ''}`;
+
+          return active ? (
+            <div key={step.num} className={cls}>{content}</div>
+          ) : (
+            <Link key={step.num} to={step.path} className={`${cls} transition hover:text-[#0056D2] dark:hover:text-blue-400`}>
+              {content}
+            </Link>
+          );
+        })}
       </div>
     </nav>
   );
@@ -72,7 +80,7 @@ export default function Bills() {
         </button>
       </div>
 
-      <StepIndicator />
+      <StepIndicator activeStep={1} />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         {/* Kolom kiri — Pilih Tagihan */}

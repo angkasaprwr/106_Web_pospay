@@ -6,6 +6,7 @@ import Layout from './components/Layout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Bills from './pages/Bills';
+import BillConfirm from './pages/BillConfirm';
 import BillDetail from './pages/BillDetail';
 import PaymentSuccess from './pages/PaymentSuccess';
 import History from './pages/History';
@@ -34,6 +35,7 @@ export default function App() {
       <Route path="/" element={<Protected><Layout /></Protected>}>
         <Route index element={<Dashboard />} />
         <Route path="tagihan" element={<Bills />} />
+        <Route path="tagihan/konfirmasi" element={<BillConfirm />} />
         <Route path="tagihan/:id" element={<BillDetail />} />
         <Route path="pembayaran-berhasil" element={<PaymentSuccess />} />
         <Route path="riwayat" element={<History />} />
