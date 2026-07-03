@@ -53,10 +53,6 @@ function DetailRow({ label, value }) {
 export default function Bills() {
   const toast = useToast();
 
-  const handleDispensasi = () => {
-    toast.info('Pengajuan dispensasi akan tersedia setelah data tagihan diisi melalui portal bendahara.');
-  };
-
   const handlePay = () => {
     toast.info('Pembayaran akan tersedia setelah data tagihan tersedia.');
   };
@@ -70,14 +66,13 @@ export default function Bills() {
             Kelola dan lakukan pembayaran tagihan sekolah Anda dengan mudah.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleDispensasi}
+        <Link
+          to="/tagihan/dispensasi"
           className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border-2 border-[#0056D2] px-4 py-2.5 text-sm font-semibold text-[#0056D2] hover:bg-blue-50 dark:border-blue-500 dark:text-blue-400 dark:hover:bg-blue-950/40"
         >
           <Icon.Dispensation width={18} height={18} />
           Ajukan Dispensasi
-        </button>
+        </Link>
       </div>
 
       <StepIndicator activeStep={1} />

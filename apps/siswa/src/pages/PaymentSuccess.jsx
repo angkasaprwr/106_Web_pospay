@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom';
-import { useToast } from '../context/ToastContext';
 import { Icon } from '../components/Icons';
 
 const CARD = 'rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900';
@@ -42,12 +41,6 @@ function StepIndicator({ activeStep }) {
 }
 
 export default function PaymentSuccess() {
-  const toast = useToast();
-
-  const handleDispensasi = () => {
-    toast.info('Pengajuan dispensasi akan tersedia setelah data tagihan diisi melalui portal bendahara.');
-  };
-
   return (
     <div className="space-y-6 pb-24">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -57,14 +50,13 @@ export default function PaymentSuccess() {
             Kelola dan lakukan pembayaran tagihan sekolah Anda dengan mudah.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleDispensasi}
+        <Link
+          to="/tagihan/dispensasi"
           className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg border-2 border-[#0056D2] px-4 py-2.5 text-sm font-semibold text-[#0056D2] hover:bg-blue-50 dark:border-blue-500 dark:text-blue-400 dark:hover:bg-blue-950/40"
         >
           <Icon.Dispensation width={18} height={18} />
           Ajukan Dispensasi
-        </button>
+        </Link>
       </div>
 
       <StepIndicator activeStep={3} />
