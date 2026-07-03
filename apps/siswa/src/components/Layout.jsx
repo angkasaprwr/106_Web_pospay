@@ -185,7 +185,7 @@ export default function Layout() {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-100">
+    <div className="flex min-h-screen flex-col bg-slate-100 dark:bg-slate-950">
       <header className="sticky top-0 z-30 w-full bg-[#0056D2] shadow-lg">
         <div className="mx-auto grid h-[68px] max-w-7xl grid-cols-[auto_1fr_auto] items-stretch gap-2 px-4 sm:px-6 lg:grid-cols-[1fr_auto_1fr]">
           <div className="flex items-center gap-2">
@@ -227,7 +227,7 @@ export default function Layout() {
               type="button"
               onClick={toggle}
               className="rounded-lg border border-white/25 p-2 text-white hover:bg-white/10"
-              aria-label="Ubah tema"
+              aria-label={theme === 'dark' ? 'Aktifkan mode terang' : 'Aktifkan mode gelap'}
             >
               {theme === 'dark' ? <Icon.Moon width={20} height={20} /> : <Icon.Sun width={20} height={20} />}
             </button>
@@ -260,7 +260,7 @@ export default function Layout() {
         )}
       </header>
 
-      <main className="flex-1 bg-[#F8F9FA]">
+      <main className="flex-1 bg-[#F8F9FA] dark:bg-slate-950">
         <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
           <Outlet />
         </div>
