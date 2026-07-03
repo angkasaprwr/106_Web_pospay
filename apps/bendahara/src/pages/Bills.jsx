@@ -7,7 +7,8 @@ import { StatCard } from '../components/tagihan/shared';
 import DaftarTagihanTab from '../components/tagihan/DaftarTagihanTab';
 import StatusPembayaranTab from '../components/tagihan/StatusPembayaranTab';
 import VerifikasiPembayaranTab, { fetchVerifikasiStats } from '../components/tagihan/VerifikasiPembayaranTab';
-import TunggakanDispensasiTab, { fetchTunggakanStats } from '../components/tagihan/TunggakanDispensasiTab';
+import TunggakanDispensasiTab from '../components/tagihan/TunggakanDispensasiTab';
+import { fetchTunggakanStats } from '../lib/tunggakanStats';
 
 const TABS = [
   { id: 'daftar', label: 'A. Daftar Tagihan' },

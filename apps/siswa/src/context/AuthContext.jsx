@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { api, setToken, getToken } from '../lib/api';
+import { api, setAuthSession, clearAuthSession, getToken } from '../lib/api';
 
 const AuthContext = createContext();
 
@@ -14,9 +14,15 @@ export function AuthProvider({ children }) {
     }
     try {
       const { data } = await api.get('/auth/me');
+      if (data.data.role !== 'SISWA') {
+        clearAuthSession();
+        setUser(null);
+        return;
+      }
       setUser(data.data);
     } catch {
-      setToken(null);
+      clearAuthSession();
+      setUser(null);
     } finally {
       setLoading(false);
     }
@@ -29,14 +35,14 @@ export function AuthProvider({ children }) {
     if (data.data.user.role !== 'SISWA') {
       throw new Error('Akun ini bukan akun siswa.');
     }
-    setToken(data.data.accessToken);
+    setAuthSession({ accessToken: data.data.accessToken, refreshToken: data.data.refreshToken });
     setUser(data.data.user);
     return data.data.user;
   };
 
   const logout = async () => {
     try { await api.post('/auth/logout', {}); } catch { /* ignore */ }
-    setToken(null);
+    clearAuthSession();
     setUser(null);
   };
 

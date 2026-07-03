@@ -12,6 +12,7 @@ import {
   formatBillDate,
   exportBillsCsv,
 } from './shared';
+import FeeTypeManagementSection from '../../pages/FeeTypeManagementSection';
 
 export default function DaftarTagihanTab({ onStatsChange }) {
   const toast = useToast();
@@ -70,6 +71,11 @@ export default function DaftarTagihanTab({ onStatsChange }) {
     api.get('/masterdata/classes').then(({ data }) => setClasses(data.data)).catch(() => {});
     api.get('/masterdata/academic-years').then(({ data }) => setYears(data.data)).catch(() => {});
     api.get('/students?limit=100').then(({ data }) => setStudents(data.data)).catch(() => {});
+  }, []);
+
+  const refreshFeeTypes = useCallback((list) => {
+    if (list) setFeeTypes(list);
+    else api.get('/masterdata/fee-types').then(({ data }) => setFeeTypes(data.data)).catch(() => {});
   }, []);
 
   const onFeeChange = (id, setter, current) => {
@@ -150,11 +156,12 @@ export default function DaftarTagihanTab({ onStatsChange }) {
   };
 
   return (
-    <div className="rounded-xl border border-slate-100 bg-white shadow-sm">
-      <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between">
+    <div className="space-y-6">
+    <div className="rounded-xl border border-slate-100 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+      <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between dark:border-slate-700">
         <div>
-          <h2 className="text-lg font-semibold text-slate-900">A. Daftar Tagihan</h2>
-          <p className="text-sm text-slate-500">Buat dan kelola daftar tagihan sekolah.</p>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">A. Daftar Tagihan</h2>
+          <p className="text-sm text-slate-500 dark:text-slate-400">Buat dan kelola daftar tagihan sekolah.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -169,7 +176,7 @@ export default function DaftarTagihanTab({ onStatsChange }) {
             type="button"
             onClick={() => exportBillsCsv(items)}
             disabled={!items.length}
-            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
           >
             <Icon.Download width={18} height={18} />
             Export
@@ -177,9 +184,9 @@ export default function DaftarTagihanTab({ onStatsChange }) {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 border-b border-slate-50 p-4">
+      <div className="flex flex-wrap items-center gap-3 border-b border-slate-50 p-4 dark:border-slate-800">
         <select
-          className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-pospay"
+          className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-pospay dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
           value={filters.academicYearId}
           onChange={(e) => setFilters({ ...filters, academicYearId: e.target.value, page: 1 })}
         >
@@ -189,7 +196,7 @@ export default function DaftarTagihanTab({ onStatsChange }) {
           ))}
         </select>
         <select
-          className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-pospay"
+          className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-pospay dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
           value={filters.feeTypeId}
           onChange={(e) => setFilters({ ...filters, feeTypeId: e.target.value, page: 1 })}
         >
@@ -199,7 +206,7 @@ export default function DaftarTagihanTab({ onStatsChange }) {
           ))}
         </select>
         <select
-          className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-pospay"
+          className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-pospay dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
           value={filters.period}
           onChange={(e) => setFilters({ ...filters, period: e.target.value, page: 1 })}
         >
@@ -212,7 +219,7 @@ export default function DaftarTagihanTab({ onStatsChange }) {
         <div className="relative ml-auto min-w-[200px] flex-1 sm:max-w-xs">
           <Icon.Search width={18} height={18} className="absolute left-3 top-2.5 text-slate-400" />
           <input
-            className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-pospay"
+            className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-pospay dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
             placeholder="Cari nama tagihan..."
             value={filters.search}
             onChange={(e) => setFilters({ ...filters, search: e.target.value, page: 1 })}
@@ -228,7 +235,7 @@ export default function DaftarTagihanTab({ onStatsChange }) {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-slate-100 bg-slate-50/80 text-left text-slate-500">
+              <tr className="border-b border-slate-100 bg-slate-50/80 text-left text-slate-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-400">
                 <th className="px-4 py-3 font-medium">No</th>
                 <th className="px-4 py-3 font-medium">Nama Tagihan</th>
                 <th className="px-4 py-3 font-medium">Jenis Tagihan</th>
@@ -245,9 +252,9 @@ export default function DaftarTagihanTab({ onStatsChange }) {
                 const st = billStatusLabel(b.status);
                 const rowNo = (filters.page - 1) * filters.limit + idx + 1;
                 return (
-                  <tr key={b.id} className="border-b border-slate-50 hover:bg-slate-50/50">
+                  <tr key={b.id} className="border-b border-slate-50 hover:bg-slate-50/50 dark:border-slate-800 dark:hover:bg-slate-800/40">
                     <td className="px-4 py-3 text-slate-500">{rowNo}</td>
-                    <td className="px-4 py-3 font-medium text-slate-900">{billDisplayName(b)}</td>
+                    <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">{billDisplayName(b)}</td>
                     <td className="px-4 py-3"><FeeTypeBadge feeType={b.feeType} /></td>
                     <td className="px-4 py-3">{b.period || '-'}</td>
                     <td className="px-4 py-3 text-right font-medium">{formatIDR(b.amount)}</td>
@@ -286,8 +293,8 @@ export default function DaftarTagihanTab({ onStatsChange }) {
         />
       )}
 
-      <div className="mx-4 mb-4 flex gap-3 rounded-lg border border-blue-100 bg-blue-50/60 px-4 py-3 text-sm text-blue-800">
-        <Icon.Info width={20} height={20} className="mt-0.5 shrink-0 text-blue-600" />
+      <div className="mx-4 mb-4 flex gap-3 rounded-lg border border-blue-100 bg-blue-50/60 px-4 py-3 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
+        <Icon.Info width={20} height={20} className="mt-0.5 shrink-0 text-blue-600 dark:text-blue-400" />
         <p>
           <strong>Informasi:</strong> Tagihan yang dibuat akan otomatis muncul di akun siswa. Pastikan nominal dan jatuh tempo sudah sesuai.
         </p>
@@ -373,6 +380,9 @@ export default function DaftarTagihanTab({ onStatsChange }) {
       </Modal>
 
       <ConfirmDialog open={!!confirm} message={`Hapus tagihan "${billDisplayName(confirm || {})}"?`} onConfirm={del} onClose={() => setConfirm(null)} loading={saving} />
+    </div>
+
+    <FeeTypeManagementSection onFeeTypesChange={refreshFeeTypes} />
     </div>
   );
 }

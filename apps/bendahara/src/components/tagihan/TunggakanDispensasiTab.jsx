@@ -422,20 +422,4 @@ export default function TunggakanDispensasiTab({ onStatsChange }) {
   );
 }
 
-export async function fetchTunggakanStats() {
-  const [billsRes, pendingRes, approvedRes] = await Promise.all([
-    api.get('/bills?limit=100'),
-    api.get('/dispensations?status=PENDING&limit=1&page=1'),
-    api.get('/dispensations?status=APPROVED&limit=100'),
-  ]);
-  const arrears = buildArrearsMap(billsRes.data.data);
-  const studentIds = Object.keys(arrears);
-  const totalNominal = studentIds.reduce((s, id) => s + arrears[id].amount, 0);
-  const approvedStudents = new Set(approvedRes.data.data.map((d) => d.studentId));
-  return {
-    totalStudents: studentIds.length,
-    totalNominal,
-    pendingDisp: pendingRes.data.meta?.total || 0,
-    approvedStudents: approvedStudents.size,
-  };
-}
+export { fetchTunggakanStats } from '../../lib/tunggakanStats';

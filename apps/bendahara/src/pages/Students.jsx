@@ -4,6 +4,7 @@ import { useToast } from '../context/ToastContext';
 import { Spinner, Modal, Field, EmptyState, ConfirmDialog } from '../components/ui';
 import { Icon } from '../components/Icons';
 import StudentCreateModal from './StudentCreateModal';
+import ClassManagementSection from './ClassManagementSection';
 
 const emptyForm = {
   nis: '',
@@ -35,11 +36,11 @@ function accountStatus(student) {
 
 function StatCard({ label, value, icon: IconC, iconBg, iconColor }) {
   return (
-    <div className="min-w-[140px] flex-1 rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
+    <div className="min-w-[140px] flex-1 rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <p className="text-xs text-slate-500">{label}</p>
-          <p className="mt-1 text-lg font-bold text-slate-900">{value}</p>
+          <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
+          <p className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">{value}</p>
         </div>
         <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
           <IconC width={20} height={20} className={iconColor} />
@@ -200,6 +201,11 @@ export default function Students() {
     api.get('/masterdata/classes').then(({ data }) => setClasses(data.data)).catch(() => {});
   }, []);
 
+  const refreshClasses = useCallback((list) => {
+    if (list) setClasses(list);
+    else api.get('/masterdata/classes').then(({ data }) => setClasses(data.data)).catch(() => {});
+  }, []);
+
   const openCreate = () => {
     setModal({ mode: 'create' });
   };
@@ -307,8 +313,8 @@ export default function Students() {
       {/* Header + statistik */}
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Data Siswa</h1>
-          <p className="mt-1 text-sm text-slate-500">Kelola data siswa dan akun akses sistem POSPAY.</p>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 sm:text-3xl">Data Siswa</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Kelola data siswa dan akun akses sistem POSPAY.</p>
         </div>
         <div className="flex flex-wrap gap-3 lg:max-w-2xl">
           <StatCard
@@ -336,7 +342,7 @@ export default function Students() {
       </div>
 
       {/* Action bar */}
-      <div className="flex flex-col gap-3 rounded-xl border border-slate-100 bg-white p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex flex-col gap-3 rounded-xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-2">
           <button type="button" onClick={openCreate} className="inline-flex items-center gap-2 rounded-lg bg-pospay px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-pospay-700">
             <Icon.Plus width={18} height={18} />
@@ -345,7 +351,7 @@ export default function Students() {
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="inline-flex items-center gap-2 rounded-lg border border-pospay/30 bg-white px-4 py-2.5 text-sm font-medium text-pospay hover:bg-pospay-50"
+            className="inline-flex items-center gap-2 rounded-lg border border-pospay/30 bg-white px-4 py-2.5 text-sm font-medium text-pospay hover:bg-pospay-50 dark:border-blue-700 dark:bg-slate-800 dark:text-blue-400 dark:hover:bg-slate-700"
           >
             <Icon.Upload width={18} height={18} />
             Import Data
@@ -354,7 +360,7 @@ export default function Students() {
           <button
             type="button"
             onClick={downloadTemplate}
-            className="inline-flex items-center gap-2 rounded-lg border border-pospay/30 bg-white px-4 py-2.5 text-sm font-medium text-pospay hover:bg-pospay-50"
+            className="inline-flex items-center gap-2 rounded-lg border border-pospay/30 bg-white px-4 py-2.5 text-sm font-medium text-pospay hover:bg-pospay-50 dark:border-blue-700 dark:bg-slate-800 dark:text-blue-400 dark:hover:bg-slate-700"
           >
             <Icon.Download width={18} height={18} />
             Download Template
@@ -364,7 +370,7 @@ export default function Students() {
           <div className="relative min-w-[220px] flex-1 lg:w-64 lg:flex-none">
             <Icon.Search width={18} height={18} className="absolute left-3 top-2.5 text-slate-400" />
             <input
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-pospay focus:ring-2 focus:ring-pospay/20"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3 text-sm outline-none focus:border-pospay focus:ring-2 focus:ring-pospay/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
               placeholder="Cari NIS atau nama siswa..."
               value={filters.search}
               onChange={(e) => setFilters({ ...filters, search: e.target.value, page: 1 })}
@@ -374,7 +380,7 @@ export default function Students() {
             type="button"
             onClick={() => setShowFilter((v) => !v)}
             className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2.5 text-sm font-medium ${
-              showFilter ? 'border-pospay bg-pospay-50 text-pospay' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+              showFilter ? 'border-pospay bg-pospay-50 text-pospay dark:bg-blue-950/40 dark:text-blue-400' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
             }`}
           >
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -386,9 +392,9 @@ export default function Students() {
       </div>
 
       {showFilter && (
-        <div className="flex flex-wrap gap-3 rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap gap-3 rounded-xl border border-slate-100 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <select
-            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-pospay"
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-pospay dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
             value={filters.classId}
             onChange={(e) => setFilters({ ...filters, classId: e.target.value, page: 1 })}
           >
@@ -400,7 +406,7 @@ export default function Students() {
             ))}
           </select>
           <select
-            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-pospay"
+            className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-pospay dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
             value={filters.status}
             onChange={(e) => setFilters({ ...filters, status: e.target.value, page: 1 })}
           >
@@ -414,7 +420,7 @@ export default function Students() {
       )}
 
       {/* Tabel */}
-      <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
         {loading ? (
           <div className="flex h-56 items-center justify-center">
             <Spinner size={32} />
@@ -429,7 +435,7 @@ export default function Students() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-slate-100 bg-slate-50/80 text-left text-slate-500">
+                <tr className="border-b border-slate-100 bg-slate-50/80 text-left text-slate-500 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-400">
                   <th className="px-4 py-3 font-medium">No</th>
                   <th className="px-4 py-3 font-medium">NIS</th>
                   <th className="px-4 py-3 font-medium">Nama Siswa</th>
@@ -444,10 +450,10 @@ export default function Students() {
                   const acct = accountStatus(s);
                   const rowNo = (filters.page - 1) * filters.limit + idx + 1;
                   return (
-                    <tr key={s.id} className="border-b border-slate-50 text-slate-700 hover:bg-slate-50/50">
+                    <tr key={s.id} className="border-b border-slate-50 text-slate-700 hover:bg-slate-50/50 dark:border-slate-800 dark:text-slate-200 dark:hover:bg-slate-800/40">
                       <td className="px-4 py-3 text-slate-500">{rowNo}</td>
                       <td className="px-4 py-3 font-mono text-xs">{s.nis}</td>
-                      <td className="px-4 py-3 font-medium text-slate-900">{s.fullName}</td>
+                      <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">{s.fullName}</td>
                       <td className="px-4 py-3">{formatClassLabel(s.schoolClass?.name)}</td>
                       <td className="px-4 py-3 font-mono text-xs">{s.user?.username || s.nis}</td>
                       <td className="px-4 py-3">
@@ -499,6 +505,8 @@ export default function Students() {
           />
         )}
       </div>
+
+      <ClassManagementSection onClassesChange={refreshClasses} />
 
       <StudentCreateModal
         open={modal?.mode === 'create'}

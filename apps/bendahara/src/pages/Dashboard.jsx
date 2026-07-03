@@ -16,7 +16,7 @@ import { Icon } from '../components/Icons';
 import { Spinner } from '../components/ui';
 import { formatIDR, formatDateTime } from '../lib/format';
 import { formatClassLabel } from '../components/tagihan/shared';
-import { fetchTunggakanStats } from '../components/tagihan/TunggakanDispensasiTab';
+import { fetchTunggakanStats } from '../lib/tunggakanStats';
 import WalletIllustration from '../components/dashboard/WalletIllustration';
 
 const CURRENT_YEAR = new Date().getFullYear();
