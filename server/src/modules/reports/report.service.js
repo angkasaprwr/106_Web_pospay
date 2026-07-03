@@ -11,10 +11,154 @@ function dateRange(query) {
   return Object.keys(where).length ? where : undefined;
 }
 
+function yearRange(year) {
+  const y = parseInt(year, 10) || new Date().getFullYear();
+  return { gte: new Date(`${y}-01-01T00:00:00`), lte: new Date(`${y}-12-31T23:59:59`) };
+}
+
+const MONTHS_ID = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni', 'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+
+async function paymentReportDashboard(query) {
+  const year = parseInt(query.year, 10) || new Date().getFullYear();
+  const feeTypeId = query.feeTypeId || null;
+  const range = yearRange(year);
+  const prevRange = yearRange(year - 1);
+
+  const billWhere = { createdAt: range };
+  if (feeTypeId) billWhere.feeTypeId = feeTypeId;
+
+  const paymentWhere = {
+    OR: [
+      { verifiedAt: range },
+      { createdAt: range },
+    ],
+  };
+  if (feeTypeId) paymentWhere.bill = { feeTypeId };
+
+  const [bills, payments, prevVerified] = await Promise.all([
+    prisma.bill.findMany({ where: billWhere, include: { feeType: true } }),
+    prisma.payment.findMany({ where: paymentWhere, include: { bill: { include: { feeType: true } } } }),
+    prisma.payment.findMany({
+      where: { status: 'VERIFIED', verifiedAt: prevRange, ...(feeTypeId ? { bill: { feeTypeId } } : {}) },
+    }),
+  ]);
+
+  const verified = payments.filter((p) => p.status === 'VERIFIED');
+  const pending = payments.filter((p) => p.status === 'PENDING');
+  const rejected = payments.filter((p) => p.status === 'REJECTED');
+  const totalIncome = verified.reduce((s, p) => s + toNumber(p.amount), 0);
+  const prevIncome = prevVerified.reduce((s, p) => s + toNumber(p.amount), 0);
+  const growthPct = prevIncome > 0 ? Number((((totalIncome - prevIncome) / prevIncome) * 100).toFixed(1)) : 0;
+
+  const paidStudentIds = new Set(bills.filter((b) => b.status === 'PAID').map((b) => b.studentId));
+
+  const rows = [];
+  const chart = [];
+
+  for (let m = 0; m < 12; m += 1) {
+    const monthStart = new Date(year, m, 1);
+    const monthEnd = new Date(year, m + 1, 0, 23, 59, 59);
+
+    const monthBills = bills.filter((b) => {
+      const d = new Date(b.createdAt);
+      return d >= monthStart && d <= monthEnd;
+    });
+    const monthPayments = payments.filter((p) => {
+      const d = new Date(p.verifiedAt || p.createdAt);
+      return d >= monthStart && d <= monthEnd;
+    });
+    if (monthBills.length === 0 && monthPayments.length === 0) continue;
+
+    const monthVerified = monthPayments.filter((p) => p.status === 'VERIFIED');
+    const monthPending = monthPayments.filter((p) => p.status === 'PENDING');
+    const monthRejected = monthPayments.filter((p) => p.status === 'REJECTED');
+    const income = monthVerified.reduce((s, p) => s + toNumber(p.amount), 0);
+    const tagihanLabel = feeTypeId
+      ? monthBills[0]?.feeType?.name || monthVerified[0]?.bill?.feeType?.name || 'Tagihan'
+      : monthBills[0]?.feeType?.name || 'SPP';
+
+    rows.push({
+      period: `${MONTHS_ID[m]} ${year}`,
+      tagihan: tagihanLabel,
+      totalTagihan: monthBills.length,
+      totalDibayar: monthVerified.length,
+      pending: monthPending.length,
+      rejected: monthRejected.length,
+      totalIncome: income,
+      totalIncomeFormatted: formatIDR(income),
+    });
+
+    chart.push({
+      month: MONTHS_ID[m].slice(0, 3),
+      label: MONTHS_ID[m],
+      value: income,
+      valueJt: `${(income / 1_000_000).toFixed(2).replace('.', ',')} jt`,
+    });
+  }
+
+  const feeTypeGroups = {};
+  bills.forEach((b) => {
+    const key = b.feeTypeId;
+    if (!feeTypeGroups[key]) feeTypeGroups[key] = { name: b.feeType.name, bills: [], feeTypeId: key };
+    feeTypeGroups[key].bills.push(b);
+  });
+
+  Object.values(feeTypeGroups).forEach((fg) => {
+    if (fg.name === 'SPP' || fg.name.includes('SPP')) return;
+    const related = payments.filter((p) => p.bill?.feeTypeId === fg.feeTypeId);
+    const relVerified = related.filter((p) => p.status === 'VERIFIED');
+    const relPending = related.filter((p) => p.status === 'PENDING');
+    const relRejected = related.filter((p) => p.status === 'REJECTED');
+    const income = relVerified.reduce((s, p) => s + toNumber(p.amount), 0);
+    if (fg.bills.length === 0 && related.length === 0) return;
+    rows.push({
+      period: fg.bills[0]?.period || fg.name,
+      tagihan: fg.name,
+      totalTagihan: fg.bills.length,
+      totalDibayar: relVerified.length,
+      pending: relPending.length,
+      rejected: relRejected.length,
+      totalIncome: income,
+      totalIncomeFormatted: formatIDR(income),
+    });
+  });
+
+  const totalRow = {
+    period: 'TOTAL',
+    tagihan: '-',
+    totalTagihan: bills.length,
+    totalDibayar: verified.length,
+    pending: pending.length,
+    rejected: rejected.length,
+    totalIncome,
+    totalIncomeFormatted: formatIDR(totalIncome),
+  };
+
+  return {
+    stats: {
+      totalIncome,
+      totalIncomeFormatted: formatIDR(totalIncome),
+      totalTransactions: payments.length,
+      studentsPaid: paidStudentIds.size,
+      pendingCount: pending.length,
+      rejectedCount: rejected.length,
+      year,
+      growthPct,
+    },
+    rows,
+    totalRow,
+    chart,
+  };
+}
+
 async function paymentReport(query) {
   const where = { status: 'VERIFIED' };
-  const range = dateRange(query);
-  if (range) where.verifiedAt = range;
+  if (query.year) {
+    where.verifiedAt = yearRange(query.year);
+  } else {
+    const range = dateRange(query);
+    if (range) where.verifiedAt = range;
+  }
   if (query.feeTypeId) where.bill = { feeTypeId: query.feeTypeId };
   if (query.classId) where.bill = { ...(where.bill || {}), student: { classId: query.classId } };
 
@@ -35,6 +179,8 @@ async function arrearsReport(query) {
   const where = { status: { in: ['UNPAID', 'PARTIAL', 'OVERDUE'] } };
   if (query.classId) where.student = { classId: query.classId };
   if (query.feeTypeId) where.feeTypeId = query.feeTypeId;
+  const dateFilter = resolveReportDateFilter(query);
+  if (dateFilter) where.dueDate = dateFilter;
 
   const bills = await prisma.bill.findMany({
     where,
@@ -47,12 +193,92 @@ async function arrearsReport(query) {
   return { bills: rows, total };
 }
 
+function resolveReportDateFilter(query) {
+  const now = new Date();
+  const year = parseInt(query.year, 10) || now.getFullYear();
+  const month = query.month ? parseInt(query.month, 10) : null;
+  if (query.period === 'month' && month) {
+    return { gte: new Date(year, month - 1, 1), lte: new Date(year, month, 0, 23, 59, 59) };
+  }
+  if (query.period === 'year' || query.year) {
+    return yearRange(String(year));
+  }
+  return null;
+}
+
+async function arrearsReportDashboard(query) {
+  const { bills } = await arrearsReport(query);
+  const studentMap = new Map();
+
+  bills.forEach((b) => {
+    const sid = b.studentId;
+    const out = outstanding(b);
+    const paid = toNumber(b.paidAmount);
+    const totalBill = toNumber(b.amount) - toNumber(b.discount);
+    if (!studentMap.has(sid)) {
+      studentMap.set(sid, {
+        studentId: sid,
+        nis: b.student.nis,
+        fullName: b.student.fullName,
+        className: b.student.schoolClass?.name || '-',
+        totalTagihan: 0,
+        totalTerbayar: 0,
+        sisaTunggakan: 0,
+        jumlahTagihan: 0,
+        lastDueDate: null,
+        bills: [],
+      });
+    }
+    const row = studentMap.get(sid);
+    row.totalTagihan += totalBill;
+    row.totalTerbayar += paid;
+    row.sisaTunggakan += out;
+    row.jumlahTagihan += 1;
+    row.bills.push(b);
+    if (b.dueDate && (!row.lastDueDate || new Date(b.dueDate) > new Date(row.lastDueDate))) {
+      row.lastDueDate = b.dueDate;
+    }
+  });
+
+  const rows = Array.from(studentMap.values())
+    .sort((a, b) => b.sisaTunggakan - a.sisaTunggakan)
+    .map((r) => ({
+      studentId: r.studentId,
+      nis: r.nis,
+      fullName: r.fullName,
+      className: r.className,
+      totalTagihan: r.totalTagihan,
+      totalTerbayar: r.totalTerbayar,
+      sisaTunggakan: r.sisaTunggakan,
+      jumlahTagihan: r.jumlahTagihan,
+      totalTagihanFormatted: formatIDR(r.totalTagihan),
+      totalTerbayarFormatted: formatIDR(r.totalTerbayar),
+      sisaTunggakanFormatted: formatIDR(r.sisaTunggakan),
+      tunggakanTerakhir: r.lastDueDate
+        ? new Date(r.lastDueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+        : '-',
+    }));
+
+  const totalNominal = rows.reduce((s, r) => s + r.sisaTunggakan, 0);
+  return {
+    stats: {
+      totalStudents: rows.length,
+      totalBills: bills.length,
+      totalNominal,
+      totalNominalFormatted: formatIDR(totalNominal),
+      avgPerStudent: rows.length ? totalNominal / rows.length : 0,
+      avgPerStudentFormatted: formatIDR(rows.length ? totalNominal / rows.length : 0),
+    },
+    rows,
+  };
+}
+
 async function dispensationReport(query) {
   const where = {};
   if (query.status) where.status = query.status;
   if (query.type) where.type = query.type;
-  const range = dateRange(query);
-  if (range) where.createdAt = range;
+  const dateFilter = resolveReportDateFilter(query);
+  if (dateFilter) where.createdAt = dateFilter;
 
   const items = await prisma.dispensation.findMany({
     where,
@@ -61,6 +287,38 @@ async function dispensationReport(query) {
   });
   const total = items.reduce((s, d) => s + toNumber(d.amount), 0);
   return { items, total };
+}
+
+async function dispensationReportDashboard(query) {
+  const { items } = await dispensationReport(query);
+  const approved = items.filter((d) => d.status === 'APPROVED');
+  const pending = items.filter((d) => d.status === 'PENDING');
+  const rejected = items.filter((d) => d.status === 'REJECTED');
+
+  const rows = items.map((d) => ({
+    id: d.id,
+    nis: d.student.nis,
+    fullName: d.student.fullName,
+    className: d.student.schoolClass?.name || '-',
+    type: d.type,
+    reason: d.reason,
+    status: d.status,
+    tanggal: new Date(d.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
+    reviewedAt: d.reviewedAt
+      ? new Date(d.reviewedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+      : '-',
+    reviewer: d.reviewedBy?.fullName || '-',
+  }));
+
+  return {
+    stats: {
+      total: items.length,
+      approved: approved.length,
+      pending: pending.length,
+      rejected: rejected.length,
+    },
+    rows,
+  };
 }
 
 // ---- Mappers to flat rows for export ----
@@ -109,8 +367,11 @@ function dispensationRows(items) {
 
 module.exports = {
   paymentReport,
+  paymentReportDashboard,
   arrearsReport,
+  arrearsReportDashboard,
   dispensationReport,
+  dispensationReportDashboard,
   paymentRows,
   arrearsRows,
   dispensationRows,

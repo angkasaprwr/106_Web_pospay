@@ -21,6 +21,7 @@ class PaymentRepository extends BaseRepository {
         { reference: { contains: search, mode: 'insensitive' } },
         { bill: { invoiceNo: { contains: search, mode: 'insensitive' } } },
         { bill: { student: { fullName: { contains: search, mode: 'insensitive' } } } },
+        { bill: { student: { nis: { contains: search, mode: 'insensitive' } } } },
       ];
     }
     return where;
@@ -40,7 +41,9 @@ class PaymentRepository extends BaseRepository {
             id: true,
             invoiceNo: true,
             amount: true,
-            feeType: { select: { name: true } },
+            period: true,
+            description: true,
+            feeType: { select: { id: true, name: true, code: true } },
             student: { select: { id: true, nis: true, fullName: true } },
           },
         },

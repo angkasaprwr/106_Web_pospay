@@ -12,7 +12,20 @@ function cleanData(input) {
   ['nisn', 'classId'].forEach((k) => {
     if (data[k] === '') data[k] = null;
   });
+  if (data.birthDate) data.birthDate = new Date(data.birthDate);
   return data;
+}
+
+async function generateNextNis() {
+  const year = new Date().getFullYear().toString().slice(-2);
+  const prefix = `${year}01`;
+  const latest = await prisma.student.findFirst({
+    where: { nis: { startsWith: prefix } },
+    orderBy: { nis: 'desc' },
+    select: { nis: true },
+  });
+  const nextSeq = latest ? Number(latest.nis.slice(prefix.length)) + 1 : 1;
+  return `${prefix}${String(nextSeq).padStart(5, '0')}`;
 }
 
 async function list(query) {
@@ -26,19 +39,23 @@ async function getById(id) {
 }
 
 async function create(input, actorId, req) {
-  const existing = await studentRepository.findByNis(input.nis);
+  const nis = (input.nis || '').trim() || await generateNextNis();
+  const existing = await studentRepository.findByNis(nis);
   if (existing) throw ApiError.conflict('NIS sudah terdaftar');
 
   const result = await prisma.$transaction(async (tx) => {
     let userId = null;
     if (input.createAccount !== false) {
-      const usernameExists = await tx.user.findUnique({ where: { username: input.nis } });
+      const usernameExists = await tx.user.findUnique({ where: { username: nis } });
       if (usernameExists) throw ApiError.conflict('Username (NIS) sudah digunakan akun lain');
-      const rawPassword = input.password || env.studentDefaultPassword;
+      const rawPassword = (input.password || '').trim();
+      if (!rawPassword || rawPassword.length < 6) {
+        throw ApiError.badRequest('Password wajib diisi (minimal 6 karakter)');
+      }
       const hashed = await bcrypt.hash(rawPassword, 10);
       const user = await tx.user.create({
         data: {
-          username: input.nis,
+          username: nis,
           password: hashed,
           fullName: input.fullName,
           phone: input.phone || null,
@@ -50,7 +67,7 @@ async function create(input, actorId, req) {
     }
 
     return tx.student.create({
-      data: { ...cleanData(input), userId, enrolledAt: input.enrolledAt || new Date() },
+      data: { ...cleanData({ ...input, nis }), userId, enrolledAt: input.enrolledAt || new Date() },
       include: { schoolClass: true, user: { select: { id: true, username: true } } },
     });
   });
@@ -104,4 +121,4 @@ async function toggleAccount(id, isActive, actorId, req) {
   await recordAudit({ userId: actorId, action: 'UPDATE', entity: 'User', entityId: student.userId, metadata: { isActive }, req });
 }
 
-module.exports = { list, getById, create, update, remove, resetPassword, toggleAccount };
+module.exports = { list, getById, create, update, remove, resetPassword, toggleAccount, generateNextNis };

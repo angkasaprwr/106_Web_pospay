@@ -1,83 +1,387 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { api, apiError } from '../lib/api';
 import { downloadFile } from '../lib/download';
 import { useToast } from '../context/ToastContext';
-import { PageHeader, Spinner, Modal, Field, EmptyState, ConfirmDialog } from '../components/ui';
+import { Spinner, Modal, Field, EmptyState, ConfirmDialog } from '../components/ui';
 import { Icon } from '../components/Icons';
 import { formatDateTime } from '../lib/format';
 import About from './About';
 
 const TABS = [
-  { key: 'school', label: 'Profil Sekolah', icon: Icon.School },
-  { key: 'users', label: 'Pengguna & Akun', icon: Icon.User },
-  { key: 'methods', label: 'Metode Pembayaran', icon: Icon.Payment },
-  { key: 'master', label: 'Data Master', icon: Icon.Bills },
-  { key: 'backup', label: 'Backup & Restore', icon: Icon.Database },
-  { key: 'security', label: 'Keamanan', icon: Icon.Shield },
-  { key: 'about', label: 'Tentang Aplikasi', icon: Icon.Info },
+  { id: 'school', label: 'Profil Sekolah', icon: Icon.School },
+  { id: 'users', label: 'Pengguna & Akses', icon: Icon.Students },
+  { id: 'methods', label: 'Metode Pembayaran', icon: Icon.Payment },
+  { id: 'backup', label: 'Backup & Restore', icon: Icon.Database },
+  { id: 'security', label: 'Keamanan', icon: Icon.Shield },
+  { id: 'about', label: 'Tentang Aplikasi', icon: Icon.Info },
 ];
 
 export default function Settings() {
-  const [tab, setTab] = useState('school');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const initialTab = TABS.some((t) => t.id === tabParam) ? tabParam : 'school';
+  const [tab, setTab] = useState(initialTab);
+
+  const selectTab = (id) => {
+    setTab(id);
+    if (id === 'school') {
+      searchParams.delete('tab');
+    } else {
+      searchParams.set('tab', id);
+    }
+    setSearchParams(searchParams, { replace: true });
+  };
+
+  useEffect(() => {
+    if (TABS.some((t) => t.id === tabParam) && tabParam !== tab) {
+      setTab(tabParam);
+    }
+  }, [tabParam]); // eslint-disable-line
+
   return (
-    <div>
-      <PageHeader title="Pengaturan" subtitle="Konfigurasi aplikasi & sekolah" />
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
-        <div className="lg:col-span-1">
-          <div className="card overflow-hidden p-2">
-            {TABS.map((t) => (
-              <button key={t.key} onClick={() => setTab(t.key)} className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium ${tab === t.key ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'}`}>
-                <t.icon width={18} height={18} /> {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="lg:col-span-3">
-          {tab === 'school' && <SchoolProfile />}
-          {tab === 'users' && <Users />}
-          {tab === 'methods' && <PaymentMethods />}
-          {tab === 'master' && <MasterData />}
-          {tab === 'backup' && <Backup />}
-          {tab === 'security' && <Security />}
-          {tab === 'about' && <About embedded />}
-        </div>
+    <div className="mx-auto max-w-7xl space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold text-pospay sm:text-3xl">Pengaturan</h1>
+        <p className="mt-1 text-sm text-slate-500">Konfigurasi profil sekolah, pengguna, keamanan, dan sistem.</p>
       </div>
+
+      <div className="flex flex-wrap gap-0 border-b border-slate-200">
+        {TABS.map((t) => {
+          const IconC = t.icon;
+          const active = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => selectTab(t.id)}
+              className={`inline-flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition ${
+                active
+                  ? 'border-pospay text-pospay'
+                  : 'border-transparent text-slate-600 hover:border-slate-200 hover:text-pospay'
+              }`}
+            >
+              <IconC width={18} height={18} />
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {tab === 'school' && <SchoolProfile />}
+      {tab === 'users' && <Users />}
+      {tab === 'methods' && <PaymentMethods />}
+      {tab === 'backup' && <Backup />}
+      {tab === 'security' && <Security />}
+      {tab === 'about' && <About embedded />}
+
+      <Link
+        to="/chatbot"
+        className="fixed bottom-6 right-6 z-20 flex items-center gap-2 rounded-full bg-pospay px-5 py-3 text-sm font-semibold text-white shadow-lg hover:bg-pospay-700"
+      >
+        <Icon.Chat width={20} height={20} />
+        <span className="hidden sm:inline">Butuh bantuan? Tanya lewat Chatbot</span>
+      </Link>
     </div>
   );
 }
 
 function SchoolProfile() {
   const toast = useToast();
+  const fileRef = useRef(null);
   const [form, setForm] = useState(null);
+  const [years, setYears] = useState([]);
+  const [activeYearId, setActiveYearId] = useState('');
+  const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  useEffect(() => { api.get('/settings/school-profile').then(({ data }) => setForm(data.data)).catch((e) => toast.error(apiError(e))); }, []); // eslint-disable-line
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
+  const load = async () => {
+    try {
+      const [profileRes, yearsRes] = await Promise.all([
+        api.get('/settings/school-profile'),
+        api.get('/masterdata/academic-years'),
+      ]);
+      setForm(profileRes.data.data);
+      const yearList = yearsRes.data.data || [];
+      setYears(yearList);
+      const active = yearList.find((y) => y.isActive);
+      setActiveYearId(active?.id || yearList[0]?.id || '');
+    } catch (e) {
+      toast.error(apiError(e));
+    }
+  };
+
+  useEffect(() => { load(); }, []); // eslint-disable-line
+
+  const patchField = (key, value) => setForm((prev) => ({ ...prev, [key]: value }));
+
+  const validateLogo = (file) => {
+    if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) {
+      toast.error('Format logo harus JPG atau PNG');
+      return false;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error('Ukuran logo maksimal 2MB');
+      return false;
+    }
+    return true;
+  };
+
+  const uploadLogo = async (file) => {
+    if (!validateLogo(file)) return;
+    const fd = new FormData();
+    fd.append('logo', file);
+    try {
+      const { data } = await api.post('/settings/school-profile/logo', fd);
+      setForm(data.data);
+      toast.success('Logo diperbarui');
+    } catch (e) {
+      toast.error(apiError(e));
+    }
+  };
+
+  const removeLogo = async () => {
+    try {
+      const { data } = await api.patch('/settings/school-profile', { logoUrl: '' });
+      setForm(data.data);
+      toast.success('Logo dihapus');
+    } catch (e) {
+      toast.error(apiError(e));
+    }
+  };
+
   const save = async () => {
     setSaving(true);
-    try { await api.patch('/settings/school-profile', form); toast.success('Profil sekolah disimpan'); } catch (e) { toast.error(apiError(e)); } finally { setSaving(false); }
+    try {
+      const payload = {
+        name: form.name,
+        npsn: form.npsn || '',
+        address: form.address || '',
+        phone: form.phone || '',
+        email: form.email || '',
+        website: form.website || '',
+        headmaster: form.headmaster || '',
+        treasurer: form.treasurer || '',
+      };
+      const { data } = await api.patch('/settings/school-profile', payload);
+      setForm(data.data);
+
+      const currentActive = years.find((y) => y.isActive);
+      if (activeYearId && currentActive?.id !== activeYearId) {
+        await api.post(`/masterdata/academic-years/${activeYearId}/activate`);
+        const { data: yearsData } = await api.get('/masterdata/academic-years');
+        setYears(yearsData.data || []);
+      }
+
+      setEditing(false);
+      toast.success('Profil sekolah disimpan');
+    } catch (e) {
+      toast.error(apiError(e));
+    } finally {
+      setSaving(false);
+    }
   };
-  const uploadLogo = async (file) => {
-    const fd = new FormData(); fd.append('logo', file);
-    try { const { data } = await api.post('/settings/school-profile/logo', fd); setForm(data.data); toast.success('Logo diperbarui'); } catch (e) { toast.error(apiError(e)); }
+
+  const deleteProfile = async () => {
+    setSaving(true);
+    try {
+      const { data } = await api.patch('/settings/school-profile', {
+        name: 'SMP Pusponegoro Brebes',
+        npsn: '',
+        address: '',
+        phone: '',
+        email: '',
+        website: '',
+        headmaster: '',
+        treasurer: '',
+        logoUrl: '',
+      });
+      setForm(data.data);
+      setEditing(false);
+      setConfirmDelete(false);
+      toast.success('Profil sekolah direset');
+    } catch (e) {
+      toast.error(apiError(e));
+    } finally {
+      setSaving(false);
+    }
   };
-  if (!form) return <div className="card flex h-40 items-center justify-center"><Spinner size={28} /></div>;
+
+  if (!form) {
+    return (
+      <div className="card flex h-64 items-center justify-center">
+        <Spinner size={28} />
+      </div>
+    );
+  }
+
+  const inputClass = `input ${!editing ? 'bg-slate-50 text-slate-700' : ''}`;
+  const schoolActive = Boolean(form.name?.trim());
+
   return (
-    <div className="card p-5">
-      <div className="mb-4 flex items-center gap-4">
-        <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
-          {form.logoUrl ? <img src={form.logoUrl} alt="logo" className="h-full w-full object-cover" /> : <Icon.School width={28} height={28} className="text-slate-400" />}
+    <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+      <div className="card p-6 xl:col-span-2">
+        <h2 className="mb-5 text-lg font-semibold text-slate-800">Informasi Sekolah</h2>
+        <div className="flex flex-col gap-8 lg:flex-row">
+          <div className="flex shrink-0 flex-col items-center lg:w-52">
+            <p className="mb-3 text-sm font-medium text-slate-700">Logo Sekolah</p>
+            <div className="flex h-40 w-40 items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-2">
+              {form.logoUrl ? (
+                <img src={form.logoUrl} alt="Logo sekolah" className="h-full w-full object-contain" />
+              ) : (
+                <Icon.School width={56} height={56} className="text-slate-300" />
+              )}
+            </div>
+            <div className="mt-4 flex w-full flex-col gap-2">
+              <label className={`btn-secondary w-full justify-center ${editing ? 'cursor-pointer' : 'pointer-events-none opacity-50'}`}>
+                <Icon.Upload width={16} height={16} />
+                Ubah Logo
+                <input
+                  ref={fileRef}
+                  type="file"
+                  hidden
+                  accept="image/jpeg,image/png"
+                  disabled={!editing}
+                  onChange={(e) => {
+                    if (e.target.files?.[0]) uploadLogo(e.target.files[0]);
+                    e.target.value = '';
+                  }}
+                />
+              </label>
+              <button
+                type="button"
+                className="btn-secondary w-full justify-center border-red-200 text-red-600 hover:bg-red-50"
+                disabled={!editing || !form.logoUrl}
+                onClick={removeLogo}
+              >
+                <Icon.Trash width={16} height={16} />
+                Hapus Logo
+              </button>
+            </div>
+            <p className="mt-3 text-center text-xs text-slate-400">
+              Format: JPG, PNG (maks. 2MB). Ukuran disarankan: 512×512px
+            </p>
+          </div>
+
+          <div className="min-w-0 flex-1 space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <Field label="Nama Sekolah">
+                <input className={inputClass} value={form.name || ''} disabled={!editing} onChange={(e) => patchField('name', e.target.value)} />
+              </Field>
+              <Field label="NPSN">
+                <input className={inputClass} value={form.npsn || ''} disabled={!editing} onChange={(e) => patchField('npsn', e.target.value)} />
+              </Field>
+              <div className="sm:col-span-2">
+                <Field label="Alamat">
+                  <textarea className={inputClass} rows={3} value={form.address || ''} disabled={!editing} onChange={(e) => patchField('address', e.target.value)} />
+                </Field>
+              </div>
+              <Field label="Nomor Telepon">
+                <input className={inputClass} value={form.phone || ''} disabled={!editing} onChange={(e) => patchField('phone', e.target.value)} />
+              </Field>
+              <Field label="Email">
+                <input className={inputClass} type="email" value={form.email || ''} disabled={!editing} onChange={(e) => patchField('email', e.target.value)} />
+              </Field>
+              <Field label="Website">
+                <input className={inputClass} value={form.website || ''} disabled={!editing} onChange={(e) => patchField('website', e.target.value)} />
+              </Field>
+              <Field label="Nama Kepala Sekolah">
+                <input className={inputClass} value={form.headmaster || ''} disabled={!editing} onChange={(e) => patchField('headmaster', e.target.value)} />
+              </Field>
+              <Field label="Tahun Ajaran Aktif">
+                <select
+                  className={inputClass}
+                  value={activeYearId}
+                  disabled={!editing}
+                  onChange={(e) => setActiveYearId(e.target.value)}
+                >
+                  {years.length === 0 && <option value="">Belum ada tahun ajaran</option>}
+                  {years.map((y) => (
+                    <option key={y.id} value={y.id}>{y.name}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Status Sekolah">
+                <div className="flex h-10 items-center">
+                  <span className={`badge ${schoolActive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                    {schoolActive ? 'Aktif' : 'Nonaktif'}
+                  </span>
+                </div>
+              </Field>
+            </div>
+          </div>
         </div>
-        <label className="btn-secondary cursor-pointer"><Icon.Upload width={16} height={16} /> Ganti Logo<input type="file" hidden accept="image/*" onChange={(e) => e.target.files[0] && uploadLogo(e.target.files[0])} /></label>
       </div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field label="Nama Sekolah"><input className="input" value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
-        <Field label="NPSN"><input className="input" value={form.npsn || ''} onChange={(e) => setForm({ ...form, npsn: e.target.value })} /></Field>
-        <Field label="Telepon"><input className="input" value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
-        <Field label="Email"><input className="input" value={form.email || ''} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
-        <Field label="Kepala Sekolah"><input className="input" value={form.headmaster || ''} onChange={(e) => setForm({ ...form, headmaster: e.target.value })} /></Field>
-        <Field label="Bendahara"><input className="input" value={form.treasurer || ''} onChange={(e) => setForm({ ...form, treasurer: e.target.value })} /></Field>
-        <div className="sm:col-span-2"><Field label="Alamat"><textarea className="input" rows={2} value={form.address || ''} onChange={(e) => setForm({ ...form, address: e.target.value })} /></Field></div>
+
+      <div className="card p-6">
+        <h2 className="mb-5 text-lg font-semibold text-slate-800">Informasi & Aksi</h2>
+
+        <div className="mb-6 flex gap-3 rounded-xl bg-sky-50 p-4 text-sm text-sky-900">
+          <Icon.Info width={20} height={20} className="mt-0.5 shrink-0 text-sky-600" />
+          <p>
+            <span className="font-semibold">Tentang Profil Sekolah: </span>
+            Informasi ini akan ditampilkan di berbagai dokumen dan halaman sistem seperti tagihan, laporan, dan cetakan resmi.
+          </p>
+        </div>
+
+        <p className="mb-3 text-sm font-semibold text-slate-700">Aksi Cepat</p>
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="flex w-full items-center gap-4 rounded-xl bg-sky-50 p-4 text-left transition hover:bg-sky-100"
+          >
+            <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-sky-100 text-sky-600">
+              <Icon.Edit width={22} height={22} />
+            </span>
+            <span>
+              <span className="block font-semibold text-slate-800">Edit Profil</span>
+              <span className="text-xs text-slate-500">Ubah informasi profil sekolah</span>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving || !editing}
+            className="flex w-full items-center gap-4 rounded-xl bg-emerald-50 p-4 text-left transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600">
+              {saving ? <Spinner size={20} /> : <Icon.Check width={22} height={22} />}
+            </span>
+            <span>
+              <span className="block font-semibold text-slate-800">Simpan Perubahan</span>
+              <span className="text-xs text-slate-500">Simpan semua perubahan data</span>
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setConfirmDelete(true)}
+            disabled={saving}
+            className="flex w-full items-center gap-4 rounded-xl bg-red-50 p-4 text-left transition hover:bg-red-100 disabled:opacity-50"
+          >
+            <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-red-100 text-red-600">
+              <Icon.Trash width={22} height={22} />
+            </span>
+            <span>
+              <span className="block font-semibold text-slate-800">Hapus Profil</span>
+              <span className="text-xs text-slate-500">Reset semua data profil sekolah</span>
+            </span>
+          </button>
+        </div>
       </div>
-      <button className="btn-primary mt-4" onClick={save} disabled={saving}>{saving ? <Spinner size={16} className="text-white" /> : 'Simpan'}</button>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Hapus Profil Sekolah"
+        danger
+        message="Semua data profil sekolah akan direset ke nilai default. Logo juga akan dihapus. Lanjutkan?"
+        onConfirm={deleteProfile}
+        onClose={() => setConfirmDelete(false)}
+        loading={saving}
+      />
     </div>
   );
 }
@@ -191,75 +495,6 @@ function PaymentMethods() {
         </div>
       </Modal>
       <ConfirmDialog open={!!confirm} message={`Hapus metode "${confirm?.name}"?`} onConfirm={del} onClose={() => setConfirm(null)} loading={saving} />
-    </div>
-  );
-}
-
-function MasterData() {
-  const toast = useToast();
-  const [feeTypes, setFeeTypes] = useState([]);
-  const [classes, setClasses] = useState([]);
-  const [years, setYears] = useState([]);
-  const [modal, setModal] = useState(null);
-  const [form, setForm] = useState({});
-  const [saving, setSaving] = useState(false);
-
-  const load = async () => {
-    try {
-      const [ft, cl, ay] = await Promise.all([api.get('/masterdata/fee-types'), api.get('/masterdata/classes'), api.get('/masterdata/academic-years')]);
-      setFeeTypes(ft.data.data); setClasses(cl.data.data); setYears(ay.data.data);
-    } catch (e) { toast.error(apiError(e)); }
-  };
-  useEffect(() => { load(); }, []); // eslint-disable-line
-
-  const save = async () => {
-    setSaving(true);
-    try {
-      const { type } = modal;
-      const url = type === 'fee' ? '/masterdata/fee-types' : type === 'class' ? '/masterdata/classes' : '/masterdata/academic-years';
-      await api.post(url, form);
-      toast.success('Tersimpan'); setModal(null); load();
-    } catch (e) { toast.error(apiError(e)); } finally { setSaving(false); }
-  };
-
-  return (
-    <div className="space-y-4">
-      <Section title="Jenis Tagihan" onAdd={() => { setForm({ code: '', name: '', defaultAmount: 0, isRecurring: true, isActive: true }); setModal({ type: 'fee' }); }}>
-        {feeTypes.map((f) => <li key={f.id} className="flex justify-between py-2 text-sm"><span>{f.code} · {f.name}</span><span className="text-slate-400">{Number(f.defaultAmount).toLocaleString('id-ID')}</span></li>)}
-      </Section>
-      <Section title="Tahun Ajaran" onAdd={() => { setForm({ name: '', isActive: false }); setModal({ type: 'year' }); }}>
-        {years.map((y) => <li key={y.id} className="flex justify-between py-2 text-sm"><span>{y.name}</span>{y.isActive && <span className="badge bg-emerald-100 text-emerald-700">Aktif</span>}</li>)}
-      </Section>
-      <Section title="Kelas" onAdd={() => { setForm({ name: '', grade: 7, academicYearId: years[0]?.id || '' }); setModal({ type: 'class' }); }}>
-        {classes.map((c) => <li key={c.id} className="flex justify-between py-2 text-sm"><span>{c.name}</span><span className="text-slate-400">{c._count?.students || 0} siswa</span></li>)}
-      </Section>
-
-      <Modal open={!!modal} onClose={() => setModal(null)} title="Tambah Data Master" footer={<><button className="btn-secondary" onClick={() => setModal(null)}>Batal</button><button className="btn-primary" onClick={save} disabled={saving}>{saving ? <Spinner size={16} className="text-white" /> : 'Simpan'}</button></>}>
-        {modal?.type === 'fee' && (
-          <div className="space-y-3">
-            <Field label="Kode" required><input className="input" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} /></Field>
-            <Field label="Nama" required><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
-            <Field label="Nominal Default"><input type="number" className="input" value={form.defaultAmount} onChange={(e) => setForm({ ...form, defaultAmount: e.target.value })} /></Field>
-          </div>
-        )}
-        {modal?.type === 'year' && <Field label="Nama (mis. 2025/2026)" required><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>}
-        {modal?.type === 'class' && (
-          <div className="space-y-3">
-            <Field label="Nama Kelas" required><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
-            <Field label="Tingkat"><input type="number" className="input" value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })} /></Field>
-            <Field label="Tahun Ajaran" required><select className="input" value={form.academicYearId} onChange={(e) => setForm({ ...form, academicYearId: e.target.value })}>{years.map((y) => <option key={y.id} value={y.id}>{y.name}</option>)}</select></Field>
-          </div>
-        )}
-      </Modal>
-    </div>
-  );
-}
-
-function Section({ title, onAdd, children }) {
-  return (
-    <div className="card p-5">
-      <div className="mb-2 flex items-center justify-between"><h3 className="font-semibold">{title}</h3><button className="btn-secondary px-3 py-1 text-xs" onClick={onAdd}><Icon.Plus width={14} height={14} /> Tambah</button></div>
-      <ul className="divide-y divide-slate-100 dark:divide-slate-800">{children}</ul>
     </div>
   );
 }

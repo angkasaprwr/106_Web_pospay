@@ -42,4 +42,22 @@ async function isWithinWorkingHours(date = new Date()) {
   return now >= timeToMinutes(today.openTime) && now <= timeToMinutes(today.closeTime);
 }
 
-module.exports = { list, upsertMany, isWithinWorkingHours, DEFAULT_HOURS };
+async function getSummary() {
+  const hours = await list();
+  const weekday = hours.filter((h) => h.isOpen && h.dayOfWeek >= 1 && h.dayOfWeek <= 5);
+  const isOpen = await isWithinWorkingHours();
+  if (!weekday.length) {
+    return { isOpen, range: '-', label: 'Jam Kerja Tidak Aktif' };
+  }
+  const openTime = weekday[0].openTime.replace(':', '.');
+  const closeTime = weekday[0].closeTime.replace(':', '.');
+  return {
+    isOpen,
+    range: `${openTime} - ${closeTime} WIB`,
+    label: isOpen ? 'Jam Kerja Aktif' : 'Di Luar Jam Kerja',
+    openTime: weekday[0].openTime,
+    closeTime: weekday[0].closeTime,
+  };
+}
+
+module.exports = { list, upsertMany, isWithinWorkingHours, getSummary, DEFAULT_HOURS };

@@ -1,12 +1,13 @@
 import { formatIDR, formatDate, BILL_STATUS } from '../../lib/format';
 
-export function StatCard({ label, value, icon: IconC, iconBg, iconColor }) {
+export function StatCard({ label, value, subtext, icon: IconC, iconBg, iconColor }) {
   return (
     <div className="min-w-[130px] flex-1 rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
       <div className="flex items-center justify-between gap-2">
         <div>
           <p className="text-xs text-slate-500">{label}</p>
           <p className="mt-1 text-base font-bold text-slate-900 sm:text-lg">{value}</p>
+          {subtext && <p className="text-[11px] text-slate-400">{subtext}</p>}
         </div>
         <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
           <IconC width={20} height={20} className={iconColor} />
@@ -113,6 +114,83 @@ export function paymentStatusDisplay(bill, pendingBillIds) {
     return { label: 'Menunggu Verifikasi', cls: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200', key: 'pending' };
   }
   return { label: 'Belum Bayar', cls: 'bg-red-50 text-red-700 ring-1 ring-red-200', key: 'unpaid' };
+}
+
+export function paymentBillName(payment) {
+  const bill = payment?.bill;
+  if (!bill) return '-';
+  if (bill.description) return bill.description;
+  const period = bill.period ? ` ${bill.period}` : '';
+  return `${bill.feeType?.name || 'Tagihan'}${period}`;
+}
+
+export function paymentMethodLabel(payment) {
+  if (payment.paymentMethod?.name) return payment.paymentMethod.name;
+  const channels = { TRANSFER: 'Transfer Bank', CASH: 'Tunai', QRIS: 'QRIS', VIRTUAL_ACCOUNT: 'Virtual Account', OTHER: 'Lainnya' };
+  return channels[payment.channel] || payment.channel || '-';
+}
+
+export function proofFileMeta(proofUrl) {
+  if (!proofUrl) return { name: '-', size: '' };
+  const name = proofUrl.split('/').pop() || 'bukti.jpg';
+  return { name, size: '' };
+}
+
+export function verificationStatusBadge(status) {
+  if (status === 'VERIFIED') return { label: 'Lunas', cls: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200', key: 'verified', color: '#10b981' };
+  if (status === 'REJECTED') return { label: 'Ditolak', cls: 'bg-red-50 text-red-700 ring-1 ring-red-200', key: 'rejected', color: '#ef4444' };
+  return { label: 'Menunggu Verifikasi', cls: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200', key: 'pending', color: '#f59e0b' };
+}
+
+export function buildPaymentTagihanGroups(payments) {
+  const map = new Map();
+  payments.forEach((p) => {
+    const bill = p.bill;
+    if (!bill) return;
+    const key = `${bill.feeType?.id || ''}|${bill.period || ''}|${bill.description || ''}`;
+    if (!map.has(key)) {
+      map.set(key, { key, label: paymentBillName(p) });
+    }
+  });
+  return Array.from(map.values());
+}
+
+export function dispensationStatusBadge(status) {
+  if (status === 'APPROVED') return { label: 'Disetujui', cls: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' };
+  if (status === 'REJECTED') return { label: 'Ditolak', cls: 'bg-red-50 text-red-700 ring-1 ring-red-200' };
+  return { label: 'Menunggu Verifikasi', cls: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200' };
+}
+
+const DISP_TYPE_LABEL = { WAIVER: 'Pembebasan', DISCOUNT: 'Potongan', POSTPONE: 'Penundaan' };
+
+export function dispensationTypeLabel(type) {
+  return DISP_TYPE_LABEL[type] || type || '-';
+}
+
+export function exportDispensationsCsv(items, arrearsMap) {
+  const header = 'No,Nama Siswa,NIS,Jumlah Tunggakan,Jumlah Tagihan,Alasan,Tanggal Kesanggupan Bayar,Status\n';
+  const rows = items.map((d, i) => {
+    const arr = arrearsMap[d.studentId] || { amount: 0, count: 0 };
+    const st = dispensationStatusBadge(d.status);
+    const cols = [
+      i + 1,
+      d.student?.fullName,
+      d.student?.nis,
+      Number(arr.amount),
+      arr.count,
+      d.reason,
+      d.newDueDate ? new Date(d.newDueDate).toLocaleDateString('id-ID') : '',
+      st.label,
+    ];
+    return cols.map((c) => `"${String(c || '').replace(/"/g, '""')}"`).join(',');
+  });
+  const blob = new Blob([header + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `tunggakan-dispensasi-pospay-${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 export function tagihanGroupKey(bill) {

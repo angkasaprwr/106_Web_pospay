@@ -2,6 +2,7 @@ const base = { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none', stroke
 
 export const Icon = {
   Dashboard: (p) => (<svg {...base} {...p}><rect x="3" y="3" width="7" height="9" rx="1" /><rect x="14" y="3" width="7" height="5" rx="1" /><rect x="14" y="12" width="7" height="9" rx="1" /><rect x="3" y="16" width="7" height="5" rx="1" /></svg>),
+  Home: (p) => (<svg {...base} {...p}><path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V9.5z" /></svg>),
   Bills: (p) => (<svg {...base} {...p}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><path d="M14 2v6h6" /><path d="M9 13h6M9 17h6" /></svg>),
   History: (p) => (<svg {...base} {...p}><path d="M3 3v5h5" /><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8" /><path d="M12 7v5l4 2" /></svg>),
   Chat: (p) => (<svg {...base} {...p}><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>),
@@ -22,6 +23,9 @@ export const Icon = {
   Send: (p) => (<svg {...base} {...p}><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z" /></svg>),
   Info: (p) => (<svg {...base} {...p}><circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" /></svg>),
   Shield: (p) => (<svg {...base} {...p}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>),
+  Lock: (p) => (<svg {...base} {...p}><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>),
+  Eye: (p) => (<svg {...base} {...p}><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z" /><circle cx="12" cy="12" r="3" /></svg>),
+  EyeOff: (p) => (<svg {...base} {...p}><path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a21.77 21.77 0 0 1 5.06-5.94M9.9 4.24A10.94 10.94 0 0 1 12 5c7 0 11 7 11 7a21.8 21.8 0 0 1-5 5.87" /><path d="M1 1l22 22M14.12 14.12a3 3 0 0 1-4.24-4.24" /></svg>),
   Dispensation: (p) => (<svg {...base} {...p}><path d="M9 12l2 2 4-4" /><path d="M21 12a9 9 0 1 1-9-9" /></svg>),
   ChevronRight: (p) => (<svg {...base} {...p}><path d="M9 18l6-6-6-6" /></svg>),
   Clock: (p) => (<svg {...base} {...p}><circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" /></svg>),

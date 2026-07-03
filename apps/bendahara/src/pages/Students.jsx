@@ -3,6 +3,7 @@ import { api, apiError } from '../lib/api';
 import { useToast } from '../context/ToastContext';
 import { Spinner, Modal, Field, EmptyState, ConfirmDialog } from '../components/ui';
 import { Icon } from '../components/Icons';
+import StudentCreateModal from './StudentCreateModal';
 
 const emptyForm = {
   nis: '',
@@ -200,7 +201,6 @@ export default function Students() {
   }, []);
 
   const openCreate = () => {
-    setForm(emptyForm);
     setModal({ mode: 'create' });
   };
 
@@ -211,17 +211,13 @@ export default function Students() {
 
   const save = async (e) => {
     e.preventDefault();
+    if (modal?.mode !== 'edit') return;
     setSaving(true);
     try {
       const payload = { ...form };
-      if (modal.mode === 'create') {
-        await api.post('/students', payload);
-        toast.success('Siswa ditambahkan beserta akun login (username = NIS)');
-      } else {
-        delete payload.createAccount;
-        await api.patch(`/students/${modal.data.id}`, payload);
-        toast.success('Siswa diperbarui');
-      }
+      delete payload.createAccount;
+      await api.patch(`/students/${modal.data.id}`, payload);
+      toast.success('Siswa diperbarui');
       setModal(null);
       load();
       loadStats();
@@ -292,6 +288,7 @@ export default function Students() {
           parentName: parentName || '',
           parentPhone: parentPhone || '',
           address: address || '',
+          password: nis.length >= 6 ? nis : `${nis}123456`.slice(0, 12),
           createAccount: true,
         });
         ok += 1;
@@ -503,10 +500,17 @@ export default function Students() {
         )}
       </div>
 
-      <Modal
-        open={!!modal}
+      <StudentCreateModal
+        open={modal?.mode === 'create'}
         onClose={() => setModal(null)}
-        title={modal?.mode === 'create' ? 'Tambah Siswa' : 'Edit Siswa'}
+        classes={classes}
+        onSaved={() => { load(); loadStats(); }}
+      />
+
+      <Modal
+        open={modal?.mode === 'edit'}
+        onClose={() => setModal(null)}
+        title="Edit Siswa"
         size="lg"
         footer={
           <>
@@ -521,7 +525,7 @@ export default function Students() {
       >
         <form onSubmit={save} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Field label="NIS" required>
-            <input className="input" value={form.nis} onChange={(e) => setForm({ ...form, nis: e.target.value })} required disabled={modal?.mode === 'edit'} />
+            <input className="input" value={form.nis} onChange={(e) => setForm({ ...form, nis: e.target.value })} required disabled />
           </Field>
           <Field label="NISN">
             <input className="input" value={form.nisn || ''} onChange={(e) => setForm({ ...form, nisn: e.target.value })} />
@@ -560,12 +564,6 @@ export default function Students() {
               <textarea className="input" rows={2} value={form.address || ''} onChange={(e) => setForm({ ...form, address: e.target.value })} />
             </Field>
           </div>
-          {modal?.mode === 'create' && (
-            <label className="flex items-center gap-2 text-sm sm:col-span-2">
-              <input type="checkbox" checked={form.createAccount} onChange={(e) => setForm({ ...form, createAccount: e.target.checked })} />
-              Buat akun login otomatis (username = NIS, password default siswa)
-            </label>
-          )}
         </form>
       </Modal>
 
