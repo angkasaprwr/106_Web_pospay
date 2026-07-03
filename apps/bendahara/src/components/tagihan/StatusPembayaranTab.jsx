@@ -92,6 +92,7 @@ export default function StatusPembayaranTab() {
   });
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [sendingNotifyId, setSendingNotifyId] = useState(null);
 
   const selectedGroup = tagihanGroups.find((g) => g.key === filters.tagihanKey);
 
@@ -191,6 +192,18 @@ export default function StatusPembayaranTab() {
       toast.error(apiError(e));
     } finally {
       setDetailLoading(false);
+    }
+  };
+
+  const sendReminder = async (bill) => {
+    setSendingNotifyId(bill.id);
+    try {
+      await api.post(`/bills/${bill.id}/send-reminder`);
+      toast.success(`Notifikasi pengingat tagihan terkirim ke ${bill.student?.fullName || 'siswa'}`);
+    } catch (e) {
+      toast.error(apiError(e));
+    } finally {
+      setSendingNotifyId(null);
     }
   };
 
@@ -302,14 +315,32 @@ export default function StatusPembayaranTab() {
                         </td>
                         <td className="px-4 py-3 text-slate-600">{paidAt ? formatDateTime(paidAt) : '-'}</td>
                         <td className="px-4 py-3 text-center">
-                          <button
-                            type="button"
-                            onClick={() => openDetail(b)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-pospay hover:bg-pospay-50"
-                          >
-                            <Icon.Eye width={14} height={14} />
-                            Lihat Detail
-                          </button>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => openDetail(b)}
+                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-pospay hover:bg-pospay-50"
+                            >
+                              <Icon.Eye width={14} height={14} />
+                              Lihat Detail
+                            </button>
+                            {st.key === 'unpaid' && (
+                              <button
+                                type="button"
+                                onClick={() => sendReminder(b)}
+                                disabled={sendingNotifyId === b.id}
+                                title="Kirim notifikasi pengingat tagihan belum bayar"
+                                className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+                              >
+                                {sendingNotifyId === b.id ? (
+                                  <Spinner size={14} />
+                                ) : (
+                                  <Icon.Bell width={14} height={14} />
+                                )}
+                                Notifikasi
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -392,7 +423,7 @@ export default function StatusPembayaranTab() {
         <div className="flex gap-3 rounded-xl border border-blue-100 bg-blue-50/60 p-4 text-sm text-blue-800">
           <Icon.Info width={20} height={20} className="shrink-0 text-blue-600" />
           <p>
-            Siswa berstatus <strong>Belum Bayar</strong> akan menerima notifikasi otomatis H-7 sebelum ujian.
+            Klik ikon <strong>Notifikasi</strong> pada baris status <strong>Belum Bayar</strong> untuk mengirim pengingat ke portal siswa (in-app + FCM).
           </p>
         </div>
       </div>

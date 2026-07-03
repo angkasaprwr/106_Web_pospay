@@ -1,9 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { Icon } from '../components/Icons';
 import { Spinner } from '../components/ui';
+import { formatDateTime } from '../lib/format';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
+
+const BILL_NOTIFICATION_TYPES = new Set(['BILL_UNPAID_REMINDER', 'REMINDER']);
 
 const FINANCE_STATS = [
   {
@@ -129,6 +133,28 @@ export default function Dashboard() {
   const { user } = useAuth();
   const [profile, setProfile] = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
+  const [announcements, setAnnouncements] = useState([]);
+  const [announcementsLoading, setAnnouncementsLoading] = useState(true);
+
+  const loadAnnouncements = useCallback(async () => {
+    try {
+      const { data } = await api.get('/notifications?limit=10');
+      const items = (data.data || []).filter(
+        (n) => !n.type || BILL_NOTIFICATION_TYPES.has(n.type) || /tagihan/i.test(n.title || ''),
+      );
+      setAnnouncements(items.slice(0, 3));
+    } catch {
+      setAnnouncements([]);
+    } finally {
+      setAnnouncementsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAnnouncements();
+  }, [loadAnnouncements]);
+
+  useLiveRefresh(loadAnnouncements, 15000);
 
   useEffect(() => {
     api.get('/auth/me')
@@ -159,21 +185,51 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="overflow-hidden rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 via-purple-50/80 to-indigo-50 p-6 dark:border-violet-900/50 dark:from-violet-950/40 dark:via-purple-950/30 dark:to-indigo-950/40">
-              <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center">
-                <MegaphoneIllustration />
-                <div className="min-w-0 flex-1 text-center sm:text-left">
-                  <span className="inline-block rounded-full bg-violet-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-violet-700 dark:bg-violet-900/60 dark:text-violet-300">
-                    Pengumuman
-                  </span>
-                  <p className="mt-3 text-lg font-bold leading-snug text-pospay dark:text-blue-300">
-                    Belum ada pengumuman
-                  </p>
-                  <p className="mt-2 flex items-center justify-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 sm:justify-start">
-                    <Icon.Clock width={15} height={15} />
-                    Informasi dari bendahara akan tampil setelah data tersedia.
-                  </p>
+              {announcementsLoading ? (
+                <div className="flex h-32 items-center justify-center">
+                  <Spinner size={28} />
                 </div>
-              </div>
+              ) : announcements.length === 0 ? (
+                <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center">
+                  <MegaphoneIllustration />
+                  <div className="min-w-0 flex-1 text-center sm:text-left">
+                    <span className="inline-block rounded-full bg-violet-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-violet-700 dark:bg-violet-900/60 dark:text-violet-300">
+                      Pengumuman
+                    </span>
+                    <p className="mt-3 text-lg font-bold leading-snug text-pospay dark:text-blue-300">
+                      Belum ada pengumuman
+                    </p>
+                    <p className="mt-2 flex items-center justify-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 sm:justify-start">
+                      <Icon.Clock width={15} height={15} />
+                      Informasi dari bendahara akan tampil setelah data tersedia.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {announcements.map((n) => (
+                    <Link
+                      key={n.id}
+                      to="/tagihan"
+                      className="block rounded-xl border border-violet-200/80 bg-white/70 p-4 transition hover:border-violet-300 hover:shadow-sm dark:border-violet-800/50 dark:bg-slate-900/50 dark:hover:border-violet-700"
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400">
+                          <Icon.Bell width={18} height={18} />
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="font-bold text-slate-900 dark:text-slate-100">{n.title}</p>
+                          <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-300">{n.body}</p>
+                          <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
+                            <Icon.Clock width={14} height={14} />
+                            {formatDateTime(n.createdAt)}
+                          </p>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
             </div>
           </section>
 

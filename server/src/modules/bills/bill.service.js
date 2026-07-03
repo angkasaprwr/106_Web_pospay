@@ -1,9 +1,11 @@
 const { prisma } = require('../../config/prisma');
 const { ApiError } = require('../../core/ApiError');
 const { billRepository } = require('./bill.repository');
-const { computeStatus } = require('./bill.helper');
+const { computeStatus, outstanding } = require('./bill.helper');
 const { generateInvoiceNo } = require('../../utils/identifiers');
 const { recordAudit } = require('../audit/audit.service');
+const { notifyUser } = require('../notifications/notification.service');
+const { formatIDR } = require('../../utils/money');
 
 async function list(query) {
   return billRepository.list(query);
@@ -92,6 +94,70 @@ async function remove(id, actorId, req) {
   await recordAudit({ userId: actorId, action: 'DELETE', entity: 'Bill', entityId: id, req });
 }
 
+/**
+ * Kirim notifikasi pengingat tagihan belum bayar ke siswa (in-app + FCM jika dikonfigurasi).
+ */
+async function sendPaymentReminder(id, actorId, req) {
+  const bill = await prisma.bill.findUnique({
+    where: { id },
+    include: {
+      feeType: true,
+      student: { select: { id: true, nis: true, fullName: true, userId: true } },
+      payments: { where: { status: 'PENDING' }, select: { id: true } },
+    },
+  });
+  if (!bill) throw ApiError.notFound('Tagihan tidak ditemukan');
+  if (bill.status === 'PAID' || bill.status === 'WAIVED') {
+    throw ApiError.badRequest('Notifikasi hanya untuk tagihan belum bayar');
+  }
+  if (bill.payments.length > 0) {
+    throw ApiError.badRequest('Tagihan sedang menunggu verifikasi pembayaran');
+  }
+  if (!['UNPAID', 'PARTIAL', 'OVERDUE'].includes(bill.status)) {
+    throw ApiError.badRequest('Status tagihan tidak memenuhi syarat pengingat');
+  }
+
+  let userId = bill.student?.userId;
+  if (!userId && bill.student?.nis) {
+    const linked = await prisma.user.findFirst({
+      where: { username: bill.student.nis, role: 'SISWA', isActive: true },
+      select: { id: true },
+    });
+    userId = linked?.id || null;
+    if (userId && !bill.student.userId) {
+      await prisma.student.update({ where: { id: bill.student.id }, data: { userId } });
+    }
+  }
+  if (!userId) throw ApiError.badRequest('Siswa belum memiliki akun login untuk menerima notifikasi');
+
+  const remaining = outstanding(bill);
+  if (remaining <= 0) throw ApiError.badRequest('Tagihan tidak memiliki sisa pembayaran');
+
+  const billName = bill.description
+    || `${bill.feeType?.name || 'Tagihan'}${bill.period ? ` ${bill.period}` : ''}`;
+  const due = bill.dueDate ? new Date(bill.dueDate).toLocaleDateString('id-ID') : '-';
+  const title = 'Pengingat Tagihan Belum Dibayar';
+  const body = `Tagihan ${billName} sebesar ${formatIDR(remaining)} belum dibayar. Jatuh tempo: ${due}. Segera bayar melalui menu Tagihan.`;
+
+  const notification = await notifyUser(userId, {
+    title,
+    body,
+    type: 'BILL_UNPAID_REMINDER',
+    data: { billId: bill.id, studentId: bill.studentId, feeType: bill.feeType?.name },
+  });
+
+  await recordAudit({
+    userId: actorId,
+    action: 'CREATE',
+    entity: 'Notification',
+    entityId: notification?.id,
+    metadata: { billId: bill.id, targetUserId: userId, type: 'BILL_UNPAID_REMINDER' },
+    req,
+  });
+
+  return notification;
+}
+
 /** Refresh status for overdue detection across all open bills. Returns count updated. */
 async function refreshOverdue() {
   const now = new Date();
@@ -110,4 +176,4 @@ async function refreshOverdue() {
   return updated;
 }
 
-module.exports = { list, getById, create, bulkCreate, update, remove, refreshOverdue };
+module.exports = { list, getById, create, bulkCreate, update, remove, refreshOverdue, sendPaymentReminder };

@@ -32,4 +32,9 @@ const remove = asyncHandler(async (req, res) => {
   return ok(res, null, 'Tagihan dihapus');
 });
 
-module.exports = { list, detail, create, bulkCreate, update, remove };
+const sendReminder = asyncHandler(async (req, res) => {
+  const notification = await service.sendPaymentReminder(req.params.id, req.user.id, req);
+  return ok(res, notification, 'Notifikasi pengingat tagihan terkirim ke siswa');
+});
+
+module.exports = { list, detail, create, bulkCreate, update, remove, sendReminder };

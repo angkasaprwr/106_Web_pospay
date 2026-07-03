@@ -12,6 +12,7 @@ router.get('/', validate({ query: listBillSchema }), controller.list);
 router.post('/', validate({ body: createBillSchema }), controller.create);
 router.post('/bulk', validate({ body: bulkBillSchema }), controller.bulkCreate);
 router.get('/:id', controller.detail);
+router.post('/:id/send-reminder', controller.sendReminder);
 router.patch('/:id', validate({ body: updateBillSchema }), controller.update);
 router.delete('/:id', controller.remove);
 
