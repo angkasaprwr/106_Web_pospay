@@ -6,10 +6,10 @@ import { Icon } from '../components/Icons';
 import { Spinner } from '../components/ui';
 
 const FINANCE_STATS = [
-  { label: 'Total Tagihan', value: '—', valueColor: 'text-blue-600', icon: Icon.Bills, iconBg: 'bg-blue-50', iconColor: 'text-blue-600' },
-  { label: 'Sudah Dibayar', value: '—', valueColor: 'text-emerald-600', icon: Icon.CheckCircle, iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600' },
-  { label: 'Belum Dibayar', value: '—', valueColor: 'text-amber-500', icon: Icon.Clock, iconBg: 'bg-amber-50', iconColor: 'text-amber-500' },
-  { label: 'Tunggakan', value: '—', valueColor: 'text-red-500', icon: Icon.Warning, iconBg: 'bg-red-50', iconColor: 'text-red-500' },
+  { label: 'Total Tagihan', value: '—', icon: Icon.Bills, cardBg: 'bg-gradient-to-br from-blue-500 to-blue-600', iconBg: 'bg-white/20', iconColor: 'text-white' },
+  { label: 'Sudah Dibayar', value: '—', icon: Icon.CheckCircle, cardBg: 'bg-gradient-to-br from-emerald-500 to-emerald-600', iconBg: 'bg-white/20', iconColor: 'text-white' },
+  { label: 'Belum Dibayar', value: '—', icon: Icon.Clock, cardBg: 'bg-gradient-to-br from-amber-400 to-orange-500', iconBg: 'bg-white/20', iconColor: 'text-white' },
+  { label: 'Tunggakan', value: '—', icon: Icon.Warning, cardBg: 'bg-gradient-to-br from-red-500 to-red-600', iconBg: 'bg-white/20', iconColor: 'text-white' },
 ];
 
 const WEEKDAYS = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
@@ -38,14 +38,14 @@ function MegaphoneIllustration() {
   );
 }
 
-function FinanceStatCard({ label, value, valueColor, icon: IconC, iconBg, iconColor }) {
+function FinanceStatCard({ label, value, cardBg, icon: IconC, iconBg, iconColor }) {
   return (
-    <div className="flex flex-1 flex-col rounded-xl border border-slate-100 bg-slate-50/50 p-4">
-      <div className={`mb-2 flex h-9 w-9 items-center justify-center rounded-lg ${iconBg}`}>
-        <IconC width={18} height={18} className={iconColor} />
+    <div className={`flex min-w-0 flex-1 flex-col rounded-xl p-4 text-white shadow-md ${cardBg}`}>
+      <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl ${iconBg}`}>
+        <IconC width={20} height={20} className={iconColor} />
       </div>
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className={`mt-1 text-base font-bold ${valueColor}`}>{value}</p>
+      <p className="text-xs font-medium text-white/85">{label}</p>
+      <p className="mt-1 text-lg font-bold leading-tight">{value}</p>
     </div>
   );
 }
@@ -114,7 +114,7 @@ export default function Dashboard() {
   const photoUrl = profile?.avatarUrl || profile?.student?.photoUrl;
 
   return (
-    <div className="mx-auto max-w-7xl space-y-6 pb-8">
+    <div className="space-y-6 pb-8">
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
         {/* Kolom kiri — Pengumuman & Catatan */}
         <div className="space-y-5 xl:col-span-5">
@@ -130,11 +130,11 @@ export default function Dashboard() {
                 <p className="text-xs text-slate-500">Informasi terbaru dari bendahara sekolah.</p>
               </div>
             </div>
-            <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+            <div className="overflow-hidden rounded-2xl border border-sky-100 bg-gradient-to-br from-sky-50 via-blue-50 to-indigo-50 p-6 shadow-sm">
               <div className="flex flex-col items-center gap-5 sm:flex-row sm:items-center">
                 <MegaphoneIllustration />
                 <div className="min-w-0 flex-1 text-center sm:text-left">
-                  <span className="inline-block rounded-full bg-violet-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-violet-700">
+                  <span className="inline-block rounded-full bg-blue-100 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-blue-700">
                     Pengumuman
                   </span>
                   <p className="mt-3 text-lg font-bold leading-snug text-slate-800">

@@ -251,8 +251,10 @@ export default function Layout() {
         )}
       </header>
 
-      <main className="flex-1 px-4 py-6 sm:px-6">
-        <Outlet />
+      <main className="flex-1 bg-[#f0f2f8]">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
+          <Outlet />
+        </div>
       </main>
     </div>
   );
