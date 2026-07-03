@@ -1,5 +1,10 @@
-import { Link } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { api, apiError } from '../lib/api';
 import { useToast } from '../context/ToastContext';
+import { formatIDR, formatDate } from '../lib/format';
+import { loadBillPaymentDraft, clearBillPaymentDraft } from '../lib/billPaymentSession';
+import { Spinner } from '../components/ui';
 import { Icon } from '../components/Icons';
 
 const CARD = 'rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900';
@@ -53,7 +58,7 @@ function DetailRow({ label, value, action }) {
   );
 }
 
-function GuideAccordion({ title, icon: IconC }) {
+function GuideAccordion({ title, icon: IconC, children }) {
   return (
     <details className="group rounded-xl border border-slate-200 bg-slate-50/50 dark:border-slate-700 dark:bg-slate-800/50">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-slate-700 dark:text-slate-200">
@@ -64,7 +69,7 @@ function GuideAccordion({ title, icon: IconC }) {
         <Icon.ChevronRight width={16} height={16} className="rotate-90 text-slate-400 transition group-open:rotate-[270deg]" />
       </summary>
       <div className="border-t border-slate-200 px-4 py-3 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400">
-        Panduan akan tampil setelah metode pembayaran dikonfigurasi bendahara.
+        {children}
       </div>
     </details>
   );
@@ -91,18 +96,123 @@ function BillFooter() {
 
 export default function BillConfirm() {
   const toast = useToast();
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [bill, setBill] = useState(null);
+  const [method, setMethod] = useState(null);
+  const [draft, setDraft] = useState(null);
+  const [proof, setProof] = useState(null);
+  const [note, setNote] = useState('');
 
-  const handleCopy = () => {
-    toast.info('Nomor rekening akan tersedia setelah pembayaran dibuat.');
+  const load = useCallback(async () => {
+    const saved = loadBillPaymentDraft();
+    if (!saved?.billId || !saved?.paymentMethodId) {
+      setLoading(false);
+      return;
+    }
+    setDraft(saved);
+    setLoading(true);
+    try {
+      const [billRes, methodsRes] = await Promise.all([
+        api.get(`/portal/bills/${saved.billId}`),
+        api.get('/portal/payment-methods'),
+      ]);
+      setBill(billRes.data.data);
+      const methods = methodsRes.data.data || [];
+      setMethod(methods.find((m) => m.id === saved.paymentMethodId) || null);
+    } catch (e) {
+      const msg = apiError(e);
+      if (msg) toast.error(msg);
+      navigate('/tagihan');
+    } finally {
+      setLoading(false);
+    }
+  }, [navigate, toast]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const amount = useMemo(() => {
+    if (!bill) return draft?.amount || 0;
+    return Math.max(0, Number(bill.amount) - Number(bill.discount || 0) - Number(bill.paidAmount || 0));
+  }, [bill, draft]);
+
+  const dueLabel = bill?.dueDate ? formatDate(bill.dueDate) : '—';
+
+  const handleCopy = async () => {
+    if (!method?.accountNo) {
+      toast.info('Nomor rekening tidak tersedia untuk metode ini.');
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(method.accountNo);
+      toast.success('Nomor rekening disalin');
+    } catch {
+      toast.error('Gagal menyalin nomor rekening');
+    }
   };
 
-  const handleComplete = () => {
-    toast.info('Selesaikan pemilihan tagihan dan metode pembayaran di langkah 1 terlebih dahulu.');
+  const handleComplete = async () => {
+    if (!bill || !method || !draft) {
+      toast.info('Selesaikan pemilihan tagihan dan metode pembayaran di langkah 1 terlebih dahulu.');
+      navigate('/tagihan');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const fd = new FormData();
+      fd.append('billId', bill.id);
+      fd.append('amount', String(amount));
+      fd.append('channel', method.channel || draft.channel || 'TRANSFER');
+      fd.append('paymentMethodId', method.id);
+      if (note.trim()) fd.append('note', note.trim());
+      if (proof) fd.append('proof', proof);
+      await api.post('/portal/payments', fd);
+      clearBillPaymentDraft();
+      toast.success('Bukti pembayaran terkirim, menunggu verifikasi bendahara');
+      navigate('/pembayaran-berhasil');
+    } catch (e) {
+      const msg = apiError(e);
+      if (msg) toast.error(msg);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleCancel = () => {
-    toast.info('Tidak ada pembayaran aktif untuk dibatalkan.');
+    clearBillPaymentDraft();
+    toast.info('Pembayaran dibatalkan.');
+    navigate('/tagihan');
   };
+
+  if (loading) {
+    return (
+      <div className="flex h-64 items-center justify-center">
+        <Spinner size={36} />
+      </div>
+    );
+  }
+
+  if (!draft || !bill || !method) {
+    return (
+      <div className="space-y-6 pb-24">
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-center dark:border-amber-900/50 dark:bg-amber-950/30">
+          <p className="font-semibold text-amber-800 dark:text-amber-200">Belum ada pembayaran aktif</p>
+          <p className="mt-2 text-sm text-amber-700 dark:text-amber-300/90">
+            Pilih tagihan dan metode pembayaran di langkah 1 untuk melanjutkan ke konfirmasi.
+          </p>
+          <Link
+            to="/tagihan"
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-[#0056D2] px-4 py-2.5 text-sm font-semibold text-white dark:bg-blue-600"
+          >
+            Kembali ke Bayar Tagihan
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-24">
@@ -125,7 +235,6 @@ export default function BillConfirm() {
       <StepIndicator activeStep={2} />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-        {/* Kolom kiri — Konfirmasi */}
         <div className="xl:col-span-8">
           <section className={`${CARD} p-5`}>
             <div className="mb-5">
@@ -144,92 +253,93 @@ export default function BillConfirm() {
                   </svg>
                 </span>
                 <p className="text-sm text-sky-900 dark:text-sky-200">
-                  Batas Pembayaran: <span className="font-bold">—</span>
+                  Batas Pembayaran: <span className="font-bold">{dueLabel}</span>
                 </p>
               </div>
             </div>
 
             <h3 className="mb-3 text-sm font-bold text-slate-800 dark:text-slate-100">Detail Pembayaran</h3>
             <div className="mb-5 rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/40">
-              <DetailRow label="Metode Pembayaran" value="—" />
+              <DetailRow label="Jenis Tagihan" value={bill.feeType?.name || '—'} />
+              <DetailRow label="Metode Pembayaran" value={method.name} />
               <DetailRow
                 label="Nomor Rekening / Virtual Account"
-                value="—"
-                action={(
+                value={method.accountNo || '—'}
+                action={method.accountNo ? (
                   <button
                     type="button"
                     onClick={handleCopy}
-                    disabled
-                    className="rounded-lg border border-[#0056D2] px-3 py-1 text-xs font-semibold text-[#0056D2] opacity-50 dark:border-blue-500 dark:text-blue-400"
+                    className="rounded-lg border border-[#0056D2] px-3 py-1 text-xs font-semibold text-[#0056D2] dark:border-blue-500 dark:text-blue-400"
                   >
                     Salin
                   </button>
-                )}
+                ) : null}
               />
-              <DetailRow label="Atas Nama" value="—" />
+              <DetailRow label="Atas Nama" value={method.accountName || '—'} />
               <div className="flex items-center justify-between pt-3">
                 <span className="text-sm font-medium text-slate-600 dark:text-slate-300">Total Pembayaran</span>
-                <span className="text-2xl font-bold text-[#0056D2] dark:text-blue-400">—</span>
+                <span className="text-2xl font-bold text-[#0056D2] dark:text-blue-400">{formatIDR(amount)}</span>
               </div>
             </div>
 
             <h3 className="mb-3 text-sm font-bold text-slate-800 dark:text-slate-100">Panduan Pembayaran</h3>
             <div className="space-y-2">
-              <GuideAccordion title="Cara Bayar via BRI" icon={Icon.Money} />
-              <GuideAccordion title="Cara Bayar via QRIS" icon={Icon.Bills} />
-              <GuideAccordion title="Cara Bayar via Tunai" icon={Icon.Money} />
+              {method.instruction ? (
+                <GuideAccordion title={`Cara Bayar via ${method.name}`} icon={Icon.Money}>
+                  {method.instruction}
+                </GuideAccordion>
+              ) : (
+                <GuideAccordion title={`Cara Bayar via ${method.name}`} icon={Icon.Money}>
+                  Ikuti petunjuk pembayaran sesuai metode yang dipilih. Setelah transfer, unggah bukti di panel kanan.
+                </GuideAccordion>
+              )}
             </div>
           </section>
         </div>
 
-        {/* Kolom kanan — Upload & aksi */}
         <div className="space-y-5 xl:col-span-4">
           <section className={`${CARD} p-5`}>
             <h2 className="mb-4 font-bold text-slate-800 dark:text-slate-100">Upload Bukti Pembayaran</h2>
-            <div className="flex min-h-[180px] flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/80 px-4 py-8 text-center dark:border-slate-600 dark:bg-slate-800/50">
+            <label className="flex min-h-[180px] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/80 px-4 py-8 text-center transition hover:border-[#0056D2] dark:border-slate-600 dark:bg-slate-800/50 dark:hover:border-blue-500">
+              <input
+                type="file"
+                className="sr-only"
+                accept="image/jpeg,image/png,image/jpg,application/pdf"
+                onChange={(e) => setProof(e.target.files?.[0] || null)}
+              />
               <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-[#0056D2] dark:bg-blue-950/50 dark:text-blue-400">
                 <Icon.Upload width={24} height={24} />
               </span>
               <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
-                Klik untuk upload atau seret file ke sini
+                {proof ? proof.name : 'Klik untuk upload atau seret file ke sini'}
               </p>
               <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
                 Format: JPG, JPEG, PNG • Maks. 5MB
               </p>
-              <p className="mt-3 text-xs text-slate-400 dark:text-slate-500">
-                Upload tersedia setelah pembayaran dibuat di langkah 1.
-              </p>
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900/50 dark:bg-amber-950/30">
-            <div className="flex gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-100 text-amber-600 dark:bg-amber-900/50 dark:text-amber-400">
-                <Icon.Clock width={20} height={20} />
-              </span>
-              <div>
-                <p className="font-bold text-amber-700 dark:text-amber-300">Belum ada pembayaran aktif</p>
-                <p className="mt-1 text-sm text-amber-800/90 dark:text-amber-200/80">
-                  Pilih tagihan dan metode pembayaran di langkah 1 untuk melanjutkan ke konfirmasi.
-                </p>
-              </div>
-            </div>
+            </label>
+            <textarea
+              className="mt-3 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-[#0056D2] focus:outline-none focus:ring-1 focus:ring-[#0056D2] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+              rows={2}
+              placeholder="Catatan (opsional)"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+            />
           </section>
 
           <button
             type="button"
             onClick={handleComplete}
-            disabled
+            disabled={submitting}
             className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0056D2] py-3.5 text-sm font-bold text-white shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-600"
           >
-            <Icon.CheckCircle width={20} height={20} />
+            {submitting ? <Spinner size={18} className="text-white" /> : <Icon.CheckCircle width={20} height={20} />}
             Selesai Pembayaran
           </button>
 
           <button
             type="button"
             onClick={handleCancel}
-            disabled
+            disabled={submitting}
             className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-red-500 py-3.5 text-sm font-bold text-red-500 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-400 dark:text-red-400"
           >
             <Icon.X width={20} height={20} />

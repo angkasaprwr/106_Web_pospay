@@ -228,7 +228,7 @@ export default function Layout() {
               className="rounded-lg border border-white/25 p-2 text-white hover:bg-white/10"
               aria-label={theme === 'dark' ? 'Aktifkan mode terang' : 'Aktifkan mode gelap'}
             >
-              {theme === 'dark' ? <Icon.Moon width={20} height={20} /> : <Icon.Sun width={20} height={20} />}
+              {theme === 'dark' ? <Icon.Sun width={20} height={20} /> : <Icon.Moon width={20} height={20} />}
             </button>
             <Notifications />
             <ProfileMenu />
