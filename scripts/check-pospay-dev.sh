@@ -32,10 +32,11 @@ if [ "$fail" -eq 0 ]; then
   echo "Semua layanan merespons. Buka:"
   echo "  Bendahara: http://127.0.0.1:5173/login"
   echo "  Siswa    : http://127.0.0.1:5174/login"
-  echo ""
-  echo "Jika browser Anda ERR_CONNECTION_REFUSED padahal cek ini OK:"
-  echo "  1. Jalankan server di mesin yang sama dengan browser (npm run dev:all)"
-  echo "  2. Di Cursor Cloud Agent, pastikan port 5173/5174 di-forward (tab Ports)"
+echo ""
+echo "Jika browser Anda ERR_CONNECTION_REFUSED / network error padahal cek ini OK:"
+echo "  1. Jalankan server di mesin yang sama dengan browser (npm run dev:all)"
+echo "  2. Di Cursor Cloud Agent, forward port 4000, 5173, dan 5174 (tab Ports)"
+echo "  3. Pastikan VITE_API_BASE_URL=/api (bukan URL absolut ke port 4000)"
   exit 0
 fi
 

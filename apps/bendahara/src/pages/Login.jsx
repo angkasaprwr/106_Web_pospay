@@ -8,6 +8,7 @@ import { Icon } from '../components/Icons';
 import LoginIllustration from '../components/login/LoginIllustration';
 import SchoolEmblem from '../components/login/SchoolEmblem';
 import PospayLogo from '../components/login/PospayLogo';
+import ApiConnectionBanner from '../components/ApiConnectionBanner';
 
 const REMEMBER_KEY = 'pospay_bendahara_remember';
 
@@ -47,7 +48,9 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-white lg:flex-row">
+    <div className="flex min-h-screen flex-col bg-white">
+      <ApiConnectionBanner />
+      <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
       {/* Panel kiri — branding */}
       <div className="relative flex w-full flex-col justify-between overflow-hidden bg-pospay px-6 py-8 text-white sm:px-10 sm:py-10 lg:w-1/2 lg:px-12 lg:py-12">
         <div
@@ -188,6 +191,7 @@ export default function Login() {
             <p className="mt-3 text-xs text-slate-400">© {new Date().getFullYear()} POSPAY. All rights reserved.</p>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

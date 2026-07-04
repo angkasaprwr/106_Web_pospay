@@ -38,8 +38,23 @@ start_session() {
   echo "  + sesi tmux: $name"
 }
 
-echo "==> Memulai layanan..."
+echo "==> Memulai backend API..."
 start_session pospay-backend "$ROOT/server" "npm run dev"
+
+echo "==> Menunggu backend siap sebelum portal frontend..."
+for i in $(seq 1 45); do
+  if curl -sf http://127.0.0.1:4000/api/health >/dev/null 2>&1; then
+    echo "  Backend API siap (port 4000)"
+    break
+  fi
+  if [ "$i" -eq 45 ]; then
+    echo "ERROR: Backend tidak merespons di port 4000. Periksa database & server/.env"
+    exit 1
+  fi
+  sleep 1
+done
+
+echo "==> Memulai portal bendahara & siswa..."
 start_session pospay-bendahara "$ROOT/apps/bendahara" "npm run dev"
 start_session pospay-siswa "$ROOT/apps/siswa" "npm run dev"
 
@@ -58,10 +73,11 @@ for i in $(seq 1 30); do
     echo "  Portal Bendahara: http://127.0.0.1:5173/login"
     echo "  Portal Siswa   : http://127.0.0.1:5174/login"
     echo ""
-    echo "Jika browser menampilkan ERR_CONNECTION_REFUSED:"
-    echo "  - Jalankan: bash scripts/check-pospay-dev.sh"
-    echo "  - Di Cursor Cloud: buka tab Ports, pastikan 5173/5174 ter-forward"
-    echo "  - Di komputer lokal: jalankan npm run dev:all di folder project"
+    echo "Jika browser menampilkan network error / ERR_CONNECTION_REFUSED:"
+    echo "  - Jalankan: npm run check:dev"
+    echo "  - Pastikan ketiga layanan berjalan (backend 4000, bendahara 5173, siswa 5174)"
+    echo "  - Di Cursor Cloud: forward port 5173, 5174, dan 4000 di tab Ports"
+    echo "  - Jangan set VITE_API_BASE_URL ke URL absolut; gunakan /api (default)"
     exit 0
   fi
   sleep 1

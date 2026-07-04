@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
+const API_TARGET = 'http://127.0.0.1:4000';
+
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -12,8 +14,19 @@ export default defineConfig({
       clientPort: 5174,
     },
     proxy: {
-      '/api': { target: 'http://localhost:4000', changeOrigin: true },
-      '/uploads': { target: 'http://localhost:4000', changeOrigin: true },
+      '/api': {
+        target: API_TARGET,
+        changeOrigin: true,
+        secure: false,
+        ws: true,
+        timeout: 30_000,
+      },
+      '/uploads': {
+        target: API_TARGET,
+        changeOrigin: true,
+        secure: false,
+        timeout: 30_000,
+      },
     },
   },
 });

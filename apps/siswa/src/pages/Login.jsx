@@ -8,6 +8,7 @@ import { Icon } from '../components/Icons';
 import LoginIllustration from '../components/login/LoginIllustration';
 import SchoolEmblem from '../components/login/SchoolEmblem';
 import PospayLogo from '../components/login/PospayLogo';
+import ApiConnectionBanner from '../components/ApiConnectionBanner';
 
 const REMEMBER_KEY = 'pospay_siswa_remember';
 const NAVY = '#1a48a0';
@@ -56,7 +57,9 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen w-full flex-col bg-white md:flex-row">
+    <div className="flex min-h-screen w-full flex-col bg-white">
+      <ApiConnectionBanner />
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
       {/* Panel kiri — branding biru */}
       <div
         className="relative flex min-h-[320px] w-full flex-col justify-between px-6 py-8 text-white sm:min-h-[380px] sm:px-10 md:min-h-screen md:w-1/2 md:px-12 md:py-12"
@@ -193,6 +196,7 @@ export default function Login() {
             </div>
           </div>
         </div>
+      </div>
       </div>
     </div>
   );

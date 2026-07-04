@@ -105,7 +105,26 @@ api.interceptors.response.use(
   },
 );
 
+export function isNetworkError(err) {
+  if (!err) return false;
+  if (err.code === 'ERR_NETWORK' || err.message === 'Network Error') return true;
+  return !err.response && Boolean(err.request);
+}
+
 export function apiError(err, fallback = 'Terjadi kesalahan') {
   if (isSessionError(err)) return null;
+  if (isNetworkError(err)) {
+    return 'Kesalahan jaringan: backend API tidak terjangkau. Jalankan npm run dev:all lalu muat ulang halaman.';
+  }
   return err?.response?.data?.message || err?.message || fallback;
+}
+
+/** Cek koneksi API (via proxy Vite /api/health) */
+export async function checkApiConnection() {
+  try {
+    await api.get('/health', { timeout: 5000 });
+    return true;
+  } catch {
+    return false;
+  }
 }
