@@ -55,8 +55,13 @@ for i in $(seq 1 30); do
     echo ""
     echo "Semua layanan POSPAY berjalan:"
     echo "  Backend API    : http://127.0.0.1:4000/api"
-    echo "  Portal Bendahara: http://127.0.0.1:5173"
-    echo "  Portal Siswa   : http://127.0.0.1:5174"
+    echo "  Portal Bendahara: http://127.0.0.1:5173/login"
+    echo "  Portal Siswa   : http://127.0.0.1:5174/login"
+    echo ""
+    echo "Jika browser menampilkan ERR_CONNECTION_REFUSED:"
+    echo "  - Jalankan: bash scripts/check-pospay-dev.sh"
+    echo "  - Di Cursor Cloud: buka tab Ports, pastikan 5173/5174 ter-forward"
+    echo "  - Di komputer lokal: jalankan npm run dev:all di folder project"
     exit 0
   fi
   sleep 1
