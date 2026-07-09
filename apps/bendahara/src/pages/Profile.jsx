@@ -195,7 +195,7 @@ export default function Profile() {
               disabled={uploadingPhoto}
               className="mt-4 inline-flex items-center gap-2 rounded-lg border-2 border-[#0056D2] px-4 py-2 text-sm font-semibold text-[#0056D2] transition hover:bg-blue-50 disabled:opacity-60 dark:border-blue-500 dark:text-blue-400 dark:hover:bg-blue-950/40"
             >
-              {uploadingPhoto ? <Spinner size={16} /> : <Icon.Upload width={16} height={16} />}
+              {uploadingPhoto ? <Spinner size={16} /> : <Icon.Camera width={16} height={16} />}
               Edit Foto
             </button>
             <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">Format: JPG, PNG. Maks. 2MB</p>
@@ -203,7 +203,7 @@ export default function Profile() {
 
           <div className="min-w-0">
             <ProfileRow icon={<Icon.User width={18} height={18} />} label="Nama Lengkap" value={display?.fullName} />
-            <ProfileRow icon={<Icon.Shield width={18} height={18} />} label="NIP / NIK" value={display?.username} />
+            <ProfileRow icon={<Icon.IdCard width={18} height={18} />} label="NIP / NIK" value={display?.username} />
             <ProfileRow
               icon={<Icon.AtSign width={18} height={18} />}
               label="Username"
@@ -219,26 +219,31 @@ export default function Profile() {
             <ProfileRow icon={<Icon.Briefcase width={18} height={18} />} label="Jabatan" value="Bendahara" />
             <ProfileRow icon={<Icon.Shield width={18} height={18} />} label="Role" value="Bendahara" />
             <ProfileRow
-              icon={<Icon.Check width={18} height={18} />}
+              icon={<Icon.CheckCircle width={18} height={18} />}
               label="Status Akun"
-              value={display?.isActive ? 'Aktif' : 'Nonaktif'}
+              value=""
               badge={(
-                <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${display?.isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
+                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${display?.isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
                   {display?.isActive ? 'Aktif' : 'Nonaktif'}
                 </span>
               )}
             />
-            <ProfileRow icon={<Icon.Clock width={18} height={18} />} label="Tanggal Bergabung" value={formatJoinDate(display?.createdAt)} />
+            <ProfileRow icon={<Icon.Calendar width={18} height={18} />} label="Tanggal Bergabung" value={formatJoinDate(display?.createdAt)} />
           </div>
         </div>
       </section>
 
       <Link
         to="/chatbot"
-        className="fixed bottom-6 right-6 z-20 flex items-center gap-2 rounded-full bg-[#0056D2] px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:bg-[#004BB8] dark:bg-blue-600 dark:hover:bg-blue-500"
+        className="fixed bottom-6 right-6 z-20 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-lg transition hover:shadow-xl dark:border-slate-700 dark:bg-slate-900"
       >
-        <Icon.Chat width={20} height={20} />
-        <span className="hidden sm:inline">Butuh bantuan? Tanya lewat Chatbot</span>
+        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0056D2] text-white dark:bg-blue-600">
+          <Icon.Chat width={20} height={20} />
+        </span>
+        <span className="hidden text-left sm:block">
+          <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">Butuh bantuan?</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">Tanya lewat Chatbot</span>
+        </span>
       </Link>
 
       <Modal
