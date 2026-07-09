@@ -26,35 +26,6 @@ async function main() {
     });
   }
 
-  // ---- Admin Bendahara Komite (akun utama sekolah) ----
-  const adminKomite = await prisma.user.findFirst({
-    where: { OR: [{ username: 'admin' }, { fullName: 'Admin Bendahara Komite' }] },
-  });
-  if (!adminKomite) {
-    const password = await bcrypt.hash('bendahara123', 10);
-    await prisma.user.create({
-      data: {
-        username: 'admin',
-        password,
-        fullName: 'Admin Bendahara Komite',
-        role: 'BENDAHARA',
-        email: 'smppusponegorobrebess@gmail.com',
-        emailVerified: true,
-      },
-    });
-    console.log('  -> Admin Bendahara Komite: username "admin", email smppusponegorobrebess@gmail.com, password "bendahara123"');
-  } else if (!adminKomite.email || adminKomite.email !== 'smppusponegorobrebess@gmail.com') {
-    await prisma.user.update({
-      where: { id: adminKomite.id },
-      data: {
-        email: 'smppusponegorobrebess@gmail.com',
-        emailVerified: true,
-        fullName: 'Admin Bendahara Komite',
-      },
-    });
-    console.log('  -> Admin Bendahara Komite: email diperbarui ke smppusponegorobrebess@gmail.com');
-  }
-
   // ---- Default treasurer (bendahara) ----
   if (SEED_BENDAHARA) {
     const exists = await prisma.user.findFirst({ where: { role: 'BENDAHARA' } });
