@@ -102,8 +102,8 @@ export default function Bills() {
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 sm:text-3xl">Tagihan</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 sm:text-3xl">Tagihan</h1>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Kelola tagihan, pembayaran, tunggakan, dan dispensasi siswa dalam satu tempat.
         </p>
       </div>
@@ -136,7 +136,7 @@ export default function Bills() {
             className={`rounded-lg px-4 py-2.5 text-sm font-medium transition ${
               tab === t.id
                 ? 'bg-pospay text-white shadow-sm'
-                : 'border border-slate-200 bg-white text-slate-700 hover:border-pospay/30 hover:text-pospay'
+                : 'border border-slate-200 bg-white text-slate-700 hover:border-pospay/30 hover:text-pospay dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-pospay/40 dark:hover:text-blue-400'
             }`}
           >
             {t.label}

@@ -212,11 +212,11 @@ export default function StatusPembayaranTab() {
   return (
     <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
       <div className="xl:col-span-2">
-        <div className="rounded-xl border border-slate-100 bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="rounded-xl border border-slate-100 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between dark:border-slate-700">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">B. Status Tagihan</h2>
-              <p className="text-sm text-slate-500">Ringkasan status tagihan siswa per periode.</p>
+              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">B. Status Tagihan</h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400">Ringkasan status tagihan siswa per periode.</p>
             </div>
             <button
               type="button"

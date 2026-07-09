@@ -2,12 +2,12 @@ import { formatIDR, formatDate, BILL_STATUS } from '../../lib/format';
 
 export function StatCard({ label, value, subtext, icon: IconC, iconBg, iconColor }) {
   return (
-    <div className="min-w-[130px] flex-1 rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-sm">
+    <div className="min-w-[130px] flex-1 rounded-xl border border-slate-100 bg-white px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
       <div className="flex items-center justify-between gap-2">
         <div>
-          <p className="text-xs text-slate-500">{label}</p>
-          <p className="mt-1 text-base font-bold text-slate-900 sm:text-lg">{value}</p>
-          {subtext && <p className="text-[11px] text-slate-400">{subtext}</p>}
+          <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
+          <p className="mt-1 text-base font-bold text-slate-900 dark:text-slate-100 sm:text-lg">{value}</p>
+          {subtext && <p className="text-[11px] text-slate-400 dark:text-slate-500">{subtext}</p>}
         </div>
         <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${iconBg}`}>
           <IconC width={20} height={20} className={iconColor} />
@@ -30,7 +30,7 @@ export function TagihanPagination({ meta, limit, onPage, onLimit }) {
   for (let i = startPage; i <= endPage; i += 1) pages.push(i);
 
   return (
-    <div className="flex flex-col items-center justify-between gap-4 border-t border-slate-100 px-4 py-4 text-sm text-slate-500 sm:flex-row">
+    <div className="flex flex-col items-center justify-between gap-4 border-t border-slate-100 px-4 py-4 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-400 sm:flex-row">
       <p>
         Menampilkan {start} - {end} dari {total} data
       </p>
