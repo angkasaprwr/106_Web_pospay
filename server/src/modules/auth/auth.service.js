@@ -200,16 +200,12 @@ async function changePassword(userId, currentPassword, newPassword, req) {
   await recordAudit({ userId, action: 'UPDATE', entity: 'User', entityId: userId, metadata: { field: 'password' }, req });
 }
 
-async function requestPasswordReset(email, req) {
-  if (!emailService.isSchoolEmail(email)) {
-    throw ApiError.badRequest(
-      `Email harus menggunakan domain sekolah (@${env.school.emailDomain}) atau Gmail resmi sekolah (${env.school.gmailAddress})`,
-    );
-  }
+async function requestPasswordReset(identifier, req) {
+  const raw = String(identifier || '').trim();
+  if (!raw) throw ApiError.badRequest('Email Gmail sekolah atau username wajib diisi');
 
-  const user = await prisma.user.findFirst({
-    where: { email, role: 'BENDAHARA', isActive: true, emailVerified: true },
-  });
+  const user = await resolveBendaharaForPasswordReset(raw);
+  const deliveryEmail = resolvePasswordResetDeliveryEmail(raw, user);
 
   if (!user) {
     return {
@@ -223,28 +219,106 @@ async function requestPasswordReset(email, req) {
 
   await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
   await prisma.passwordResetToken.create({
-    data: { token, userId: user.id, email, expiresAt },
+    data: { token, userId: user.id, email: deliveryEmail, expiresAt },
   });
 
   const resetUrl = `${env.frontend.bendaharaUrl}/lupa-kata-sandi/reset?token=${token}`;
-  const mailResult = await emailService.sendPasswordResetLink(email, user.fullName, resetUrl);
+  const mailResult = await emailService.sendPasswordResetLink(deliveryEmail, user.fullName, resetUrl);
 
   await recordAudit({
     userId: user.id,
     action: 'UPDATE',
     entity: 'User',
     entityId: user.id,
-    metadata: { field: 'password-reset-request' },
+    metadata: { field: 'password-reset-request', deliveryEmail, emailSent: mailResult.sent },
     req,
   });
 
+  if (mailResult.sent) {
+    return {
+      message: 'Tautan reset kata sandi telah dikirim ke Gmail sekolah Anda.',
+      emailSent: true,
+    };
+  }
+
   return {
-    message: mailResult.sent
-      ? 'Tautan reset kata sandi telah dikirim ke Gmail sekolah Anda.'
+    message: mailResult.smtpError
+      ? 'Tautan reset dibuat, tetapi email belum terkirim karena konfigurasi Gmail SMTP. Gunakan tautan di bawah atau perbarui App Password di server/.env.'
       : 'SMTP belum dikonfigurasi. Gunakan tautan reset yang ditampilkan untuk pengujian developer.',
-    emailSent: mailResult.sent,
-    devResetUrl: mailResult.devResetUrl || null,
+    emailSent: false,
+    devResetUrl: mailResult.devResetUrl || resetUrl,
+    smtpError: mailResult.smtpError || null,
   };
+}
+
+async function resolveBendaharaForPasswordReset(raw) {
+  const normalized = raw.toLowerCase();
+  const schoolGmail = env.school.gmailAddress;
+
+  if (raw.includes('@')) {
+    if (!emailService.isSchoolEmail(normalized)) {
+      throw ApiError.badRequest(
+        `Email harus menggunakan domain sekolah (@${env.school.emailDomain}) atau Gmail resmi sekolah (${schoolGmail})`,
+      );
+    }
+
+    const byEmail = await prisma.user.findFirst({
+      where: {
+        role: 'BENDAHARA',
+        isActive: true,
+        email: { equals: normalized, mode: 'insensitive' },
+      },
+    });
+    if (byEmail) return byEmail;
+
+    if (normalized === schoolGmail) {
+      const bySchoolDomain = await prisma.user.findFirst({
+        where: {
+          role: 'BENDAHARA',
+          isActive: true,
+          OR: [
+            { email: { equals: schoolGmail, mode: 'insensitive' } },
+            { email: { endsWith: `@${env.school.emailDomain}`, mode: 'insensitive' } },
+          ],
+        },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (bySchoolDomain) return bySchoolDomain;
+
+      return prisma.user.findFirst({
+        where: { role: 'BENDAHARA', isActive: true },
+        orderBy: { createdAt: 'asc' },
+      });
+    }
+
+    return null;
+  }
+
+  return prisma.user.findFirst({
+    where: {
+      role: 'BENDAHARA',
+      isActive: true,
+      OR: [
+        { username: { equals: raw, mode: 'insensitive' } },
+        { fullName: { contains: raw, mode: 'insensitive' } },
+      ],
+    },
+  });
+}
+
+function resolvePasswordResetDeliveryEmail(raw, user) {
+  if (!user) return null;
+  const normalized = raw.toLowerCase();
+
+  if (raw.includes('@') && emailService.isSchoolEmail(normalized)) {
+    return normalized;
+  }
+
+  if (user.email && emailService.isSchoolEmail(user.email)) {
+    return user.email.toLowerCase();
+  }
+
+  return env.school.gmailAddress;
 }
 
 async function validatePasswordResetToken(token) {
