@@ -10,6 +10,7 @@ import {
   saveLastPayment,
   isCashlessMethod,
   isCashMethod,
+  isMidtransQrisMethod,
 } from '../lib/billPaymentSession';
 import { Spinner } from '../components/ui';
 import { Icon } from '../components/Icons';
@@ -117,8 +118,13 @@ export default function BillConfirm() {
   const [paymentStatus, setPaymentStatus] = useState('');
   const [awaitingCashless, setAwaitingCashless] = useState(false);
 
-  const cashless = useMemo(() => isCashlessMethod(method), [method]);
+  const [expiryTime, setExpiryTime] = useState(null);
+  const [countdown, setCountdown] = useState('');
+  const [schoolName, setSchoolName] = useState('SMP Pusponegoro Brebes');
+
+  const midtrans = useMemo(() => isMidtransQrisMethod(method), [method]);
   const cash = useMemo(() => isCashMethod(method), [method]);
+  const cashless = useMemo(() => isCashlessMethod(method) && !cash, [method, cash]);
 
   const finishSuccess = useCallback((payment) => {
     saveLastPayment(payment);
@@ -129,7 +135,7 @@ export default function BillConfirm() {
 
   const pollPaymentStatus = useCallback(async (id) => {
     try {
-      const { data } = await api.get(`/portal/payments/${id}`);
+      const { data } = await api.get(`/payment/status/${id}`);
       const payment = data.data;
       setPaymentStatus(payment.status);
       if (payment.status === 'VERIFIED') {
@@ -141,7 +147,39 @@ export default function BillConfirm() {
     }
   }, [finishSuccess]);
 
-  const initCashlessPayment = useCallback(async (saved, billData, methodData, amount) => {
+  const initMidtransPayment = useCallback(async (saved, billData, methodData, amount) => {
+    let pid = saved.paymentId;
+    let paymentData = null;
+    if (!pid) {
+      const { data } = await api.post('/payment/create', {
+        billId: billData.id,
+        paymentMethodId: methodData.id,
+        amount,
+        note: note.trim() || undefined,
+      });
+      paymentData = data.data;
+      pid = paymentData.id;
+      const nextDraft = { ...saved, paymentId: pid };
+      saveBillPaymentDraft(nextDraft);
+      setDraft(nextDraft);
+    } else {
+      const statusRes = await api.get(`/payment/status/${pid}`);
+      paymentData = statusRes.data.data;
+    }
+
+    setPaymentId(pid);
+    setPaymentStatus(paymentData.status || 'PENDING');
+    setQrDataUrl(paymentData.qr_url || paymentData.qrDataUrl || '');
+    setExpiryTime(paymentData.expiry_time || paymentData.expiryTime || null);
+    setSchoolName(paymentData.school_name || 'SMP Pusponegoro Brebes');
+    setAwaitingCashless(true);
+
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(() => pollPaymentStatus(pid), 3000);
+    pollPaymentStatus(pid);
+  }, [note, pollPaymentStatus]);
+
+  const initLegacyCashlessPayment = useCallback(async (saved, billData, methodData, amount) => {
     let pid = saved.paymentId;
     if (!pid) {
       const fd = new FormData();
@@ -190,12 +228,18 @@ export default function BillConfirm() {
       setBill(billData);
       setMethod(methodData);
 
-      if (methodData && isCashlessMethod(methodData)) {
+      if (methodData && isMidtransQrisMethod(methodData)) {
         const amount = Math.max(
           0,
           Number(billData.amount) - Number(billData.discount || 0) - Number(billData.paidAmount || 0),
         );
-        await initCashlessPayment(saved, billData, methodData, amount);
+        await initMidtransPayment(saved, billData, methodData, amount);
+      } else if (methodData && isCashlessMethod(methodData) && !isMidtransQrisMethod(methodData)) {
+        const amount = Math.max(
+          0,
+          Number(billData.amount) - Number(billData.discount || 0) - Number(billData.paidAmount || 0),
+        );
+        await initLegacyCashlessPayment(saved, billData, methodData, amount);
       }
     } catch (e) {
       const msg = apiError(e);
@@ -204,7 +248,24 @@ export default function BillConfirm() {
     } finally {
       setLoading(false);
     }
-  }, [initCashlessPayment, navigate, toast]);
+  }, [initMidtransPayment, initLegacyCashlessPayment, navigate, toast]);
+
+  useEffect(() => {
+    if (!expiryTime) return undefined;
+    const tick = () => {
+      const diff = new Date(expiryTime).getTime() - Date.now();
+      if (diff <= 0) {
+        setCountdown('Kedaluwarsa');
+        return;
+      }
+      const m = Math.floor(diff / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setCountdown(`${m}:${String(s).padStart(2, '0')}`);
+    };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [expiryTime]);
 
   useEffect(() => {
     load();
@@ -241,13 +302,12 @@ export default function BillConfirm() {
     }
     setSubmitting(true);
     try {
-      const fd = new FormData();
-      fd.append('billId', bill.id);
-      fd.append('amount', String(amount));
-      fd.append('channel', method.channel || draft.channel || 'CASH');
-      fd.append('paymentMethodId', method.id);
-      if (note.trim()) fd.append('note', note.trim());
-      const { data } = await api.post('/portal/payments', fd);
+      const { data } = await api.post('/payment/cash', {
+        billId: bill.id,
+        paymentMethodId: method.id,
+        amount,
+        note: note.trim() || undefined,
+      });
       saveLastPayment(data.data);
       clearBillPaymentDraft();
       toast.success('Pengajuan pembayaran tunai terkirim. Serahkan uang ke loket bendahara.');
@@ -353,7 +413,9 @@ export default function BillConfirm() {
               <h2 className="font-bold text-slate-800 dark:text-slate-100">Konfirmasi Pembayaran</h2>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 {cashless
-                  ? 'Scan kode QR di panel kanan untuk membayar. Pembayaran akan terverifikasi otomatis tanpa unggah bukti.'
+                  ? midtrans
+                    ? 'Scan kode QR Midtrans di panel kanan. Pembayaran diverifikasi otomatis setelah scan berhasil.'
+                    : 'Scan kode QR di panel kanan untuk membayar. Pembayaran akan terverifikasi otomatis tanpa unggah bukti.'
                   : cash
                     ? 'Serahkan pembayaran tunai ke loket bendahara sesuai nominal. Tidak perlu unggah bukti.'
                     : 'Periksa detail pembayaran dan ikuti panduan transfer sebelum mengunggah bukti.'}
@@ -425,9 +487,11 @@ export default function BillConfirm() {
         </div>
 
         <div className="space-y-5 xl:col-span-4">
-          {cashless ? (
+          {midtrans || (cashless && !cash) ? (
             <section className={`${CARD} p-5`}>
-              <h2 className="mb-4 font-bold text-slate-800 dark:text-slate-100">Scan QR {method.name}</h2>
+              <h2 className="mb-4 font-bold text-slate-800 dark:text-slate-100">
+                Scan QR {midtrans ? 'Midtrans' : method.name}
+              </h2>
               <div className="flex flex-col items-center">
                 {qrDataUrl ? (
                   <img
@@ -444,12 +508,22 @@ export default function BillConfirm() {
                   {formatIDR(amount)}
                 </p>
                 <p className="mt-1 text-center text-xs text-slate-500 dark:text-slate-400">
-                  Rekening resmi: {method.accountName || 'SMP Pusponegoro Brebes'}
+                  {schoolName}
                 </p>
+                {bill?.invoiceNo && (
+                  <p className="mt-1 text-center text-xs text-slate-500 dark:text-slate-400">
+                    Invoice: {bill.invoiceNo}
+                  </p>
+                )}
+                {countdown && (
+                  <p className="mt-2 text-center text-xs font-semibold text-amber-700 dark:text-amber-300">
+                    Berlaku: {countdown}
+                  </p>
+                )}
                 {awaitingCashless && paymentStatus === 'PENDING' && (
                   <div className="mt-4 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
                     <Spinner size={14} />
-                    Menunggu konfirmasi pembayaran cashless...
+                    {midtrans ? 'Menunggu pembayaran QRIS Midtrans...' : 'Menunggu konfirmasi pembayaran cashless...'}
                   </div>
                 )}
               </div>

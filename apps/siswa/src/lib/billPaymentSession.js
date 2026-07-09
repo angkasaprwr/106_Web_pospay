@@ -40,9 +40,15 @@ const E_WALLET_KEYWORDS = ['gopay', 'go pay', 'dana', 'shopeepay', 'shopee pay',
 
 export function isCashlessMethod(method) {
   if (!method) return false;
+  if (isMidtransQrisMethod(method)) return true;
   if (CASHLESS_CHANNELS.has(method.channel)) return true;
   const lower = String(method.name || '').toLowerCase();
   return E_WALLET_KEYWORDS.some((k) => lower.includes(k));
+}
+
+export function isMidtransQrisMethod(method) {
+  if (!method) return false;
+  return method.gateway === 'midtrans' || method.paymentType === 'QRIS_MIDTRANS';
 }
 
 const CASH_KEYWORDS = ['tunai', 'cash', 'loket'];

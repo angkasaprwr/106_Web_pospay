@@ -86,6 +86,15 @@ const env = {
 
   frontend: {
     bendaharaUrl: process.env.FRONTEND_BENDAHARA_URL || 'http://127.0.0.1:5173',
+    siswaUrl: process.env.FRONTEND_SISWA_URL || 'http://127.0.0.1:5174',
+  },
+
+  midtrans: {
+    serverKey: process.env.MIDTRANS_SERVER_KEY || '',
+    clientKey: process.env.MIDTRANS_CLIENT_KEY || '',
+    merchantId: process.env.MIDTRANS_MERCHANT_ID || '',
+    isProduction: bool(process.env.MIDTRANS_IS_PRODUCTION, false),
+    callbackUrl: process.env.MIDTRANS_CALLBACK_URL || '',
   },
 };
 

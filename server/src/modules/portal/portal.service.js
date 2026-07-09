@@ -154,7 +154,9 @@ async function listDispensations(user, query) {
 }
 
 async function paymentMethods() {
-  return prisma.paymentMethod.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } });
+  const { sanitizeMethodForPortal } = require('../payment-flow/payment-flow.service');
+  const methods = await prisma.paymentMethod.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } });
+  return methods.map(sanitizeMethodForPortal);
 }
 
 /** Versi ringan untuk deteksi perubahan tagihan / metode pembayaran tanpa memuat seluruh data. */

@@ -127,6 +127,7 @@ model User {
   verifiedPayments Payment[]    @relation("PaymentVerifier")
   reviewedDispensations Dispensation[] @relation("DispensationReviewer")
   notifications  Notification[]
+  paymentNotifications PaymentNotification[]
   chatSessions   ChatSession[]
   chatMessages   ChatMessage[]
   passwordResets PasswordResetToken[]
@@ -336,12 +337,23 @@ model PaymentMethod {
   accountNo   String?
   instruction String?
   isActive    Boolean  @default(true)
+
+  paymentType       String?  // CASH | QRIS_MIDTRANS | TRANSFER
+  gateway           String?  // midtrans | manual
+  merchantName      String?
+  merchantId        String?
+  midtransClientKey String?
+  midtransServerKey String?
+  productionMode    Boolean  @default(false)
+  callbackUrl       String?
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   payments    Payment[]
 
   @@index([isActive])
+  @@index([gateway])
 }
 
 model Payment {
@@ -359,6 +371,18 @@ model Payment {
   status          PaymentStatus @default(PENDING)
   paidAt          DateTime      @default(now())
 
+  paymentType     String?
+  gateway         String?
+  orderId         String?       @unique
+  transactionId   String?
+  qrString        String?
+  qrUrl           String?
+  expiryTime      DateTime?
+  settlementTime  DateTime?
+  fraudStatus     String?
+  signatureKey    String?
+  midtransStatus  String?
+
   verifiedById    String?
   verifiedBy      User?         @relation("PaymentVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
   verifiedAt      DateTime?
@@ -367,9 +391,62 @@ model Payment {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
+  histories       PaymentHistory[]
+  notifications   PaymentNotification[]
+  midtransLogs    MidtransLog[]
+
   @@index([billId])
   @@index([status])
   @@index([paidAt])
+  @@index([orderId])
+  @@index([transactionId])
+}
+
+model PaymentHistory {
+  id        String   @id @default(cuid())
+  paymentId String
+  payment   Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  status    PaymentStatus
+  amount    Decimal  @db.Decimal(12, 2)
+  note      String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  @@index([paymentId])
+  @@index([createdAt])
+}
+
+model PaymentNotification {
+  id        String             @id @default(cuid())
+  paymentId String
+  payment   Payment            @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  type      String
+  title     String
+  body      String
+  status    NotificationStatus @default(PENDING)
+  sentAt    DateTime?
+  createdAt DateTime           @default(now())
+
+  @@index([paymentId])
+  @@index([userId])
+  @@index([status])
+}
+
+model MidtransLog {
+  id        String   @id @default(cuid())
+  paymentId String?
+  payment   Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  orderId   String?
+  eventType String
+  payload   Json?
+  response  Json?
+  createdAt DateTime @default(now())
+
+  @@index([paymentId])
+  @@index([orderId])
+  @@index([createdAt])
 }
 
 model Dispensation {

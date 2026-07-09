@@ -5,7 +5,16 @@ const E_WALLET_KEYWORDS = ['gopay', 'go pay', 'dana', 'shopeepay', 'shopee pay',
 
 const CASH_KEYWORDS = ['tunai', 'cash', 'loket'];
 
-function isCashlessPayment(channel, methodName = '') {
+function isMidtransQrisMethod(method) {
+  if (!method) return false;
+  if (typeof method === 'object') {
+    return method.gateway === 'midtrans' || method.paymentType === 'QRIS_MIDTRANS';
+  }
+  return false;
+}
+
+function isCashlessPayment(channel, methodName = '', method = null) {
+  if (isMidtransQrisMethod(method)) return true;
   if (CASHLESS_CHANNELS.has(channel)) return true;
   const lower = String(methodName || '').toLowerCase();
   return E_WALLET_KEYWORDS.some((k) => lower.includes(k));
@@ -41,6 +50,7 @@ async function generateQrDataUrl(payment, method) {
 }
 
 module.exports = {
+  isMidtransQrisMethod,
   isCashlessPayment,
   isCashMethod,
   requiresProofUpload,

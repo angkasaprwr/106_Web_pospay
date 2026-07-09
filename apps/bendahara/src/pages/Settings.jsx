@@ -454,14 +454,58 @@ function PaymentMethods() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
-  const [form, setForm] = useState({ name: '', channel: 'TRANSFER', accountName: '', accountNo: '', instruction: '', isActive: true });
+  const [form, setForm] = useState({
+    name: '',
+    channel: 'TRANSFER',
+    accountName: '',
+    accountNo: '',
+    instruction: '',
+    isActive: true,
+    paymentType: '',
+    gateway: 'manual',
+    merchantName: '',
+    merchantId: '',
+    midtransClientKey: '',
+    midtransServerKey: '',
+    productionMode: false,
+    callbackUrl: '',
+  });
   const [saving, setSaving] = useState(false);
   const [confirm, setConfirm] = useState(null);
 
   const load = async () => { try { const { data } = await api.get('/masterdata/payment-methods'); setItems(data.data); } catch (e) { toast.error(apiError(e)); } finally { setLoading(false); } };
   useEffect(() => { load(); }, []); // eslint-disable-line
-  const openCreate = () => { setForm({ name: '', channel: 'TRANSFER', accountName: '', accountNo: '', instruction: '', isActive: true }); setModal({ mode: 'create' }); };
-  const openEdit = (m) => { setForm({ ...m }); setModal({ mode: 'edit', data: m }); };
+
+  const applyChannelDefaults = (channel, prev) => {
+    if (channel === 'CASH') {
+      return { ...prev, channel, paymentType: 'CASH', gateway: 'manual' };
+    }
+    if (channel === 'QRIS') {
+      return { ...prev, channel, paymentType: 'QRIS_MIDTRANS', gateway: 'midtrans', merchantName: prev.merchantName || 'SMP Pusponegoro Brebes' };
+    }
+    return { ...prev, channel, paymentType: 'TRANSFER', gateway: 'manual' };
+  };
+
+  const openCreate = () => {
+    setForm(applyChannelDefaults('CASH', {
+      name: 'Cash',
+      channel: 'CASH',
+      accountName: '',
+      accountNo: '',
+      instruction: 'Bayar tunai di loket bendahara sekolah.',
+      isActive: true,
+      paymentType: 'CASH',
+      gateway: 'manual',
+      merchantName: '',
+      merchantId: '',
+      midtransClientKey: '',
+      midtransServerKey: '',
+      productionMode: false,
+      callbackUrl: '',
+    }));
+    setModal({ mode: 'create' });
+  };
+  const openEdit = (m) => { setForm({ ...m, callbackUrl: m.callbackUrl || '', midtransClientKey: m.midtransClientKey || '', midtransServerKey: m.midtransServerKey || '' }); setModal({ mode: 'edit', data: m }); };
   const save = async () => { setSaving(true); try { if (modal.mode === 'create') await api.post('/masterdata/payment-methods', form); else await api.patch(`/masterdata/payment-methods/${modal.data.id}`, form); toast.success('Tersimpan'); setModal(null); load(); } catch (e) { toast.error(apiError(e)); } finally { setSaving(false); } };
   const del = async () => { setSaving(true); try { await api.delete(`/masterdata/payment-methods/${confirm.id}`); setConfirm(null); load(); } catch (e) { toast.error(apiError(e)); } finally { setSaving(false); } };
 
@@ -470,11 +514,11 @@ function PaymentMethods() {
       <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800"><span className="font-semibold">Metode Pembayaran</span><button className="btn-primary" onClick={openCreate}><Icon.Plus width={16} height={16} /> Tambah</button></div>
       {loading ? <div className="flex h-40 items-center justify-center"><Spinner size={28} /></div> : items.length === 0 ? <EmptyState title="Belum ada metode" icon={Icon.Payment} /> : (
         <table className="table-base">
-          <thead><tr><th>Nama</th><th>Channel</th><th>Atas Nama</th><th>No. Rekening</th><th>Status</th><th className="text-right">Aksi</th></tr></thead>
+          <thead><tr><th>Nama</th><th>Channel</th><th>Gateway</th><th>Atas Nama</th><th>Status</th><th className="text-right">Aksi</th></tr></thead>
           <tbody>
             {items.map((m) => (
               <tr key={m.id}>
-                <td className="font-medium">{m.name}</td><td>{m.channel}</td><td>{m.accountName || '-'}</td><td className="font-mono text-xs">{m.accountNo || '-'}</td>
+                <td className="font-medium">{m.name}</td><td>{m.channel}</td><td>{m.gateway || '-'}</td><td>{m.merchantName || m.accountName || '-'}</td>
                 <td><span className={`badge ${m.isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-600'}`}>{m.isActive ? 'Aktif' : 'Nonaktif'}</span></td>
                 <td className="text-right"><button onClick={() => openEdit(m)} className="btn-ghost rounded p-1.5"><Icon.Edit width={16} height={16} /></button><button onClick={() => setConfirm(m)} className="btn-ghost rounded p-1.5 text-red-500"><Icon.Trash width={16} height={16} /></button></td>
               </tr>
@@ -485,11 +529,24 @@ function PaymentMethods() {
       <Modal open={!!modal} onClose={() => setModal(null)} title="Metode Pembayaran" footer={<><button className="btn-secondary" onClick={() => setModal(null)}>Batal</button><button className="btn-primary" onClick={save} disabled={saving}>{saving ? <Spinner size={16} className="text-white" /> : 'Simpan'}</button></>}>
         <div className="space-y-3">
           <Field label="Nama" required><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
-          <Field label="Channel"><select className="input" value={form.channel} onChange={(e) => setForm({ ...form, channel: e.target.value })}><option value="TRANSFER">Transfer</option><option value="QRIS">QRIS</option><option value="CASH">Tunai</option><option value="VIRTUAL_ACCOUNT">Virtual Account</option><option value="OTHER">Lainnya</option></select></Field>
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Atas Nama"><input className="input" value={form.accountName || ''} onChange={(e) => setForm({ ...form, accountName: e.target.value })} /></Field>
-            <Field label="No. Rekening"><input className="input" value={form.accountNo || ''} onChange={(e) => setForm({ ...form, accountNo: e.target.value })} /></Field>
-          </div>
+          <Field label="Channel"><select className="input" value={form.channel} onChange={(e) => setForm((f) => applyChannelDefaults(e.target.value, f))}><option value="CASH">Tunai (Cash)</option><option value="QRIS">QRIS Midtrans</option><option value="TRANSFER">Transfer</option><option value="VIRTUAL_ACCOUNT">Virtual Account</option><option value="OTHER">Lainnya</option></select></Field>
+          {form.channel === 'QRIS' && (
+            <div className="space-y-3 rounded-lg border border-blue-100 bg-blue-50/50 p-3 dark:border-blue-900/50 dark:bg-blue-950/30">
+              <p className="text-xs font-semibold text-blue-800 dark:text-blue-300">Konfigurasi Midtrans QRIS</p>
+              <Field label="Merchant Name"><input className="input" value={form.merchantName || ''} onChange={(e) => setForm({ ...form, merchantName: e.target.value })} /></Field>
+              <Field label="Merchant ID"><input className="input" value={form.merchantId || ''} onChange={(e) => setForm({ ...form, merchantId: e.target.value })} /></Field>
+              <Field label="Client Key"><input className="input" value={form.midtransClientKey || ''} onChange={(e) => setForm({ ...form, midtransClientKey: e.target.value })} /></Field>
+              <Field label="Server Key"><input type="password" className="input" value={form.midtransServerKey || ''} onChange={(e) => setForm({ ...form, midtransServerKey: e.target.value })} /></Field>
+              <Field label="Callback URL"><input className="input" placeholder="https://domain.com/api/payment/midtrans/webhook" value={form.callbackUrl || ''} onChange={(e) => setForm({ ...form, callbackUrl: e.target.value })} /></Field>
+              <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.productionMode} onChange={(e) => setForm({ ...form, productionMode: e.target.checked })} /> Production Mode</label>
+            </div>
+          )}
+          {form.channel !== 'QRIS' && (
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Atas Nama"><input className="input" value={form.accountName || ''} onChange={(e) => setForm({ ...form, accountName: e.target.value })} /></Field>
+              <Field label="No. Rekening"><input className="input" value={form.accountNo || ''} onChange={(e) => setForm({ ...form, accountNo: e.target.value })} /></Field>
+            </div>
+          )}
           <Field label="Instruksi"><textarea className="input" rows={2} value={form.instruction || ''} onChange={(e) => setForm({ ...form, instruction: e.target.value })} /></Field>
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.isActive} onChange={(e) => setForm({ ...form, isActive: e.target.checked })} /> Aktif</label>
         </div>

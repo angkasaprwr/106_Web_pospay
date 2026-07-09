@@ -7,7 +7,7 @@ const { toNumber } = require('../../utils/money');
 const { recordAudit } = require('../audit/audit.service');
 const { notifyUser } = require('../notifications/notification.service');
 const { resolveStudent } = require('../portal/portal.service');
-const { isCashlessPayment, isCashMethod, requiresProofUpload, generateQrDataUrl } = require('./payment.util');
+const { isCashlessPayment, isCashMethod, requiresProofUpload, isMidtransQrisMethod, generateQrDataUrl } = require('./payment.util');
 
 const CASHLESS_SETTLE_MS = parseInt(process.env.CASHLESS_SETTLE_MS || '8000', 10);
 
@@ -39,8 +39,25 @@ async function getForStudent(user, id) {
 async function getQrForStudent(user, id) {
   const payment = await getForStudent(user, id);
   const method = payment.paymentMethod;
-  if (!isCashlessPayment(payment.channel, method?.name)) {
-    throw ApiError.badRequest('QR hanya tersedia untuk metode pembayaran cashless');
+  if (!isCashlessPayment(payment.channel, method?.name, method)) {
+    throw ApiError.badRequest('QR hanya tersedia untuk metode pembayaran QRIS');
+  }
+  if (isMidtransQrisMethod(method)) {
+    return {
+      paymentId: payment.id,
+      reference: payment.reference,
+      amount: toNumber(payment.amount),
+      methodName: method?.name || payment.channel,
+      accountNo: method?.accountNo || null,
+      accountName: method?.accountName || 'SMP Pusponegoro Brebes',
+      status: payment.status,
+      qrDataUrl: payment.qrUrl,
+      qr_string: payment.qrString,
+      expiry_time: payment.expiryTime,
+      order_id: payment.orderId,
+      transaction_id: payment.transactionId,
+      midtrans: true,
+    };
   }
   const qrDataUrl = await generateQrDataUrl(payment, method);
   return {
@@ -102,9 +119,13 @@ async function create(input, { actor, asTreasurer = false, req }) {
     }
   }
 
+  if (!asTreasurer && isMidtransQrisMethod(paymentMethod)) {
+    throw ApiError.badRequest('Gunakan endpoint /payment/create untuk pembayaran QRIS Midtrans');
+  }
+
   const channel = input.channel || paymentMethod?.channel || 'TRANSFER';
   const methodName = paymentMethod?.name || '';
-  const cashless = isCashlessPayment(channel, methodName);
+  const cashless = isCashlessPayment(channel, methodName, paymentMethod);
   const cash = isCashMethod(channel, methodName);
   const needsProof = requiresProofUpload(channel, methodName);
   const hasProof = Boolean(input.proofUrl);
@@ -136,7 +157,7 @@ async function create(input, { actor, asTreasurer = false, req }) {
     return verify(payment.id, { note: 'Dicatat langsung oleh bendahara' }, actor, req);
   }
 
-  if (cashless && !hasProof) {
+  if (cashless && !hasProof && !isMidtransQrisMethod(paymentMethod)) {
     scheduleCashlessSettlement(payment.id, actor, req);
     return { ...payment, cashlessPending: true };
   }

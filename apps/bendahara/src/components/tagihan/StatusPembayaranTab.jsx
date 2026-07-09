@@ -85,6 +85,7 @@ export default function StatusPembayaranTab() {
   const [tagihanGroups, setTagihanGroups] = useState([]);
   const [pendingBillIds, setPendingBillIds] = useState(new Set());
   const [pendingPaymentsByBill, setPendingPaymentsByBill] = useState({});
+  const [paymentsByBill, setPaymentsByBill] = useState({});
   const [paymentDates, setPaymentDates] = useState({});
   const [filters, setFilters] = useState({
     tagihanKey: '',
@@ -118,6 +119,11 @@ export default function StatusPembayaranTab() {
         if (!pendingMap[p.billId]) pendingMap[p.billId] = p;
       });
       setPendingPaymentsByBill(pendingMap);
+      const allPaymentsMap = { ...pendingMap };
+      verifiedRes.data.data.forEach((p) => {
+        if (!allPaymentsMap[p.billId]) allPaymentsMap[p.billId] = p;
+      });
+      setPaymentsByBill(allPaymentsMap);
       const dates = {};
       verifiedRes.data.data.forEach((p) => {
         const t = p.verifiedAt || p.paidAt;
@@ -254,12 +260,33 @@ export default function StatusPembayaranTab() {
     }
   };
 
-  const handlePrint = (bill) => {
+  const handlePrint = async (bill) => {
+    const payment = paymentsByBill[bill.id];
+    if (payment?.id) {
+      try {
+        const res = await api.get(`/payment/invoice/${payment.id}`, { responseType: 'blob' });
+        const url = URL.createObjectURL(res.data);
+        window.open(url, '_blank');
+        return;
+      } catch (e) {
+        toast.error(apiError(e));
+        return;
+      }
+    }
     printBillStatusReceipt(bill, {
       pendingBillIds,
       paymentDates,
       pendingPayment: pendingPaymentsByBill[bill.id] || null,
     });
+  };
+
+  const quickApprove = async (bill) => {
+    const payment = pendingPaymentsByBill[bill.id];
+    if (!payment) {
+      toast.info('Tidak ada pembayaran menunggu verifikasi.');
+      return;
+    }
+    await verifyPayment(payment.id);
   };
 
   const sendReminder = async (bill) => {
@@ -399,6 +426,27 @@ export default function StatusPembayaranTab() {
                               <Icon.Eye width={14} height={14} />
                               Lihat Detail
                             </button>
+                            {st.key === 'pending' && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => quickApprove(b)}
+                                  disabled={acting}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                                >
+                                  <Icon.Check width={14} height={14} />
+                                  Setujui
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => openDetail(b)}
+                                  className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-1.5 text-xs font-medium text-red-700 hover:bg-red-100"
+                                >
+                                  <Icon.X width={14} height={14} />
+                                  Tolak
+                                </button>
+                              </>
+                            )}
                             {st.key === 'unpaid' && (
                               <button
                                 type="button"

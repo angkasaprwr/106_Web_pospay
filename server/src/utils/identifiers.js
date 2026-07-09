@@ -20,4 +20,10 @@ function generatePaymentRef() {
   return `PAY-${datePart}-${rand}`;
 }
 
-module.exports = { generateInvoiceNo, generatePaymentRef };
+/** Generate a Midtrans order id */
+function generateMidtransOrderId() {
+  const rand = crypto.randomBytes(4).toString('hex').toUpperCase();
+  return `POSPAY-${Date.now()}-${rand}`;
+}
+
+module.exports = { generateInvoiceNo, generatePaymentRef, generateMidtransOrderId };
