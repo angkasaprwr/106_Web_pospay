@@ -138,7 +138,11 @@ function ProfileMenu() {
         aria-haspopup="menu"
       >
         <div className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-sm font-bold text-pospay ring-2 ring-white/30">
-          {(user?.fullName || 'B')[0].toUpperCase()}
+          {user?.avatarUrl ? (
+            <img src={user.avatarUrl} alt={user.fullName || 'Profil'} className="h-full w-full rounded-full object-cover" />
+          ) : (
+            (user?.fullName || 'B')[0].toUpperCase()
+          )}
         </div>
         <svg
           width="14"
