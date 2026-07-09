@@ -115,6 +115,45 @@ export function paymentStatusDisplay(bill, pendingBillIds) {
   return { label: 'Belum Bayar', cls: 'bg-red-50 text-red-700 ring-1 ring-red-200', key: 'unpaid' };
 }
 
+export function paymentBillName(payment) {
+  const bill = payment?.bill;
+  if (!bill) return '-';
+  if (bill.description) return bill.description;
+  const period = bill.period ? ` ${bill.period}` : '';
+  return `${bill.feeType?.name || 'Tagihan'}${period}`;
+}
+
+export function paymentMethodLabel(payment) {
+  if (payment.paymentMethod?.name) return payment.paymentMethod.name;
+  const channels = { TRANSFER: 'Transfer Bank', CASH: 'Tunai', QRIS: 'QRIS', VIRTUAL_ACCOUNT: 'Virtual Account', OTHER: 'Lainnya' };
+  return channels[payment.channel] || payment.channel || '-';
+}
+
+export function proofFileMeta(proofUrl) {
+  if (!proofUrl) return { name: '-', size: '' };
+  const name = proofUrl.split('/').pop() || 'bukti.jpg';
+  return { name, size: '' };
+}
+
+export function verificationStatusBadge(status) {
+  if (status === 'VERIFIED') return { label: 'Lunas', cls: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200', key: 'verified', color: '#10b981' };
+  if (status === 'REJECTED') return { label: 'Ditolak', cls: 'bg-red-50 text-red-700 ring-1 ring-red-200', key: 'rejected', color: '#ef4444' };
+  return { label: 'Menunggu Verifikasi', cls: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200', key: 'pending', color: '#f59e0b' };
+}
+
+export function buildPaymentTagihanGroups(payments) {
+  const map = new Map();
+  payments.forEach((p) => {
+    const bill = p.bill;
+    if (!bill) return;
+    const key = `${bill.feeType?.id || ''}|${bill.period || ''}|${bill.description || ''}`;
+    if (!map.has(key)) {
+      map.set(key, { key, label: paymentBillName(p) });
+    }
+  });
+  return Array.from(map.values());
+}
+
 export function tagihanGroupKey(bill) {
   return `${bill.feeTypeId || ''}|${bill.period || ''}|${bill.description || ''}`;
 }
