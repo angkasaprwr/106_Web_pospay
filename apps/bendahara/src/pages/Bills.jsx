@@ -6,16 +6,19 @@ import { Icon } from '../components/Icons';
 import { StatCard } from '../components/tagihan/shared';
 import DaftarTagihanTab from '../components/tagihan/DaftarTagihanTab';
 import StatusPembayaranTab from '../components/tagihan/StatusPembayaranTab';
-import VerifikasiPembayaranTab, { fetchVerifikasiStats } from '../components/tagihan/VerifikasiPembayaranTab';
 import TunggakanDispensasiTab from '../components/tagihan/TunggakanDispensasiTab';
 import { fetchTunggakanStats } from '../lib/tunggakanStats';
 
 const TABS = [
   { id: 'daftar', label: 'A. Daftar Tagihan' },
   { id: 'status', label: 'B. Status Pembayaran' },
-  { id: 'verifikasi', label: 'C. Verifikasi Pembayaran' },
-  { id: 'tunggakan', label: 'D. Tunggakan & Dispensasi' },
+  { id: 'tunggakan', label: 'C. Tunggakan & Dispensasi' },
 ];
+
+function resolveTab(tabId) {
+  if (tabId === 'verifikasi') return 'status';
+  return TABS.some((t) => t.id === tabId) ? tabId : 'daftar';
+}
 
 async function countBills(status) {
   const params = new URLSearchParams({ limit: 1, page: 1 });
@@ -40,23 +43,14 @@ async function countDispensations(status) {
 
 export default function Bills() {
   const location = useLocation();
-  const initialTab = TABS.some((t) => t.id === location.state?.tab) ? location.state.tab : 'daftar';
+  const initialTab = resolveTab(location.state?.tab);
   const [tab, setTab] = useState(initialTab);
   const [stats, setStats] = useState({ total: 0, paid: 0, pendingPay: 0, unpaid: 0, pendingDisp: 0 });
-  const [verifStats, setVerifStats] = useState({ pending: 0, verified: 0, rejected: 0, totalNominal: 0, todayPending: 0 });
   const [tunggakanStats, setTunggakanStats] = useState({ totalStudents: 0, totalNominal: 0, pendingDisp: 0, approvedStudents: 0 });
 
   const selectTab = (id) => {
     setTab(id);
   };
-
-  const loadVerifikasiStats = useCallback(async () => {
-    try {
-      setVerifStats(await fetchVerifikasiStats());
-    } catch {
-      /* ignore */
-    }
-  }, []);
 
   const loadTunggakanStats = useCallback(async () => {
     try {
@@ -91,19 +85,17 @@ export default function Bills() {
 
   useEffect(() => {
     loadStats();
-    loadVerifikasiStats();
     loadTunggakanStats();
-  }, [loadStats, loadVerifikasiStats, loadTunggakanStats]);
+  }, [loadStats, loadTunggakanStats]);
 
   const refreshAllStats = useCallback(() => {
     loadStats();
-    loadVerifikasiStats();
     loadTunggakanStats();
-  }, [loadStats, loadVerifikasiStats, loadTunggakanStats]);
+  }, [loadStats, loadTunggakanStats]);
 
   useEffect(() => {
-    if (TABS.some((t) => t.id === location.state?.tab)) {
-      setTab(location.state.tab);
+    if (location.state?.tab) {
+      setTab(resolveTab(location.state.tab));
     }
   }, [location.state?.tab]);
 
@@ -117,15 +109,7 @@ export default function Bills() {
       </div>
 
       <div className="flex flex-wrap gap-3">
-        {tab === 'verifikasi' ? (
-          <>
-            <StatCard label="Menunggu Verifikasi" value={String(verifStats.pending)} icon={Icon.Clock} iconBg="bg-amber-50" iconColor="text-amber-500" />
-            <StatCard label="Lunas" value={String(verifStats.verified)} icon={Icon.Check} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
-            <StatCard label="Ditolak" value={String(verifStats.rejected)} icon={Icon.X} iconBg="bg-red-50" iconColor="text-red-500" />
-            <StatCard label="Total Nominal" value={formatIDR(verifStats.totalNominal)} icon={Icon.Money} iconBg="bg-blue-50" iconColor="text-blue-600" />
-            <StatCard label="Hari Ini" value={`${verifStats.todayPending} Menunggu`} icon={Icon.Clock} iconBg="bg-indigo-50" iconColor="text-indigo-600" />
-          </>
-        ) : tab === 'tunggakan' ? (
+        {tab === 'tunggakan' ? (
           <>
             <StatCard label="Total Tunggakan" value={String(tunggakanStats.totalStudents)} icon={Icon.Students} iconBg="bg-blue-50" iconColor="text-blue-600" />
             <StatCard label="Total Nominal Tunggakan" value={formatIDR(tunggakanStats.totalNominal)} icon={Icon.Money} iconBg="bg-amber-50" iconColor="text-amber-500" />
@@ -162,7 +146,6 @@ export default function Bills() {
 
       {tab === 'daftar' && <DaftarTagihanTab onStatsChange={refreshAllStats} />}
       {tab === 'status' && <StatusPembayaranTab />}
-      {tab === 'verifikasi' && <VerifikasiPembayaranTab onStatsChange={refreshAllStats} />}
       {tab === 'tunggakan' && <TunggakanDispensasiTab onStatsChange={refreshAllStats} />}
 
       <Link

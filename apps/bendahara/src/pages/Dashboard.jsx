@@ -207,7 +207,7 @@ export default function Dashboard() {
         <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900 lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-semibold text-slate-800 dark:text-slate-100">Notifikasi</h2>
-            <Link to="/tagihan" state={{ tab: 'verifikasi' }} className="text-xs font-medium text-pospay hover:underline dark:text-blue-400">
+            <Link to="/tagihan" state={{ tab: 'status' }} className="text-xs font-medium text-pospay hover:underline dark:text-blue-400">
               Lihat semua
             </Link>
           </div>
@@ -356,8 +356,8 @@ export default function Dashboard() {
         <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="font-semibold text-slate-800 dark:text-slate-100">Pembayaran Terbaru</h3>
-            <Link to="/tagihan" state={{ tab: 'verifikasi' }} className="text-xs font-medium text-pospay hover:underline dark:text-blue-400">
-              Verifikasi pembayaran
+            <Link to="/tagihan" state={{ tab: 'status' }} className="text-xs font-medium text-pospay hover:underline dark:text-blue-400">
+              Status pembayaran
             </Link>
           </div>
           <div className="overflow-x-auto">
