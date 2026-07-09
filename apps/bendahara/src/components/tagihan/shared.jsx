@@ -132,8 +132,15 @@ export function paymentMethodLabel(payment) {
 
 export function proofFileMeta(proofUrl) {
   if (!proofUrl) return { name: '-', size: '' };
-  const name = proofUrl.split('/').pop() || 'bukti.jpg';
+  const raw = String(proofUrl).split('/').pop()?.split('?')[0] || '';
+  const looksLikeUrl = /https?:\/\//i.test(proofUrl) || proofUrl.includes('/uploads/');
+  const name = !raw || looksLikeUrl || raw.length > 48 ? 'Bukti transfer' : raw;
   return { name, size: '' };
+}
+
+export function proofIsImage(proofUrl) {
+  if (!proofUrl) return false;
+  return /\.(jpe?g|png|webp|gif)(\?.*)?$/i.test(proofUrl);
 }
 
 export function verificationStatusBadge(status) {

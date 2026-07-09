@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { api } from '../lib/api';
 import { formatIDR } from '../lib/format';
 import { Icon } from '../components/Icons';
@@ -39,9 +39,8 @@ async function countDispensations(status) {
 }
 
 export default function Bills() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const tabParam = searchParams.get('tab');
-  const initialTab = TABS.some((t) => t.id === tabParam) ? tabParam : 'daftar';
+  const location = useLocation();
+  const initialTab = TABS.some((t) => t.id === location.state?.tab) ? location.state.tab : 'daftar';
   const [tab, setTab] = useState(initialTab);
   const [stats, setStats] = useState({ total: 0, paid: 0, pendingPay: 0, unpaid: 0, pendingDisp: 0 });
   const [verifStats, setVerifStats] = useState({ pending: 0, verified: 0, rejected: 0, totalNominal: 0, todayPending: 0 });
@@ -49,12 +48,6 @@ export default function Bills() {
 
   const selectTab = (id) => {
     setTab(id);
-    if (id === 'daftar') {
-      searchParams.delete('tab');
-    } else {
-      searchParams.set('tab', id);
-    }
-    setSearchParams(searchParams, { replace: true });
   };
 
   const loadVerifikasiStats = useCallback(async () => {
@@ -109,10 +102,10 @@ export default function Bills() {
   }, [loadStats, loadVerifikasiStats, loadTunggakanStats]);
 
   useEffect(() => {
-    if (TABS.some((t) => t.id === tabParam) && tabParam !== tab) {
-      setTab(tabParam);
+    if (TABS.some((t) => t.id === location.state?.tab)) {
+      setTab(location.state.tab);
     }
-  }, [tabParam]); // eslint-disable-line
+  }, [location.state?.tab]);
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">

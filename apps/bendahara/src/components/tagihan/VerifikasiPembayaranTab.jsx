@@ -10,6 +10,7 @@ import {
   paymentBillName,
   paymentMethodLabel,
   proofFileMeta,
+  proofIsImage,
   verificationStatusBadge,
   buildPaymentTagihanGroups,
 } from './shared';
@@ -285,7 +286,6 @@ export default function VerifikasiPembayaranTab({ onStatsChange }) {
                 <tbody>
                   {pageItems.map((p, idx) => {
                     const st = verificationStatusBadge(p.status);
-                    const proof = proofFileMeta(p.proofUrl);
                     const rowNo = (filters.page - 1) * filters.limit + idx + 1;
                     return (
                       <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50/50">
@@ -298,11 +298,14 @@ export default function VerifikasiPembayaranTab({ onStatsChange }) {
                         <td className="px-3 py-3">
                           {p.proofUrl ? (
                             <div className="flex items-center gap-2">
-                              <img src={p.proofUrl} alt="Bukti" className="h-10 w-10 rounded border border-slate-200 object-cover" />
-                              <div className="min-w-0">
-                                <p className="truncate text-xs font-medium text-slate-700">{proof.name}</p>
-                                {proof.size && <p className="text-[10px] text-slate-400">{proof.size}</p>}
-                              </div>
+                              {proofIsImage(p.proofUrl) ? (
+                                <img src={p.proofUrl} alt="Bukti transfer" className="h-10 w-10 rounded border border-slate-200 object-cover" />
+                              ) : (
+                                <span className="flex h-10 w-10 items-center justify-center rounded border border-slate-200 bg-slate-50 text-slate-500">
+                                  <Icon.Download width={16} height={16} />
+                                </span>
+                              )}
+                              <span className="text-xs font-medium text-slate-700">Bukti transfer</span>
                             </div>
                           ) : (
                             <span className="text-xs text-slate-400">-</span>
@@ -429,7 +432,13 @@ export default function VerifikasiPembayaranTab({ onStatsChange }) {
             {detail.proofUrl && (
               <div>
                 <p className="mb-2 font-medium">Bukti Transfer</p>
-                <img src={detail.proofUrl} alt="Bukti pembayaran" className="max-h-64 rounded-lg border border-slate-200" />
+                {proofIsImage(detail.proofUrl) ? (
+                  <img src={detail.proofUrl} alt="Bukti pembayaran" className="max-h-64 rounded-lg border border-slate-200" />
+                ) : (
+                  <p className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                    Dokumen bukti transfer tersedia. Gunakan tombol unduh di bawah.
+                  </p>
+                )}
                 <button type="button" onClick={() => downloadProof(detail)} className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-pospay hover:underline">
                   <Icon.Download width={14} height={14} />
                   Unduh bukti transfer
