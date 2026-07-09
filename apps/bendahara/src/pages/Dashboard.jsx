@@ -357,7 +357,7 @@ export default function Dashboard() {
           <div className="mb-4 flex items-center justify-between">
             <h3 className="font-semibold text-slate-800 dark:text-slate-100">Pembayaran Terbaru</h3>
             <Link to="/tagihan" state={{ tab: 'status' }} className="text-xs font-medium text-pospay hover:underline dark:text-blue-400">
-              Status pembayaran
+              Status tagihan
             </Link>
           </div>
           <div className="overflow-x-auto">

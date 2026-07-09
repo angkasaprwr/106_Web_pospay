@@ -215,8 +215,8 @@ export default function StatusPembayaranTab() {
         <div className="rounded-xl border border-slate-100 bg-white shadow-sm">
           <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-slate-900">B. Status Pembayaran</h2>
-              <p className="text-sm text-slate-500">Ringkasan status pembayaran siswa per tagihan.</p>
+              <h2 className="text-lg font-semibold text-slate-900">B. Status Tagihan</h2>
+              <p className="text-sm text-slate-500">Ringkasan status tagihan siswa per periode.</p>
             </div>
             <button
               type="button"
@@ -428,7 +428,7 @@ export default function StatusPembayaranTab() {
         </div>
       </div>
 
-      <Modal open={!!detail || detailLoading} onClose={() => { setDetail(null); setDetailLoading(false); }} title="Detail Status Pembayaran" size="lg">
+      <Modal open={!!detail || detailLoading} onClose={() => { setDetail(null); setDetailLoading(false); }} title="Detail Status Tagihan" size="lg">
         {detailLoading ? (
           <div className="flex h-32 items-center justify-center"><Spinner size={28} /></div>
         ) : detail ? (

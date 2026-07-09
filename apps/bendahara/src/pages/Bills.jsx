@@ -11,7 +11,7 @@ import { fetchTunggakanStats } from '../lib/tunggakanStats';
 
 const TABS = [
   { id: 'daftar', label: 'A. Daftar Tagihan' },
-  { id: 'status', label: 'B. Status Pembayaran' },
+  { id: 'status', label: 'B. Status Tagihan' },
   { id: 'tunggakan', label: 'C. Tunggakan & Dispensasi' },
 ];
 
