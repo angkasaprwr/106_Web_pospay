@@ -18,6 +18,7 @@ const reportRoutes = require('../modules/reports/report.routes');
 const chatbotRoutes = require('../modules/chatbot/chatbot.routes');
 const notificationRoutes = require('../modules/notifications/notification.routes');
 const portalRoutes = require('../modules/portal/portal.routes');
+const paymentFlowRoutes = require('../modules/payment-flow/payment-flow.routes');
 
 const router = Router();
 
@@ -37,6 +38,7 @@ router.use('/reports', reportRoutes);
 router.use('/chatbot', chatbotRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/portal', portalRoutes);
+router.use('/payment', paymentFlowRoutes);
 
 // Manual trigger for reminders (treasurer only) - useful for testing the scheduler.
 router.post(

@@ -1,5 +1,10 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { api, apiError } from '../lib/api';
+import { useToast } from '../context/ToastContext';
 import { Icon } from '../components/Icons';
+import { Spinner } from '../components/ui';
+import { formatIDR, formatDateTime, PAYMENT_STATUS } from '../lib/format';
 
 const CARD = 'rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900';
 
@@ -42,13 +47,42 @@ function FilterSelect({ label, value, onChange, options }) {
 }
 
 export default function History() {
+  const toast = useToast();
   const [year, setYear] = useState(String(currentYear));
   const [status, setStatus] = useState('VERIFIED');
+  const [items, setItems] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const limit = 10;
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ page: String(page), limit: String(limit), year });
+      if (status) params.set('status', status);
+      const { data } = await api.get(`/portal/payments?${params}`);
+      setItems(data.data || []);
+      setTotal(data.meta?.total ?? data.total ?? 0);
+    } catch (e) {
+      const msg = apiError(e);
+      if (msg) toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, status, toast, year]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const resetFilters = () => {
     setYear(String(currentYear));
     setStatus('VERIFIED');
+    setPage(1);
   };
+
+  const totalPages = Math.max(1, Math.ceil(total / limit));
 
   return (
     <div className="space-y-6 pb-8">
@@ -59,7 +93,6 @@ export default function History() {
         </p>
       </div>
 
-      {/* Filter */}
       <section className={`${CARD} p-5`}>
         <div className="mb-4 flex items-center gap-2">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-[#0056D2] dark:bg-blue-950/50 dark:text-blue-400">
@@ -73,13 +106,13 @@ export default function History() {
           <FilterSelect
             label="Tahun"
             value={year}
-            onChange={setYear}
+            onChange={(v) => { setYear(v); setPage(1); }}
             options={YEAR_OPTIONS.map((y) => ({ value: y, label: y }))}
           />
           <FilterSelect
             label="Status"
             value={status}
-            onChange={setStatus}
+            onChange={(v) => { setStatus(v); setPage(1); }}
             options={STATUS_OPTIONS}
           />
           <button
@@ -97,7 +130,6 @@ export default function History() {
         </div>
       </section>
 
-      {/* Tabel riwayat */}
       <section className={`${CARD} overflow-hidden`}>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-left text-sm">
@@ -114,39 +146,76 @@ export default function History() {
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td colSpan={5} className="px-5 py-16 text-center">
-                  <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-[#0056D2] dark:bg-blue-950/50 dark:text-blue-400">
-                    <Icon.History width={28} height={28} />
-                  </span>
-                  <p className="font-semibold text-slate-700 dark:text-slate-200">Belum ada riwayat pembayaran</p>
-                  <p className="mx-auto mt-2 max-w-sm text-sm text-slate-500 dark:text-slate-400">
-                    Data riwayat akan tampil setelah pembayaran tercatat di sistem.
-                  </p>
-                </td>
-              </tr>
+              {loading ? (
+                <tr>
+                  <td colSpan={5} className="px-5 py-16 text-center">
+                    <Spinner size={32} />
+                  </td>
+                </tr>
+              ) : items.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="px-5 py-16 text-center">
+                    <span className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-[#0056D2] dark:bg-blue-950/50 dark:text-blue-400">
+                      <Icon.History width={28} height={28} />
+                    </span>
+                    <p className="font-semibold text-slate-700 dark:text-slate-200">Belum ada riwayat pembayaran</p>
+                    <p className="mx-auto mt-2 max-w-sm text-sm text-slate-500 dark:text-slate-400">
+                      Data riwayat akan tampil setelah pembayaran tercatat di sistem.
+                    </p>
+                  </td>
+                </tr>
+              ) : (
+                items.map((p) => {
+                  const st = PAYMENT_STATUS[p.status] || PAYMENT_STATUS.PENDING;
+                  return (
+                    <tr key={p.id} className="border-b border-slate-100 dark:border-slate-800">
+                      <td className="px-5 py-3.5 text-slate-700 dark:text-slate-300">
+                        {formatDateTime(p.verifiedAt || p.createdAt)}
+                      </td>
+                      <td className="px-5 py-3.5 font-medium text-slate-800 dark:text-slate-200">
+                        {p.bill?.feeType?.name || '—'}
+                      </td>
+                      <td className="px-5 py-3.5 font-semibold text-slate-800 dark:text-slate-200">
+                        {formatIDR(p.amount)}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${st.cls}`}>
+                          {p.status === 'VERIFIED' ? 'Lunas' : st.label}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="text-xs text-slate-500 dark:text-slate-400">{p.reference}</span>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
 
         <div className="flex flex-col items-center justify-between gap-3 border-t border-slate-100 px-5 py-4 sm:flex-row dark:border-slate-700">
-          <p className="text-sm text-slate-500 dark:text-slate-400">Menampilkan 0 dari 0 data</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            Menampilkan {items.length} dari {total} data
+          </p>
           <div className="flex items-center gap-1">
             <button
               type="button"
-              disabled
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-300 dark:border-slate-700 dark:text-slate-600"
+              disabled={page <= 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 disabled:text-slate-300 dark:border-slate-700 dark:text-slate-400 dark:disabled:text-slate-600"
               aria-label="Halaman sebelumnya"
             >
               <Icon.ChevronRight width={16} height={16} className="rotate-180" />
             </button>
             <span className="flex h-9 min-w-9 items-center justify-center rounded-lg border-2 border-[#0056D2] px-2 text-sm font-semibold text-[#0056D2] dark:border-blue-500 dark:text-blue-400">
-              1
+              {page}
             </span>
             <button
               type="button"
-              disabled
-              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-300 dark:border-slate-700 dark:text-slate-600"
+              disabled={page >= totalPages}
+              onClick={() => setPage((p) => p + 1)}
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-600 disabled:text-slate-300 dark:border-slate-700 dark:text-slate-400 dark:disabled:text-slate-600"
               aria-label="Halaman berikutnya"
             >
               <Icon.ChevronRight width={16} height={16} />

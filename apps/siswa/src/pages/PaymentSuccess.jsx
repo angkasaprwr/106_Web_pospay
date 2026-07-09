@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Icon } from '../components/Icons';
+import { formatIDR, formatDateTime, PAYMENT_STATUS } from '../lib/format';
+import { loadLastPayment } from '../lib/billPaymentSession';
 
 const CARD = 'rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900';
 
@@ -40,7 +42,22 @@ function StepIndicator({ activeStep }) {
   );
 }
 
+function DetailRow({ label, value }) {
+  return (
+    <div className="flex items-center justify-between border-b border-slate-100 py-3 last:border-0 dark:border-slate-800">
+      <span className="text-sm text-slate-500 dark:text-slate-400">{label}</span>
+      <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{value}</span>
+    </div>
+  );
+}
+
 export default function PaymentSuccess() {
+  const payment = loadLastPayment();
+  const statusMeta = payment?.status ? PAYMENT_STATUS[payment.status] : null;
+  const isVerified = payment?.status === 'VERIFIED';
+  const billName = payment?.bill?.feeType?.name || '—';
+  const methodName = payment?.paymentMethod?.name || payment?.channel || '—';
+
   return (
     <div className="space-y-6 pb-24">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -64,33 +81,61 @@ export default function PaymentSuccess() {
       <div className="mx-auto max-w-2xl">
         <section className={`${CARD} px-6 py-10 sm:px-10`}>
           <div className="flex flex-col items-center text-center">
-            <span className="mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-blue-50 text-[#0056D2] dark:bg-blue-950/50 dark:text-blue-400">
+            <span className={`mb-5 flex h-16 w-16 items-center justify-center rounded-full ${
+              isVerified
+                ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400'
+                : 'bg-blue-50 text-[#0056D2] dark:bg-blue-950/50 dark:text-blue-400'
+            }`}>
               <Icon.Check width={32} height={32} />
             </span>
-            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">Pembayaran Berhasil</h2>
+            <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
+              {isVerified ? 'Pembayaran Berhasil' : 'Pembayaran Terkirim'}
+            </h2>
             <p className="mx-auto mt-2 max-w-md text-sm text-slate-500 dark:text-slate-400">
-              Detail pembayaran akan ditampilkan di sini setelah Anda menyelesaikan pembayaran dan
-              bendahara menyetujui verifikasi.
+              {isVerified
+                ? 'Tagihan Anda telah lunas dan tercatat di sistem sekolah.'
+                : 'Bukti pembayaran telah dikirim. Menunggu verifikasi bendahara.'}
             </p>
           </div>
 
-          <div className="mt-8 flex min-h-[200px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-6 py-10 dark:border-slate-600 dark:bg-slate-800/50">
-            <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-700 dark:text-slate-500">
-              <Icon.Bills width={24} height={24} />
-            </span>
-            <p className="font-semibold text-slate-700 dark:text-slate-200">Belum ada pembayaran terverifikasi</p>
-            <p className="mt-2 max-w-sm text-sm text-slate-500 dark:text-slate-400">
-              Selesaikan langkah 1 dan 2, lalu tunggu verifikasi bendahara. Data transaksi akan muncul otomatis setelah proses CRUD selesai.
-            </p>
-          </div>
+          {payment ? (
+            <div className="mt-8 rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/40">
+              <DetailRow label="Referensi" value={payment.reference || '—'} />
+              <DetailRow label="Tagihan" value={billName} />
+              <DetailRow label="Metode" value={methodName} />
+              <DetailRow label="Nominal" value={formatIDR(payment.amount)} />
+              <DetailRow label="Tanggal" value={formatDateTime(payment.verifiedAt || payment.createdAt)} />
+              <div className="flex items-center justify-between pt-3">
+                <span className="text-sm text-slate-500 dark:text-slate-400">Status</span>
+                {statusMeta ? (
+                  <span className={`rounded-full px-3 py-1 text-xs font-semibold ${statusMeta.cls}`}>
+                    {statusMeta.label}
+                  </span>
+                ) : (
+                  <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">—</span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="mt-8 flex min-h-[160px] flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50/80 px-6 py-10 dark:border-slate-600 dark:bg-slate-800/50">
+              <p className="text-sm text-slate-500 dark:text-slate-400">Data pembayaran tidak tersedia.</p>
+            </div>
+          )}
 
-          <div className="mt-6">
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+            <Link
+              to="/riwayat"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#0056D2] py-3.5 text-sm font-bold text-white dark:bg-blue-600"
+            >
+              <Icon.History width={20} height={20} />
+              Lihat Riwayat
+            </Link>
             <Link
               to="/"
-              className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-[#0056D2] py-3.5 text-sm font-bold text-[#0056D2] transition hover:bg-blue-50 dark:border-blue-500 dark:text-blue-400 dark:hover:bg-blue-950/40"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl border-2 border-[#0056D2] py-3.5 text-sm font-bold text-[#0056D2] transition hover:bg-blue-50 dark:border-blue-500 dark:text-blue-400 dark:hover:bg-blue-950/40"
             >
               <Icon.Home width={20} height={20} />
-              Kembali ke Beranda
+              Beranda
             </Link>
           </div>
         </section>

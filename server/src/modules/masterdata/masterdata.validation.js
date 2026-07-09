@@ -16,6 +16,14 @@ const paymentMethodSchema = z.object({
   accountNo: z.string().optional(),
   instruction: z.string().optional(),
   isActive: z.boolean().optional().default(true),
+  paymentType: z.enum(['CASH', 'QRIS_MIDTRANS', 'TRANSFER', 'OTHER']).optional(),
+  gateway: z.enum(['midtrans', 'manual']).optional(),
+  merchantName: z.string().optional(),
+  merchantId: z.string().optional(),
+  midtransClientKey: z.string().optional(),
+  midtransServerKey: z.string().optional(),
+  productionMode: z.boolean().optional().default(false),
+  callbackUrl: z.union([z.string().url(), z.literal('')]).optional(),
 });
 
 const academicYearSchema = z.object({

@@ -1,9 +1,17 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, apiError } from '../lib/api';
 import { useToast } from '../context/ToastContext';
 import { formatIDR, formatDate } from '../lib/format';
-import { loadBillPaymentDraft, clearBillPaymentDraft } from '../lib/billPaymentSession';
+import {
+  loadBillPaymentDraft,
+  clearBillPaymentDraft,
+  saveBillPaymentDraft,
+  saveLastPayment,
+  isCashlessMethod,
+  isCashMethod,
+  isMidtransQrisMethod,
+} from '../lib/billPaymentSession';
 import { Spinner } from '../components/ui';
 import { Icon } from '../components/Icons';
 
@@ -97,6 +105,7 @@ function BillFooter() {
 export default function BillConfirm() {
   const toast = useToast();
   const navigate = useNavigate();
+  const pollRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [bill, setBill] = useState(null);
@@ -104,6 +113,125 @@ export default function BillConfirm() {
   const [draft, setDraft] = useState(null);
   const [proof, setProof] = useState(null);
   const [note, setNote] = useState('');
+  const [paymentId, setPaymentId] = useState('');
+  const [qrDataUrl, setQrDataUrl] = useState('');
+  const [paymentStatus, setPaymentStatus] = useState('');
+  const [awaitingCashless, setAwaitingCashless] = useState(false);
+
+  const [expiryTime, setExpiryTime] = useState(null);
+  const [countdown, setCountdown] = useState('');
+  const [schoolName, setSchoolName] = useState('SMP Pusponegoro Brebes');
+
+  const midtrans = useMemo(() => isMidtransQrisMethod(method), [method]);
+  const cash = useMemo(() => isCashMethod(method), [method]);
+  const cashless = useMemo(() => isCashlessMethod(method) && !cash, [method, cash]);
+
+  const finishSuccess = useCallback((payment) => {
+    saveLastPayment(payment);
+    clearBillPaymentDraft();
+    toast.success('Pembayaran berhasil! Tagihan telah lunas.');
+    navigate('/pembayaran-berhasil');
+  }, [navigate, toast]);
+
+  const pollPaymentStatus = useCallback(async (id) => {
+    try {
+      const { data } = await api.get(`/payment/status/${id}`);
+      const payment = data.data;
+      setPaymentStatus(payment.status);
+      if (payment.status === 'VERIFIED') {
+        if (pollRef.current) clearInterval(pollRef.current);
+        finishSuccess(payment);
+      }
+    } catch {
+      /* ignore polling errors */
+    }
+  }, [finishSuccess]);
+
+  const initCashPayment = useCallback(async (saved, billData, methodData, amount) => {
+    let pid = saved.paymentId;
+    let paymentData = null;
+    if (!pid) {
+      const { data } = await api.post('/payment/cash', {
+        billId: billData.id,
+        paymentMethodId: methodData.id,
+        amount,
+        note: note.trim() || undefined,
+      });
+      paymentData = data.data;
+      pid = paymentData.id;
+      const nextDraft = { ...saved, paymentId: pid };
+      saveBillPaymentDraft(nextDraft);
+      setDraft(nextDraft);
+      toast.success('Pengajuan pembayaran tunai terkirim. Silakan bayar di loket bendahara.');
+    } else {
+      const statusRes = await api.get(`/payment/status/${pid}`);
+      paymentData = statusRes.data.data;
+    }
+    setPaymentId(pid);
+    setPaymentStatus(paymentData?.status || 'PENDING');
+  }, [note, toast]);
+
+  const initMidtransPayment = useCallback(async (saved, billData, methodData, amount) => {
+    let pid = saved.paymentId;
+    let paymentData = null;
+    if (!pid) {
+      const { data } = await api.post('/payment/create', {
+        billId: billData.id,
+        paymentMethodId: methodData.id,
+        amount,
+        note: note.trim() || undefined,
+      });
+      paymentData = data.data;
+      pid = paymentData.id;
+      const nextDraft = { ...saved, paymentId: pid };
+      saveBillPaymentDraft(nextDraft);
+      setDraft(nextDraft);
+    } else {
+      const statusRes = await api.get(`/payment/status/${pid}`);
+      paymentData = statusRes.data.data;
+    }
+
+    setPaymentId(pid);
+    setPaymentStatus(paymentData.status || 'PENDING');
+    setQrDataUrl(paymentData.qr_url || paymentData.qrDataUrl || '');
+    setExpiryTime(paymentData.expiry_time || paymentData.expiryTime || null);
+    setSchoolName(paymentData.school_name || 'SMP Pusponegoro Brebes');
+    setAwaitingCashless(true);
+
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(() => pollPaymentStatus(pid), 3000);
+    pollPaymentStatus(pid);
+  }, [note, pollPaymentStatus]);
+
+  const initLegacyCashlessPayment = useCallback(async (saved, billData, methodData, amount) => {
+    let pid = saved.paymentId;
+    if (!pid) {
+      const fd = new FormData();
+      fd.append('billId', billData.id);
+      fd.append('amount', String(amount));
+      fd.append('channel', methodData.channel || saved.channel || 'QRIS');
+      fd.append('paymentMethodId', methodData.id);
+      const { data } = await api.post('/portal/payments', fd);
+      const payment = data.data;
+      pid = payment.id;
+      const nextDraft = { ...saved, paymentId: pid };
+      saveBillPaymentDraft(nextDraft);
+      setDraft(nextDraft);
+      setPaymentId(pid);
+      setPaymentStatus(payment.status || 'PENDING');
+    } else {
+      setPaymentId(pid);
+    }
+
+    const qrRes = await api.get(`/portal/payments/${pid}/qr`);
+    setQrDataUrl(qrRes.data.data.qrDataUrl);
+    setAwaitingCashless(true);
+    setPaymentStatus(qrRes.data.data.status || 'PENDING');
+
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(() => pollPaymentStatus(pid), 2500);
+    pollPaymentStatus(pid);
+  }, [pollPaymentStatus]);
 
   const load = useCallback(async () => {
     const saved = loadBillPaymentDraft();
@@ -118,9 +246,31 @@ export default function BillConfirm() {
         api.get(`/portal/bills/${saved.billId}`),
         api.get('/portal/payment-methods'),
       ]);
-      setBill(billRes.data.data);
+      const billData = billRes.data.data;
       const methods = methodsRes.data.data || [];
-      setMethod(methods.find((m) => m.id === saved.paymentMethodId) || null);
+      const methodData = methods.find((m) => m.id === saved.paymentMethodId) || null;
+      setBill(billData);
+      setMethod(methodData);
+
+      if (methodData && isMidtransQrisMethod(methodData)) {
+        const amount = Math.max(
+          0,
+          Number(billData.amount) - Number(billData.discount || 0) - Number(billData.paidAmount || 0),
+        );
+        await initMidtransPayment(saved, billData, methodData, amount);
+      } else if (methodData && isCashMethod(methodData)) {
+        const amount = Math.max(
+          0,
+          Number(billData.amount) - Number(billData.discount || 0) - Number(billData.paidAmount || 0),
+        );
+        await initCashPayment(saved, billData, methodData, amount);
+      } else if (methodData && isCashlessMethod(methodData) && !isMidtransQrisMethod(methodData)) {
+        const amount = Math.max(
+          0,
+          Number(billData.amount) - Number(billData.discount || 0) - Number(billData.paidAmount || 0),
+        );
+        await initLegacyCashlessPayment(saved, billData, methodData, amount);
+      }
     } catch (e) {
       const msg = apiError(e);
       if (msg) toast.error(msg);
@@ -128,10 +278,30 @@ export default function BillConfirm() {
     } finally {
       setLoading(false);
     }
-  }, [navigate, toast]);
+  }, [initMidtransPayment, initCashPayment, initLegacyCashlessPayment, navigate, toast]);
+
+  useEffect(() => {
+    if (!expiryTime) return undefined;
+    const tick = () => {
+      const diff = new Date(expiryTime).getTime() - Date.now();
+      if (diff <= 0) {
+        setCountdown('Kedaluwarsa');
+        return;
+      }
+      const m = Math.floor(diff / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setCountdown(`${m}:${String(s).padStart(2, '0')}`);
+    };
+    tick();
+    const t = setInterval(tick, 1000);
+    return () => clearInterval(t);
+  }, [expiryTime]);
 
   useEffect(() => {
     load();
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
   }, [load]);
 
   const amount = useMemo(() => {
@@ -160,6 +330,10 @@ export default function BillConfirm() {
       navigate('/tagihan');
       return;
     }
+    if (!proof) {
+      toast.error('Unggah bukti pembayaran terlebih dahulu.');
+      return;
+    }
     setSubmitting(true);
     try {
       const fd = new FormData();
@@ -168,8 +342,9 @@ export default function BillConfirm() {
       fd.append('channel', method.channel || draft.channel || 'TRANSFER');
       fd.append('paymentMethodId', method.id);
       if (note.trim()) fd.append('note', note.trim());
-      if (proof) fd.append('proof', proof);
-      await api.post('/portal/payments', fd);
+      fd.append('proof', proof);
+      const { data } = await api.post('/portal/payments', fd);
+      saveLastPayment(data.data);
       clearBillPaymentDraft();
       toast.success('Bukti pembayaran terkirim, menunggu verifikasi bendahara');
       navigate('/pembayaran-berhasil');
@@ -181,7 +356,8 @@ export default function BillConfirm() {
     }
   };
 
-  const handleCancel = () => {
+  const handleCancel = async () => {
+    if (pollRef.current) clearInterval(pollRef.current);
     clearBillPaymentDraft();
     toast.info('Pembayaran dibatalkan.');
     navigate('/tagihan');
@@ -240,7 +416,13 @@ export default function BillConfirm() {
             <div className="mb-5">
               <h2 className="font-bold text-slate-800 dark:text-slate-100">Konfirmasi Pembayaran</h2>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                Periksa detail pembayaran dan ikuti panduan transfer sebelum mengunggah bukti.
+                {cashless
+                  ? midtrans
+                    ? 'Scan kode QR Midtrans di panel kanan. Pembayaran diverifikasi otomatis setelah scan berhasil.'
+                    : 'Scan kode QR di panel kanan untuk membayar. Pembayaran akan terverifikasi otomatis tanpa unggah bukti.'
+                  : cash
+                    ? 'Serahkan pembayaran tunai ke loket bendahara sesuai nominal. Tidak perlu unggah bukti.'
+                    : 'Periksa detail pembayaran dan ikuti panduan transfer sebelum mengunggah bukti.'}
               </p>
             </div>
 
@@ -262,20 +444,27 @@ export default function BillConfirm() {
             <div className="mb-5 rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/40">
               <DetailRow label="Jenis Tagihan" value={bill.feeType?.name || '—'} />
               <DetailRow label="Metode Pembayaran" value={method.name} />
-              <DetailRow
-                label="Nomor Rekening / Virtual Account"
-                value={method.accountNo || '—'}
-                action={method.accountNo ? (
-                  <button
-                    type="button"
-                    onClick={handleCopy}
-                    className="rounded-lg border border-[#0056D2] px-3 py-1 text-xs font-semibold text-[#0056D2] dark:border-blue-500 dark:text-blue-400"
-                  >
-                    Salin
-                  </button>
-                ) : null}
-              />
-              <DetailRow label="Atas Nama" value={method.accountName || '—'} />
+              {!cashless && !cash && (
+                <>
+                  <DetailRow
+                    label="Nomor Rekening / Virtual Account"
+                    value={method.accountNo || '—'}
+                    action={method.accountNo ? (
+                      <button
+                        type="button"
+                        onClick={handleCopy}
+                        className="rounded-lg border border-[#0056D2] px-3 py-1 text-xs font-semibold text-[#0056D2] dark:border-blue-500 dark:text-blue-400"
+                      >
+                        Salin
+                      </button>
+                    ) : null}
+                  />
+                  <DetailRow label="Atas Nama" value={method.accountName || '—'} />
+                </>
+              )}
+              {cashless && paymentId && (
+                <DetailRow label="Referensi Pembayaran" value={paymentId.slice(-8).toUpperCase()} />
+              )}
               <div className="flex items-center justify-between pt-3">
                 <span className="text-sm font-medium text-slate-600 dark:text-slate-300">Total Pembayaran</span>
                 <span className="text-2xl font-bold text-[#0056D2] dark:text-blue-400">{formatIDR(amount)}</span>
@@ -290,7 +479,11 @@ export default function BillConfirm() {
                 </GuideAccordion>
               ) : (
                 <GuideAccordion title={`Cara Bayar via ${method.name}`} icon={Icon.Money}>
-                  Ikuti petunjuk pembayaran sesuai metode yang dipilih. Setelah transfer, unggah bukti di panel kanan.
+                  {cashless
+                    ? `Buka aplikasi ${method.name}, pilih Scan QR, lalu arahkan kamera ke kode QR. Dana akan masuk ke rekening resmi sekolah secara otomatis.`
+                    : cash
+                      ? 'Datang ke loket bendahara SMP Pusponegoro Brebes dengan uang tunai sesuai nominal tagihan. Bendahara akan memverifikasi pembayaran setelah uang diterima.'
+                      : 'Ikuti petunjuk pembayaran sesuai metode yang dipilih. Setelah transfer, unggah bukti di panel kanan.'}
                 </GuideAccordion>
               )}
             </div>
@@ -298,43 +491,108 @@ export default function BillConfirm() {
         </div>
 
         <div className="space-y-5 xl:col-span-4">
-          <section className={`${CARD} p-5`}>
-            <h2 className="mb-4 font-bold text-slate-800 dark:text-slate-100">Upload Bukti Pembayaran</h2>
-            <label className="flex min-h-[180px] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/80 px-4 py-8 text-center transition hover:border-[#0056D2] dark:border-slate-600 dark:bg-slate-800/50 dark:hover:border-blue-500">
-              <input
-                type="file"
-                className="sr-only"
-                accept="image/jpeg,image/png,image/jpg,application/pdf"
-                onChange={(e) => setProof(e.target.files?.[0] || null)}
+          {midtrans || (cashless && !cash) ? (
+            <section className={`${CARD} p-5`}>
+              <h2 className="mb-4 font-bold text-slate-800 dark:text-slate-100">
+                Scan QR {midtrans ? 'Midtrans' : method.name}
+              </h2>
+              <div className="flex flex-col items-center">
+                {qrDataUrl ? (
+                  <img
+                    src={qrDataUrl}
+                    alt={`QR pembayaran ${method.name}`}
+                    className="h-56 w-56 rounded-xl border border-slate-200 bg-white p-2 dark:border-slate-600"
+                  />
+                ) : (
+                  <div className="flex h-56 w-56 items-center justify-center rounded-xl border border-dashed border-slate-200 dark:border-slate-600">
+                    <Spinner size={32} />
+                  </div>
+                )}
+                <p className="mt-4 text-center text-sm font-medium text-slate-700 dark:text-slate-200">
+                  {formatIDR(amount)}
+                </p>
+                <p className="mt-1 text-center text-xs text-slate-500 dark:text-slate-400">
+                  {schoolName}
+                </p>
+                {bill?.invoiceNo && (
+                  <p className="mt-1 text-center text-xs text-slate-500 dark:text-slate-400">
+                    Invoice: {bill.invoiceNo}
+                  </p>
+                )}
+                {countdown && (
+                  <p className="mt-2 text-center text-xs font-semibold text-amber-700 dark:text-amber-300">
+                    Berlaku: {countdown}
+                  </p>
+                )}
+                {awaitingCashless && paymentStatus === 'PENDING' && (
+                  <div className="mt-4 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
+                    <Spinner size={14} />
+                    {midtrans ? 'Menunggu pembayaran QRIS Midtrans...' : 'Menunggu konfirmasi pembayaran cashless...'}
+                  </div>
+                )}
+              </div>
+            </section>
+          ) : cash ? (
+            <section className={`${CARD} p-5`}>
+              <h2 className="mb-4 font-bold text-slate-800 dark:text-slate-100">Pembayaran Tunai di Loket</h2>
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-4 text-center dark:border-emerald-900/50 dark:bg-emerald-950/30">
+                <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400">
+                  <Icon.Money width={24} height={24} />
+                </span>
+                <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">
+                  {formatIDR(amount)}
+                </p>
+                <p className="mt-3 text-sm font-medium text-emerald-900 dark:text-emerald-200">
+                  Silakan melakukan pembayaran di loket bendahara.
+                </p>
+                <p className="mt-2 text-xs text-emerald-800 dark:text-emerald-300/90">
+                  Serahkan uang tunai sesuai nominal ke bendahara. Status akan berubah menjadi Lunas setelah bendahara menyetujui pembayaran.
+                </p>
+                {paymentId && paymentStatus === 'PENDING' && (
+                  <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                    Menunggu Verifikasi Bendahara
+                  </div>
+                )}
+              </div>
+            </section>
+          ) : (
+            <section className={`${CARD} p-5`}>
+              <h2 className="mb-4 font-bold text-slate-800 dark:text-slate-100">Upload Bukti Pembayaran</h2>
+              <label className="flex min-h-[180px] cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50/80 px-4 py-8 text-center transition hover:border-[#0056D2] dark:border-slate-600 dark:bg-slate-800/50 dark:hover:border-blue-500">
+                <input
+                  type="file"
+                  className="sr-only"
+                  accept="image/jpeg,image/png,image/jpg,application/pdf"
+                  onChange={(e) => setProof(e.target.files?.[0] || null)}
+                />
+                <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-[#0056D2] dark:bg-blue-950/50 dark:text-blue-400">
+                  <Icon.Upload width={24} height={24} />
+                </span>
+                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                  {proof ? proof.name : 'Klik untuk upload atau seret file ke sini'}
+                </p>
+                <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                  Format: JPG, JPEG, PNG • Maks. 5MB
+                </p>
+              </label>
+              <textarea
+                className="mt-3 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-[#0056D2] focus:outline-none focus:ring-1 focus:ring-[#0056D2] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                rows={2}
+                placeholder="Catatan (opsional)"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
               />
-              <span className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-[#0056D2] dark:bg-blue-950/50 dark:text-blue-400">
-                <Icon.Upload width={24} height={24} />
-              </span>
-              <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
-                {proof ? proof.name : 'Klik untuk upload atau seret file ke sini'}
-              </p>
-              <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-                Format: JPG, JPEG, PNG • Maks. 5MB
-              </p>
-            </label>
-            <textarea
-              className="mt-3 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-[#0056D2] focus:outline-none focus:ring-1 focus:ring-[#0056D2] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-              rows={2}
-              placeholder="Catatan (opsional)"
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-            />
-          </section>
-
-          <button
-            type="button"
-            onClick={handleComplete}
-            disabled={submitting}
-            className="flex w-full items-center justify-center gap-2 rounded-xl bg-[#0056D2] py-3.5 text-sm font-bold text-white shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-600"
-          >
-            {submitting ? <Spinner size={18} className="text-white" /> : <Icon.CheckCircle width={20} height={20} />}
-            Selesai Pembayaran
-          </button>
+              <button
+                type="button"
+                onClick={handleComplete}
+                disabled={submitting}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#0056D2] py-3.5 text-sm font-bold text-white shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-600"
+              >
+                {submitting ? <Spinner size={18} className="text-white" /> : <Icon.CheckCircle width={20} height={20} />}
+                Selesai Pembayaran
+              </button>
+            </section>
+          )}
 
           <button
             type="button"
@@ -347,7 +605,11 @@ export default function BillConfirm() {
           </button>
 
           <p className="text-center text-xs text-slate-400 dark:text-slate-500">
-            Pembatalan hanya dapat dilakukan sebelum pembayaran dilakukan.
+            {cashless
+              ? 'Pembayaran cashless diverifikasi otomatis setelah dana masuk rekening sekolah.'
+              : cash
+                ? 'Pembayaran tunai menunggu verifikasi bendahara setelah uang diterima di loket.'
+                : 'Pembatalan hanya dapat dilakukan sebelum pembayaran dilakukan.'}
           </p>
         </div>
       </div>

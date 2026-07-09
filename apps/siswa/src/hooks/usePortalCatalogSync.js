@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { api } from '../lib/api';
 
 function versionKey(v) {
-  return `${v?.billsVersion || ''}|${v?.methodsVersion || ''}`;
+  return `${v?.billsVersion || ''}|${v?.methodsVersion || ''}|${v?.paymentsVersion || ''}`;
 }
 
 /**

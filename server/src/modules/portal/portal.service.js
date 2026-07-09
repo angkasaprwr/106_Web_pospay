@@ -112,6 +112,15 @@ async function listPayments(user, query) {
   const limit = Math.min(100, parseInt(query.limit || '20', 10));
   const where = { bill: { studentId: student.id } };
   if (query.status) where.status = query.status;
+  if (query.year) {
+    const y = parseInt(query.year, 10);
+    if (!Number.isNaN(y)) {
+      where.createdAt = {
+        gte: new Date(`${y}-01-01T00:00:00.000Z`),
+        lt: new Date(`${y + 1}-01-01T00:00:00.000Z`),
+      };
+    }
+  }
   const [items, total] = await Promise.all([
     prisma.payment.findMany({
       where,
@@ -145,13 +154,15 @@ async function listDispensations(user, query) {
 }
 
 async function paymentMethods() {
-  return prisma.paymentMethod.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } });
+  const { sanitizeMethodForPortal } = require('../payment-flow/payment-flow.service');
+  const methods = await prisma.paymentMethod.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } });
+  return methods.map(sanitizeMethodForPortal);
 }
 
 /** Versi ringan untuk deteksi perubahan tagihan / metode pembayaran tanpa memuat seluruh data. */
 async function catalogSyncVersion(user) {
   const student = await resolveStudent(user);
-  const [billAgg, methodAgg] = await Promise.all([
+  const [billAgg, methodAgg, paymentAgg] = await Promise.all([
     prisma.bill.aggregate({
       where: { studentId: student.id },
       _max: { updatedAt: true },
@@ -162,12 +173,19 @@ async function catalogSyncVersion(user) {
       _max: { updatedAt: true },
       _count: { id: true },
     }),
+    prisma.payment.aggregate({
+      where: { bill: { studentId: student.id } },
+      _max: { updatedAt: true },
+      _count: { id: true },
+    }),
   ]);
   const billsUpdated = billAgg._max.updatedAt?.toISOString() || '';
   const methodsUpdated = methodAgg._max.updatedAt?.toISOString() || '';
+  const paymentsUpdated = paymentAgg._max.updatedAt?.toISOString() || '';
   return {
     billsVersion: `${billAgg._count.id}:${billsUpdated}`,
     methodsVersion: `${methodAgg._count.id}:${methodsUpdated}`,
+    paymentsVersion: `${paymentAgg._count.id}:${paymentsUpdated}`,
   };
 }
 

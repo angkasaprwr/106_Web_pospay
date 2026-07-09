@@ -33,7 +33,32 @@ const catalogSyncVersion = asyncHandler(async (req, res) => {
 const submitPayment = asyncHandler(async (req, res) => {
   if (req.file) req.body.proofUrl = publicUrl('proofs', req.file.filename);
   const payment = await paymentService.create(req.body, { actor: req.user, asTreasurer: false, req });
-  return created(res, payment, 'Konfirmasi pembayaran terkirim, menunggu verifikasi');
+  const cashless = payment.cashlessPending || paymentService.isCashlessPayment(
+    payment.channel,
+    payment.paymentMethod?.name,
+  );
+  const cash = paymentService.isCashMethod(payment.channel, payment.paymentMethod?.name);
+  const message = cashless
+    ? 'Pembayaran cashless dibuat. Scan QR untuk menyelesaikan pembayaran.'
+    : cash
+      ? 'Pengajuan pembayaran tunai terkirim. Menunggu verifikasi bendahara di loket.'
+      : 'Konfirmasi pembayaran terkirim, menunggu verifikasi';
+  return created(res, payment, message);
+});
+
+const paymentDetail = asyncHandler(async (req, res) => {
+  const payment = await paymentService.getForStudent(req.user, req.params.id);
+  return ok(res, payment);
+});
+
+const paymentQr = asyncHandler(async (req, res) => {
+  const qr = await paymentService.getQrForStudent(req.user, req.params.id);
+  return ok(res, qr, 'QR pembayaran');
+});
+
+const settleCashless = asyncHandler(async (req, res) => {
+  const payment = await paymentService.settleCashless(req.params.id, req.user, req);
+  return ok(res, payment, 'Pembayaran cashless berhasil');
 });
 
 const listPayments = asyncHandler(async (req, res) => {
@@ -59,6 +84,9 @@ module.exports = {
   paymentMethods,
   catalogSyncVersion,
   submitPayment,
+  paymentDetail,
+  paymentQr,
+  settleCashless,
   listPayments,
   submitDispensation,
   listDispensations,
