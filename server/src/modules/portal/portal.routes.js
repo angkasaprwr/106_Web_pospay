@@ -19,6 +19,9 @@ router.get('/payment-methods', controller.paymentMethods);
 router.get('/catalog-sync-version', controller.catalogSyncVersion);
 router.post('/payments', proofUpload.single('proof'), validate({ body: createPaymentSchema }), controller.submitPayment);
 router.get('/payments', controller.listPayments);
+router.get('/payments/:id', controller.paymentDetail);
+router.get('/payments/:id/qr', controller.paymentQr);
+router.post('/payments/:id/settle-cashless', controller.settleCashless);
 router.post('/dispensations', attachmentUpload.single('attachment'), validate({ body: createDispensationSchema }), controller.submitDispensation);
 router.get('/dispensations', controller.listDispensations);
 
