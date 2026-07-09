@@ -1,7 +1,7 @@
 const midtransClient = require('midtrans-client');
 const crypto = require('crypto');
-const QRCode = require('qrcode');
 const { env } = require('../../config/env');
+const { ApiError } = require('../../core/ApiError');
 
 function resolveKeys(method) {
   return {
@@ -53,27 +53,12 @@ function extractQrisData(chargeResponse) {
   };
 }
 
-async function simulateQrisCharge(orderId, grossAmount, merchantName) {
-  const qrString = `00020101021226650016ID.CO.MIDTRANS${orderId.slice(-12)}52045${merchantName || 'SMP Pusponegoro'}5303360540${Math.round(grossAmount)}5802ID6304SIMU`;
-  const qrUrl = await QRCode.toDataURL(qrString, { width: 280, margin: 2 });
-  const expiryTime = new Date(Date.now() + 15 * 60 * 1000);
-  return {
-    transactionId: `SIM-${Date.now()}`,
-    orderId,
-    grossAmount: String(Math.round(grossAmount)),
-    qrString,
-    qrUrl,
-    expiryTime,
-    midtransStatus: 'pending',
-    statusCode: '201',
-    raw: { simulated: true },
-  };
-}
-
 async function chargeQris({ orderId, grossAmount, method, customerDetails }) {
   const keys = resolveKeys(method);
   if (!hasValidMidtransKeys(keys)) {
-    return simulateQrisCharge(orderId, grossAmount, method?.merchantName || method?.accountName);
+    throw ApiError.badRequest(
+      'Konfigurasi Midtrans belum lengkap. Atur MIDTRANS_SERVER_KEY dan MIDTRANS_CLIENT_KEY di server/.env atau di Pengaturan metode QRIS.',
+    );
   }
 
   const core = createCoreApi(method);
@@ -100,5 +85,4 @@ module.exports = {
   resolveKeys,
   hasValidMidtransKeys,
   isSettlementStatus,
-  simulateQrisCharge,
 };

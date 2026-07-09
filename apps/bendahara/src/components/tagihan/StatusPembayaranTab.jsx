@@ -233,7 +233,7 @@ export default function StatusPembayaranTab() {
   const verifyPayment = async (paymentId) => {
     setActing(true);
     try {
-      await api.post(`/payments/${paymentId}/verify`, { note: verifyNote.trim() || undefined });
+      await api.post('/payment/cash/approve', { paymentId, note: verifyNote.trim() || undefined });
       toast.success('Pembayaran disetujui — status tagihan lunas');
       await refreshAfterVerify();
     } catch (e) {
@@ -250,7 +250,7 @@ export default function StatusPembayaranTab() {
     }
     setActing(true);
     try {
-      await api.post(`/payments/${paymentId}/reject`, { rejectionReason: rejectReason.trim() });
+      await api.post('/payment/cash/reject', { paymentId, rejectionReason: rejectReason.trim() });
       toast.success('Pembayaran ditolak');
       await refreshAfterVerify();
     } catch (e) {
@@ -264,7 +264,7 @@ export default function StatusPembayaranTab() {
     const payment = paymentsByBill[bill.id];
     if (payment?.id) {
       try {
-        const res = await api.get(`/payment/invoice/${payment.id}`, { responseType: 'blob' });
+        const res = await api.get(`/payment/invoice/${payment.id}/pdf`, { responseType: 'blob' });
         const url = URL.createObjectURL(res.data);
         window.open(url, '_blank');
         return;

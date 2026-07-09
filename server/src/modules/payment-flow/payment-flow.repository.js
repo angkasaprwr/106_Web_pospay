@@ -23,6 +23,71 @@ class PaymentFlowRepository {
     });
   }
 
+  async findPaymentByInvoiceRef(ref) {
+    const include = {
+      paymentMethod: true,
+      bill: { include: { student: { include: { schoolClass: true } }, feeType: true } },
+      histories: { orderBy: { createdAt: 'desc' }, take: 20 },
+    };
+
+    const byPaymentId = await prisma.payment.findUnique({ where: { id: ref }, include });
+    if (byPaymentId) return byPaymentId;
+
+    const billById = await prisma.bill.findUnique({ where: { id: ref } });
+    if (billById) {
+      return prisma.payment.findFirst({
+        where: { billId: billById.id },
+        orderBy: { createdAt: 'desc' },
+        include,
+      });
+    }
+
+    const billByNo = await prisma.bill.findUnique({ where: { invoiceNo: ref } });
+    if (billByNo) {
+      return prisma.payment.findFirst({
+        where: { billId: billByNo.id },
+        orderBy: { createdAt: 'desc' },
+        include,
+      });
+    }
+
+    return null;
+  }
+
+  listActivePaymentMethods() {
+    return prisma.paymentMethod.findMany({
+      where: { isActive: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  createPaymentWebhook(data) {
+    return prisma.paymentWebhook.create({ data });
+  }
+
+  createPaymentTransaction(data) {
+    return prisma.paymentTransaction.create({ data });
+  }
+
+  upsertPaidInvoice({ billId, paymentId, invoiceNo, grossAmount, paidAt }) {
+    return prisma.invoice.upsert({
+      where: { paymentId },
+      create: {
+        billId,
+        paymentId,
+        invoiceNo,
+        grossAmount,
+        status: 'PAID',
+        paidAt: paidAt || new Date(),
+      },
+      update: {
+        status: 'PAID',
+        paidAt: paidAt || new Date(),
+        grossAmount,
+      },
+    });
+  }
+
   findPendingByBillId(billId) {
     return prisma.payment.findFirst({
       where: { billId, status: 'PENDING' },

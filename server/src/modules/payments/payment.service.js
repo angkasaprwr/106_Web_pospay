@@ -241,6 +241,22 @@ async function verify(id, input, actor, req) {
       },
     });
     await applyPaymentToBill(tx, payment.billId);
+    await tx.invoice.upsert({
+      where: { paymentId: id },
+      create: {
+        billId: payment.billId,
+        paymentId: id,
+        invoiceNo: payment.bill.invoiceNo,
+        grossAmount: payment.amount,
+        status: 'PAID',
+        paidAt: new Date(),
+      },
+      update: {
+        status: 'PAID',
+        paidAt: new Date(),
+        grossAmount: payment.amount,
+      },
+    });
     return updated;
   });
 
@@ -248,8 +264,8 @@ async function verify(id, input, actor, req) {
 
   if (payment.bill.student.userId) {
     await notifyUser(payment.bill.student.userId, {
-      title: 'Pembayaran Terverifikasi',
-      body: `Pembayaran ${payment.bill.feeType.name} sebesar ${toNumber(payment.amount)} telah diverifikasi.`,
+      title: 'Pembayaran Berhasil',
+      body: 'Pembayaran tagihan berhasil diterima.',
       type: 'PAYMENT_VERIFIED',
       data: { paymentId: id, billId: payment.billId },
     });

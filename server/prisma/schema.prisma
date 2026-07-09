@@ -321,6 +321,7 @@ model Bill {
 
   payments       Payment[]
   dispensations  Dispensation[]
+  invoices       Invoice[]
 
   @@index([studentId])
   @@index([status])
@@ -394,6 +395,9 @@ model Payment {
   histories       PaymentHistory[]
   notifications   PaymentNotification[]
   midtransLogs    MidtransLog[]
+  invoice         Invoice?
+  transactions    PaymentTransaction[]
+  webhooks        PaymentWebhook[]
 
   @@index([billId])
   @@index([status])
@@ -443,6 +447,60 @@ model MidtransLog {
   payload   Json?
   response  Json?
   createdAt DateTime @default(now())
+
+  @@index([paymentId])
+  @@index([orderId])
+  @@index([createdAt])
+}
+
+model Invoice {
+  id          String    @id @default(cuid())
+  invoiceNo   String
+  billId      String
+  bill        Bill      @relation(fields: [billId], references: [id], onDelete: Cascade)
+  paymentId   String?   @unique
+  payment     Payment?  @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  grossAmount Decimal   @db.Decimal(12, 2)
+  status      String    @default("ISSUED")
+  issuedAt    DateTime  @default(now())
+  paidAt      DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([billId])
+  @@index([invoiceNo])
+}
+
+model PaymentTransaction {
+  id              String    @id @default(cuid())
+  paymentId       String
+  payment         Payment   @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  transactionId   String?
+  orderId         String?
+  paymentType     String?
+  grossAmount     Decimal   @db.Decimal(12, 2)
+  transactionTime DateTime?
+  settlementTime  DateTime?
+  fraudStatus     String?
+  status          String
+  createdAt       DateTime  @default(now())
+
+  @@index([paymentId])
+  @@index([orderId])
+  @@index([transactionId])
+}
+
+model PaymentWebhook {
+  id             String    @id @default(cuid())
+  paymentId      String?
+  payment        Payment?  @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  provider       String    @default("midtrans")
+  orderId        String?
+  eventType      String
+  payload        Json?
+  signatureValid Boolean   @default(false)
+  processedAt    DateTime?
+  createdAt      DateTime  @default(now())
 
   @@index([paymentId])
   @@index([orderId])

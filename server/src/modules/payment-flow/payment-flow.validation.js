@@ -15,6 +15,16 @@ const rejectSchema = z.object({
   rejectionReason: z.string().min(3, 'Alasan penolakan wajib diisi'),
 });
 
+const cashActionSchema = z.object({
+  paymentId: z.string().min(1, 'ID pembayaran wajib diisi'),
+  note: z.string().optional(),
+});
+
+const cashRejectSchema = z.object({
+  paymentId: z.string().min(1, 'ID pembayaran wajib diisi'),
+  rejectionReason: z.string().min(3, 'Alasan penolakan wajib diisi'),
+});
+
 const historyQuerySchema = z.object({
   status: z.enum(['PENDING', 'VERIFIED', 'REJECTED']).optional(),
   year: z.string().optional(),
@@ -26,5 +36,7 @@ module.exports = {
   createPaymentSchema,
   approveSchema,
   rejectSchema,
+  cashActionSchema,
+  cashRejectSchema,
   historyQuerySchema,
 };

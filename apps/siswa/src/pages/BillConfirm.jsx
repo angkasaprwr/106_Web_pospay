@@ -147,6 +147,30 @@ export default function BillConfirm() {
     }
   }, [finishSuccess]);
 
+  const initCashPayment = useCallback(async (saved, billData, methodData, amount) => {
+    let pid = saved.paymentId;
+    let paymentData = null;
+    if (!pid) {
+      const { data } = await api.post('/payment/cash', {
+        billId: billData.id,
+        paymentMethodId: methodData.id,
+        amount,
+        note: note.trim() || undefined,
+      });
+      paymentData = data.data;
+      pid = paymentData.id;
+      const nextDraft = { ...saved, paymentId: pid };
+      saveBillPaymentDraft(nextDraft);
+      setDraft(nextDraft);
+      toast.success('Pengajuan pembayaran tunai terkirim. Silakan bayar di loket bendahara.');
+    } else {
+      const statusRes = await api.get(`/payment/status/${pid}`);
+      paymentData = statusRes.data.data;
+    }
+    setPaymentId(pid);
+    setPaymentStatus(paymentData?.status || 'PENDING');
+  }, [note, toast]);
+
   const initMidtransPayment = useCallback(async (saved, billData, methodData, amount) => {
     let pid = saved.paymentId;
     let paymentData = null;
@@ -234,6 +258,12 @@ export default function BillConfirm() {
           Number(billData.amount) - Number(billData.discount || 0) - Number(billData.paidAmount || 0),
         );
         await initMidtransPayment(saved, billData, methodData, amount);
+      } else if (methodData && isCashMethod(methodData)) {
+        const amount = Math.max(
+          0,
+          Number(billData.amount) - Number(billData.discount || 0) - Number(billData.paidAmount || 0),
+        );
+        await initCashPayment(saved, billData, methodData, amount);
       } else if (methodData && isCashlessMethod(methodData) && !isMidtransQrisMethod(methodData)) {
         const amount = Math.max(
           0,
@@ -248,7 +278,7 @@ export default function BillConfirm() {
     } finally {
       setLoading(false);
     }
-  }, [initMidtransPayment, initLegacyCashlessPayment, navigate, toast]);
+  }, [initMidtransPayment, initCashPayment, initLegacyCashlessPayment, navigate, toast]);
 
   useEffect(() => {
     if (!expiryTime) return undefined;
@@ -291,32 +321,6 @@ export default function BillConfirm() {
       toast.success('Nomor rekening disalin');
     } catch {
       toast.error('Gagal menyalin nomor rekening');
-    }
-  };
-
-  const handleConfirmCash = async () => {
-    if (!bill || !method || !draft) {
-      toast.info('Selesaikan pemilihan tagihan dan metode pembayaran di langkah 1 terlebih dahulu.');
-      navigate('/tagihan');
-      return;
-    }
-    setSubmitting(true);
-    try {
-      const { data } = await api.post('/payment/cash', {
-        billId: bill.id,
-        paymentMethodId: method.id,
-        amount,
-        note: note.trim() || undefined,
-      });
-      saveLastPayment(data.data);
-      clearBillPaymentDraft();
-      toast.success('Pengajuan pembayaran tunai terkirim. Serahkan uang ke loket bendahara.');
-      navigate('/pembayaran-berhasil');
-    } catch (e) {
-      const msg = apiError(e);
-      if (msg) toast.error(msg);
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -538,26 +542,18 @@ export default function BillConfirm() {
                 <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">
                   {formatIDR(amount)}
                 </p>
-                <p className="mt-2 text-xs text-emerald-800 dark:text-emerald-300/90">
-                  Serahkan uang tunai ke bendahara di loket sekolah. Status akan berubah menjadi Lunas setelah bendahara menyetujui.
+                <p className="mt-3 text-sm font-medium text-emerald-900 dark:text-emerald-200">
+                  Silakan melakukan pembayaran di loket bendahara.
                 </p>
+                <p className="mt-2 text-xs text-emerald-800 dark:text-emerald-300/90">
+                  Serahkan uang tunai sesuai nominal ke bendahara. Status akan berubah menjadi Lunas setelah bendahara menyetujui pembayaran.
+                </p>
+                {paymentId && paymentStatus === 'PENDING' && (
+                  <div className="mt-4 inline-flex items-center gap-2 rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                    Menunggu Verifikasi Bendahara
+                  </div>
+                )}
               </div>
-              <textarea
-                className="mt-3 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-[#0056D2] focus:outline-none focus:ring-1 focus:ring-[#0056D2] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
-                rows={2}
-                placeholder="Catatan (opsional)"
-                value={note}
-                onChange={(e) => setNote(e.target.value)}
-              />
-              <button
-                type="button"
-                onClick={handleConfirmCash}
-                disabled={submitting}
-                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#0056D2] py-3.5 text-sm font-bold text-white shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-600"
-              >
-                {submitting ? <Spinner size={18} className="text-white" /> : <Icon.CheckCircle width={20} height={20} />}
-                Konfirmasi Pembayaran Tunai
-              </button>
             </section>
           ) : (
             <section className={`${CARD} p-5`}>

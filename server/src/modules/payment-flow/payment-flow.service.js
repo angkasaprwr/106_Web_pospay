@@ -1,4 +1,6 @@
 const PDFDocument = require('pdfkit');
+const QRCode = require('qrcode');
+const path = require('path');
 const { prisma } = require('../../config/prisma');
 const { ApiError } = require('../../core/ApiError');
 const { env } = require('../../config/env');
@@ -11,6 +13,17 @@ const { resolveStudent } = require('../portal/portal.service');
 const paymentService = require('../payments/payment.service');
 const { paymentFlowRepository } = require('./payment-flow.repository');
 const midtransService = require('./midtrans.service');
+
+const FCM_SUCCESS_TITLE = 'Pembayaran Berhasil';
+const FCM_SUCCESS_BODY = 'Pembayaran tagihan berhasil diterima.';
+
+function drawPospayLogo(doc, x, y, size = 40) {
+  doc.save();
+  doc.roundedRect(x, y, size, size, 8).fill('#0056D2');
+  doc.fillColor('#ffffff').fontSize(size * 0.28).text('P', x + size * 0.34, y + size * 0.28);
+  doc.restore();
+  doc.fillColor('#000000');
+}
 
 function isMidtransQrisMethod(method) {
   if (!method) return false;
@@ -202,8 +215,8 @@ async function createPayment(input, actor, req) {
   throw ApiError.badRequest('Gunakan portal pembayaran untuk metode transfer dengan bukti');
 }
 
-async function getStatus(paymentId, actor) {
-  const payment = await paymentFlowRepository.findPaymentById(paymentId);
+async function getStatus(invoiceRef, actor) {
+  const payment = await paymentFlowRepository.findPaymentByInvoiceRef(invoiceRef);
   if (!payment) throw ApiError.notFound('Pembayaran tidak ditemukan');
 
   if (actor.role === 'SISWA') {
@@ -215,6 +228,8 @@ async function getStatus(paymentId, actor) {
 
   return {
     id: payment.id,
+    invoice_id: payment.bill.id,
+    invoice_no: payment.bill.invoiceNo,
     reference: payment.reference,
     order_id: payment.orderId,
     transaction_id: payment.transactionId,
@@ -235,6 +250,11 @@ async function getStatus(paymentId, actor) {
     },
     payment_method: sanitizeMethodForPortal(payment.paymentMethod),
   };
+}
+
+async function getPaymentMethods() {
+  const methods = await paymentFlowRepository.listActivePaymentMethods();
+  return methods.map(sanitizeMethodForPortal);
 }
 
 async function getHistory(actor, query) {
@@ -293,6 +313,22 @@ async function finalizeVerifiedPayment(payment, actor, req, meta = {}) {
         metadata: meta.metadata || null,
       },
     });
+    await tx.invoice.upsert({
+      where: { paymentId: payment.id },
+      create: {
+        billId: payment.billId,
+        paymentId: payment.id,
+        invoiceNo: updated.bill.invoiceNo,
+        grossAmount: payment.amount,
+        status: 'PAID',
+        paidAt: meta.paidAt || new Date(),
+      },
+      update: {
+        status: 'PAID',
+        paidAt: meta.paidAt || new Date(),
+        grossAmount: payment.amount,
+      },
+    });
     return updated;
   });
 
@@ -305,8 +341,8 @@ async function finalizeVerifiedPayment(payment, actor, req, meta = {}) {
       payment.id,
       result.bill.student.userId,
       'PAYMENT_VERIFIED',
-      'Pembayaran Berhasil',
-      `Pembayaran ${result.bill.feeType.name} sebesar ${toNumber(result.amount)} telah lunas.`,
+      FCM_SUCCESS_TITLE,
+      FCM_SUCCESS_BODY,
     );
   }
 
@@ -328,9 +364,10 @@ async function handleMidtransWebhook(payload) {
   if (!payment) throw ApiError.notFound('Pembayaran tidak ditemukan');
 
   const keys = midtransService.resolveKeys(payment.paymentMethod);
+  let signatureValid = false;
   if (midtransService.hasValidMidtransKeys(keys) && payload.signature_key) {
-    const valid = midtransService.verifySignature(payload, keys.serverKey);
-    if (!valid) throw ApiError.forbidden('Signature Midtrans tidak valid');
+    signatureValid = midtransService.verifySignature(payload, keys.serverKey);
+    if (!signatureValid) throw ApiError.forbidden('Signature Midtrans tidak valid');
   }
 
   await paymentFlowRepository.createMidtransLog({
@@ -341,6 +378,16 @@ async function handleMidtransWebhook(payload) {
     response: { receivedAt: new Date().toISOString() },
   });
 
+  await paymentFlowRepository.createPaymentWebhook({
+    paymentId: payment.id,
+    provider: 'midtrans',
+    orderId,
+    eventType: String(payload.transaction_status || 'notification'),
+    payload,
+    signatureValid,
+    processedAt: new Date(),
+  });
+
   if (payment.status === 'VERIFIED') {
     return { payment, alreadyVerified: true };
   }
@@ -349,6 +396,18 @@ async function handleMidtransWebhook(payload) {
   const fraudStatus = payload.fraud_status || null;
 
   if (midtransService.isSettlementStatus(transactionStatus)) {
+    await paymentFlowRepository.createPaymentTransaction({
+      paymentId: payment.id,
+      transactionId: payload.transaction_id || payment.transactionId,
+      orderId,
+      paymentType: payload.payment_type || payment.paymentType || 'qris',
+      grossAmount: payment.amount,
+      transactionTime: payload.transaction_time ? new Date(payload.transaction_time) : new Date(),
+      settlementTime: payload.settlement_time ? new Date(payload.settlement_time) : new Date(),
+      fraudStatus,
+      status: transactionStatus,
+    });
+
     const verified = await finalizeVerifiedPayment(payment, null, null, {
       paidAt: payload.settlement_time ? new Date(payload.settlement_time) : new Date(),
       settlementTime: payload.settlement_time ? new Date(payload.settlement_time) : new Date(),
@@ -401,36 +460,63 @@ async function streamInvoicePdf(paymentId, actor, res) {
     if (payment.bill.studentId !== student.id) throw ApiError.forbidden('Akses ditolak');
   }
 
-  const doc = new PDFDocument({ margin: 50 });
+  const doc = new PDFDocument({ margin: 50, size: 'A4' });
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `inline; filename="bukti-${payment.reference}.pdf"`);
   doc.pipe(res);
 
-  doc.fontSize(16).text(env.school.name, { align: 'center' });
-  doc.fontSize(12).text('Bukti Pembayaran POSPAY', { align: 'center' });
-  doc.moveDown();
+  const logoPath = path.resolve(__dirname, '../../assets/pospay-logo.png');
+  try {
+    doc.image(logoPath, 50, 45, { width: 48, height: 48 });
+  } catch {
+    drawPospayLogo(doc, 50, 45, 48);
+  }
+
+  doc.fontSize(16).fillColor('#0056D2').text(env.school.name, 110, 50);
+  doc.fontSize(11).fillColor('#333333').text('Bukti Pembayaran POSPAY', 110, 72);
+  doc.moveDown(2);
+
+  const className = payment.bill.student?.schoolClass?.name || '-';
+  const paidDate = payment.verifiedAt || payment.paidAt || payment.createdAt;
+  const statusLabel = payment.status === 'VERIFIED' ? 'LUNAS' : payment.status;
 
   const rows = [
+    ['Nomor Invoice', payment.bill.invoiceNo],
     ['Referensi', payment.reference],
-    ['Invoice', payment.bill.invoiceNo],
-    ['Siswa', payment.bill.student.fullName],
+    ['Nama Siswa', payment.bill.student.fullName],
     ['NIS', payment.bill.student.nis],
-    ['Tagihan', payment.bill.feeType?.name || '-'],
-    ['Metode', payment.paymentMethod?.name || payment.channel],
+    ['Kelas', className],
+    ['Jenis Tagihan', payment.bill.feeType?.name || '-'],
     ['Nominal', `Rp ${toNumber(payment.amount).toLocaleString('id-ID')}`],
-    ['Status', payment.status === 'VERIFIED' ? 'Lunas' : payment.status],
-    ['Tanggal', (payment.verifiedAt || payment.createdAt).toLocaleString('id-ID')],
+    ['Metode Pembayaran', payment.paymentMethod?.name || payment.channel],
+    ['Tanggal Bayar', paidDate.toLocaleString('id-ID')],
+    ['Status', statusLabel],
   ];
 
   if (payment.orderId) rows.push(['Order ID', payment.orderId]);
   if (payment.transactionId) rows.push(['Transaction ID', payment.transactionId]);
 
+  doc.fontSize(10).fillColor('#000000');
   rows.forEach(([label, value]) => {
-    doc.fontSize(10).text(`${label}: ${value}`);
+    doc.font('Helvetica-Bold').text(`${label}:`, { continued: true });
+    doc.font('Helvetica').text(` ${value}`);
   });
 
+  const qrPayload = payment.transactionId || payment.orderId || payment.reference;
+  if (qrPayload && payment.status === 'VERIFIED') {
+    try {
+      const qrBuffer = await QRCode.toBuffer(qrPayload, { width: 120, margin: 1 });
+      doc.moveDown();
+      doc.font('Helvetica-Bold').fontSize(9).text('QR Transaksi:');
+      doc.image(qrBuffer, 50, doc.y, { width: 100 });
+      doc.moveDown(6);
+    } catch {
+      /* skip QR if generation fails */
+    }
+  }
+
   doc.moveDown();
-  doc.fontSize(8).fillColor('#666').text(`Dicetak ${new Date().toLocaleString('id-ID')} — POSPAY`, { align: 'center' });
+  doc.fontSize(8).fillColor('#666666').text(`Dicetak ${new Date().toLocaleString('id-ID')} — POSPAY`, { align: 'center' });
   doc.end();
 }
 
@@ -442,6 +528,7 @@ module.exports = {
   createCashPayment,
   createMidtransPayment,
   getStatus,
+  getPaymentMethods,
   getHistory,
   handleMidtransWebhook,
   approvePayment,
