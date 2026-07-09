@@ -170,7 +170,7 @@ async function getProfile(userId) {
     where: { id: userId },
     include: {
       student: {
-        include: { schoolClass: true },
+        include: { schoolClass: { include: { academicYear: true } } },
       },
     },
   });
