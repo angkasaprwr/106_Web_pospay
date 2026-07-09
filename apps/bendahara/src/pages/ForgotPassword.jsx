@@ -26,7 +26,13 @@ export default function ForgotPassword() {
       setSent(true);
       if (data.data.devResetUrl) {
         setDevResetUrl(data.data.devResetUrl);
-        toast.info('Mode developer: tautan reset ditampilkan di bawah');
+        if (data.data.smtpError) {
+          toast.error('Email belum terkirim — gunakan tautan reset di bawah atau perbarui App Password Gmail di server/.env');
+        } else {
+          toast.info('Mode developer: tautan reset ditampilkan di bawah');
+        }
+      } else if (data.data.emailSent === false) {
+        toast.info(data.message || 'Permintaan diproses');
       } else {
         toast.success(data.message || 'Tautan reset dikirim ke Gmail sekolah');
       }
@@ -71,7 +77,7 @@ export default function ForgotPassword() {
           <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-[0_8px_40px_rgba(0,71,171,0.08)] sm:p-8">
             <div className="mb-6">
               <h1 className="text-2xl font-extrabold text-pospay sm:text-[28px]">Lupa Kata Sandi</h1>
-              <p className="mt-1 text-sm text-slate-500">Masukkan email Gmail sekolah yang digunakan saat daftar</p>
+              <p className="mt-1 text-sm text-slate-500">Masukkan email Gmail sekolah atau username akun bendahara</p>
             </div>
 
             {sent ? (
@@ -80,7 +86,13 @@ export default function ForgotPassword() {
                   <Icon.Check width={28} height={28} />
                 </div>
                 <p className="text-sm text-slate-600">
-                  Periksa notifikasi Gmail sekolah Anda dan klik <strong>Tautan Reset</strong> untuk mengatur kata sandi baru.
+                  {devResetUrl
+                    ? 'Email belum terkirim ke Gmail. Gunakan tautan reset di bawah untuk melanjutkan.'
+                    : (
+                      <>
+                        Periksa notifikasi Gmail sekolah Anda dan klik <strong>Tautan Reset</strong> untuk mengatur kata sandi baru.
+                      </>
+                    )}
                 </p>
                 {devResetUrl && (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-left text-sm text-amber-900">
@@ -101,7 +113,7 @@ export default function ForgotPassword() {
               <form onSubmit={submit} className="space-y-5">
                 <div>
                   <label htmlFor="email" className="mb-1.5 block text-sm font-medium text-slate-700">
-                    Email Gmail Sekolah
+                    Email Gmail Sekolah / Username
                   </label>
                   <div className="relative">
                     <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400">
@@ -110,15 +122,17 @@ export default function ForgotPassword() {
                     <input
                       id="email"
                       className={inputClass}
-                      type="email"
+                      type="text"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="nama@smppusponegoro.sch.id"
+                      placeholder="smppusponegorobrebess@gmail.com"
                       autoFocus
                       required
                     />
                   </div>
-                  <p className="mt-1.5 text-xs text-slate-400">Email harus sama dengan yang digunakan saat registrasi</p>
+                  <p className="mt-1.5 text-xs text-slate-400">
+                    Contoh: smppusponegorobrebess@gmail.com atau username bendahara Anda
+                  </p>
                 </div>
                 <button
                   type="submit"

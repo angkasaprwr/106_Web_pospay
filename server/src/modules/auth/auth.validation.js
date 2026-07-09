@@ -35,7 +35,7 @@ const updateProfileSchema = z.object({
 });
 
 const forgotPasswordSchema = z.object({
-  email: z.string().email('Email tidak valid'),
+  email: z.string().min(3, 'Email Gmail sekolah atau username wajib diisi'),
 });
 
 const resetPasswordSchema = z.object({

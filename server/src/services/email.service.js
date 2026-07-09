@@ -25,6 +25,26 @@ function hasOAuthCredentials() {
   return env.smtp.authType === 'oauth2' && gmailApi.isConfigured();
 }
 
+function hasOAuthNodemailerCredentials() {
+  const { clientId, clientSecret, refreshToken } = env.smtp.oauth;
+  return Boolean(env.smtp.user && clientId && clientSecret && refreshToken);
+}
+
+function getOAuth2Transporter() {
+  if (!hasOAuthNodemailerCredentials()) return null;
+  const { clientId, clientSecret, refreshToken } = env.smtp.oauth;
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      type: 'OAuth2',
+      user: env.smtp.user,
+      clientId,
+      clientSecret,
+      refreshToken,
+    },
+  });
+}
+
 function smtpHelpMessage() {
   return [
     'Periksa SMTP_PASS (App Password Gmail 16 karakter).',
@@ -132,6 +152,19 @@ function isSchoolEmail(email) {
   return normalized.endsWith(`@${domain}`);
 }
 
+async function sendViaOAuth2(mailOptions) {
+  const transport = getOAuth2Transporter();
+  if (!transport) return { error: new Error('OAuth2 tidak dikonfigurasi') };
+
+  try {
+    await transport.sendMail(mailOptions);
+    return { sent: true, via: 'oauth2' };
+  } catch (err) {
+    logger.warn(`Kirim OAuth2 gagal: ${err.message.split('\n')[0]}`);
+    return { error: err };
+  }
+}
+
 async function sendViaSmtp(mailOptions) {
   const variants = ['starttls', 'ssl'];
   let lastError;
@@ -165,18 +198,33 @@ async function dispatchMail(mailOptions) {
     if (apiResult.sent) return apiResult;
   }
 
+  if (hasOAuthNodemailerCredentials()) {
+    const oauthResult = await sendViaOAuth2(mailOptions);
+    if (oauthResult.sent) return oauthResult;
+  }
+
   if (!hasSmtpCredentials()) {
-    return { transport: null };
+    return { error: new Error('SMTP tidak dikonfigurasi') };
   }
 
   if (!transporterVerified) {
     const check = await verifySmtpConnection();
     if (!check.ok) {
+      if (hasOAuthNodemailerCredentials()) {
+        return sendViaOAuth2(mailOptions);
+      }
       return { error: new Error(check.reason || 'SMTP tidak tersedia') };
     }
   }
 
-  return sendViaSmtp(mailOptions);
+  const smtpResult = await sendViaSmtp(mailOptions);
+  if (smtpResult.sent) return smtpResult;
+
+  if (hasOAuthNodemailerCredentials()) {
+    return sendViaOAuth2(mailOptions);
+  }
+
+  return smtpResult;
 }
 
 async function sendVerificationCode(email, code, fullName) {
@@ -269,7 +317,7 @@ async function sendPasswordResetLink(email, fullName, resetUrl) {
     html,
   };
 
-  if (!hasOAuthCredentials() && !hasSmtpCredentials()) {
+  if (!hasOAuthCredentials() && !hasOAuthNodemailerCredentials() && !hasSmtpCredentials()) {
     logger.warn(`[DEV] Tautan reset kata sandi untuk ${email}: ${resetUrl}`);
     return { sent: false, devResetUrl: resetUrl };
   }
