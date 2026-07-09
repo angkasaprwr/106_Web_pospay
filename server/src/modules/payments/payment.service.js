@@ -7,7 +7,7 @@ const { toNumber } = require('../../utils/money');
 const { recordAudit } = require('../audit/audit.service');
 const { notifyUser } = require('../notifications/notification.service');
 const { resolveStudent } = require('../portal/portal.service');
-const { isCashlessPayment, generateQrDataUrl } = require('./payment.util');
+const { isCashlessPayment, isCashMethod, requiresProofUpload, generateQrDataUrl } = require('./payment.util');
 
 const CASHLESS_SETTLE_MS = parseInt(process.env.CASHLESS_SETTLE_MS || '8000', 10);
 
@@ -103,14 +103,17 @@ async function create(input, { actor, asTreasurer = false, req }) {
   }
 
   const channel = input.channel || paymentMethod?.channel || 'TRANSFER';
-  const cashless = isCashlessPayment(channel, paymentMethod?.name);
+  const methodName = paymentMethod?.name || '';
+  const cashless = isCashlessPayment(channel, methodName);
+  const cash = isCashMethod(channel, methodName);
+  const needsProof = requiresProofUpload(channel, methodName);
   const hasProof = Boolean(input.proofUrl);
 
   if (cashless && hasProof) {
     throw ApiError.badRequest('Pembayaran cashless tidak memerlukan unggahan bukti');
   }
-  if (!cashless && !asTreasurer && !hasProof) {
-    throw ApiError.badRequest('Unggah bukti pembayaran untuk metode transfer/tunai');
+  if (!asTreasurer && needsProof && !hasProof) {
+    throw ApiError.badRequest('Unggah bukti pembayaran untuk metode transfer');
   }
 
   const payment = await prisma.payment.create({
@@ -138,9 +141,16 @@ async function create(input, { actor, asTreasurer = false, req }) {
     return { ...payment, cashlessPending: true };
   }
 
+  const notifyTitle = cash
+    ? 'Pembayaran Tunai Menunggu Verifikasi'
+    : 'Konfirmasi Pembayaran Baru';
+  const notifyBody = cash
+    ? `${payment.bill.student.fullName} mengajukan pembayaran tunai ${payment.bill.feeType.name} — menunggu verifikasi di loket.`
+    : `${payment.bill.student.fullName} mengunggah bukti pembayaran ${payment.bill.feeType.name}.`;
+
   await notifyTreasurers({
-    title: 'Konfirmasi Pembayaran Baru',
-    body: `${payment.bill.student.fullName} mengunggah bukti pembayaran ${payment.bill.feeType.name}.`,
+    title: notifyTitle,
+    body: notifyBody,
     type: 'PAYMENT_SUBMITTED',
     data: { paymentId: payment.id, billId: bill.id },
   });
@@ -288,4 +298,5 @@ module.exports = {
   verify,
   reject,
   isCashlessPayment,
+  isCashMethod,
 };

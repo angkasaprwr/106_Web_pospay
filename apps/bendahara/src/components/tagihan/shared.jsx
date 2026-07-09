@@ -1,4 +1,4 @@
-import { formatIDR, formatDate, BILL_STATUS } from '../../lib/format';
+import { formatIDR, formatDate, formatDateTime, BILL_STATUS } from '../../lib/format';
 
 export function StatCard({ label, value, subtext, icon: IconC, iconBg, iconColor }) {
   return (
@@ -202,6 +202,44 @@ export function exportDispensationsCsv(items, arrearsMap) {
 
 export function tagihanGroupKey(bill) {
   return `${bill.feeTypeId || ''}|${bill.period || ''}|${bill.description || ''}`;
+}
+
+export function printBillStatusReceipt(bill, { pendingBillIds, paymentDates = {}, pendingPayment = null } = {}) {
+  const st = paymentStatusDisplay(bill, pendingBillIds);
+  const paidAt = paymentDates[bill.id];
+  const method = pendingPayment ? paymentMethodLabel(pendingPayment) : '';
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Status Tagihan - ${bill.student?.fullName || ''}</title>
+<style>
+body{font-family:system-ui,sans-serif;padding:24px;color:#111}
+h1{font-size:18px;margin:0 0 4px}
+.sub{font-size:12px;color:#555;margin-bottom:20px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td{padding:8px 0;border-bottom:1px solid #eee}
+td:first-child{color:#666;width:40%}
+.badge{display:inline-block;padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600}
+.footer{margin-top:24px;font-size:11px;color:#888}
+</style></head><body>
+<h1>SMP Pusponegoro Brebes — POSPAY</h1>
+<p class="sub">Bukti Status Tagihan</p>
+<table>
+<tr><td>Nama Siswa</td><td><strong>${bill.student?.fullName || '-'}</strong></td></tr>
+<tr><td>NIS</td><td>${bill.student?.nis || '-'}</td></tr>
+<tr><td>Kelas</td><td>${formatClassLabel(bill.student?.schoolClass?.name)}</td></tr>
+<tr><td>Tagihan</td><td>${billDisplayName(bill)}</td></tr>
+<tr><td>Nominal</td><td><strong>${formatIDR(bill.amount)}</strong></td></tr>
+<tr><td>Status</td><td><span class="badge">${st.label}</span></td></tr>
+<tr><td>Tanggal Pembayaran</td><td>${paidAt ? formatDateTime(paidAt) : '-'}</td></tr>
+${method ? `<tr><td>Metode</td><td>${method}</td></tr>` : ''}
+${pendingPayment?.reference ? `<tr><td>Referensi</td><td>${pendingPayment.reference}</td></tr>` : ''}
+</table>
+<p class="footer">Dicetak ${new Date().toLocaleString('id-ID')} · POSPAY Sistem Keuangan Sekolah</p>
+<script>window.onload=function(){window.print();}</script>
+</body></html>`;
+  const w = window.open('', '_blank', 'noopener,noreferrer,width=720,height=640');
+  if (!w) return;
+  w.document.open();
+  w.document.write(html);
+  w.document.close();
 }
 
 export function exportStatusCsv(items, pendingBillIds, paymentDates = {}) {

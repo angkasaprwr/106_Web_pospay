@@ -44,3 +44,17 @@ export function isCashlessMethod(method) {
   const lower = String(method.name || '').toLowerCase();
   return E_WALLET_KEYWORDS.some((k) => lower.includes(k));
 }
+
+const CASH_KEYWORDS = ['tunai', 'cash', 'loket'];
+
+export function isCashMethod(method) {
+  if (!method) return false;
+  if (method.channel === 'CASH') return true;
+  const lower = String(method.name || '').toLowerCase();
+  return CASH_KEYWORDS.some((k) => lower.includes(k));
+}
+
+export function isTransferMethod(method) {
+  if (!method) return false;
+  return !isCashlessMethod(method) && !isCashMethod(method);
+}

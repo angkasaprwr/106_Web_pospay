@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import { api, apiError } from '../../lib/api';
 import { useToast } from '../../context/ToastContext';
-import { Spinner, Modal, EmptyState } from '../ui';
+import { Spinner, Modal, EmptyState, Field } from '../ui';
 import { Icon } from '../Icons';
 import { formatIDR, formatDateTime } from '../../lib/format';
 import {
@@ -11,8 +11,11 @@ import {
   formatBillDate,
   formatClassLabel,
   paymentStatusDisplay,
+  paymentMethodLabel,
+  verificationStatusBadge,
   tagihanGroupKey,
   exportStatusCsv,
+  printBillStatusReceipt,
 } from './shared';
 
 const CHART_COLORS = { lunas: '#10b981', pending: '#f59e0b', unpaid: '#ef4444' };
@@ -81,6 +84,7 @@ export default function StatusPembayaranTab() {
   const [classes, setClasses] = useState([]);
   const [tagihanGroups, setTagihanGroups] = useState([]);
   const [pendingBillIds, setPendingBillIds] = useState(new Set());
+  const [pendingPaymentsByBill, setPendingPaymentsByBill] = useState({});
   const [paymentDates, setPaymentDates] = useState({});
   const [filters, setFilters] = useState({
     tagihanKey: '',
@@ -93,6 +97,10 @@ export default function StatusPembayaranTab() {
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [sendingNotifyId, setSendingNotifyId] = useState(null);
+  const [verifyNote, setVerifyNote] = useState('');
+  const [rejectReason, setRejectReason] = useState('');
+  const [showReject, setShowReject] = useState(false);
+  const [acting, setActing] = useState(false);
 
   const selectedGroup = tagihanGroups.find((g) => g.key === filters.tagihanKey);
 
@@ -105,6 +113,11 @@ export default function StatusPembayaranTab() {
         api.get('/masterdata/classes'),
       ]);
       setPendingBillIds(new Set(pendingRes.data.data.map((p) => p.billId)));
+      const pendingMap = {};
+      pendingRes.data.data.forEach((p) => {
+        if (!pendingMap[p.billId]) pendingMap[p.billId] = p;
+      });
+      setPendingPaymentsByBill(pendingMap);
       const dates = {};
       verifiedRes.data.data.forEach((p) => {
         const t = p.verifiedAt || p.paidAt;
@@ -185,6 +198,9 @@ export default function StatusPembayaranTab() {
   const openDetail = async (bill) => {
     setDetailLoading(true);
     setDetail(null);
+    setVerifyNote('');
+    setRejectReason('');
+    setShowReject(false);
     try {
       const { data } = await api.get(`/bills/${bill.id}`);
       setDetail(data.data);
@@ -193,6 +209,57 @@ export default function StatusPembayaranTab() {
     } finally {
       setDetailLoading(false);
     }
+  };
+
+  const pendingPaymentForDetail = detail
+    ? (detail.payments?.find((p) => p.status === 'PENDING') || pendingPaymentsByBill[detail.id])
+    : null;
+
+  const refreshAfterVerify = async () => {
+    await loadAux();
+    await load();
+    setDetail(null);
+    setShowReject(false);
+    setVerifyNote('');
+    setRejectReason('');
+  };
+
+  const verifyPayment = async (paymentId) => {
+    setActing(true);
+    try {
+      await api.post(`/payments/${paymentId}/verify`, { note: verifyNote.trim() || undefined });
+      toast.success('Pembayaran disetujui — status tagihan lunas');
+      await refreshAfterVerify();
+    } catch (e) {
+      toast.error(apiError(e));
+    } finally {
+      setActing(false);
+    }
+  };
+
+  const rejectPayment = async (paymentId) => {
+    if (rejectReason.trim().length < 3) {
+      toast.error('Alasan penolakan minimal 3 karakter');
+      return;
+    }
+    setActing(true);
+    try {
+      await api.post(`/payments/${paymentId}/reject`, { rejectionReason: rejectReason.trim() });
+      toast.success('Pembayaran ditolak');
+      await refreshAfterVerify();
+    } catch (e) {
+      toast.error(apiError(e));
+    } finally {
+      setActing(false);
+    }
+  };
+
+  const handlePrint = (bill) => {
+    printBillStatusReceipt(bill, {
+      pendingBillIds,
+      paymentDates,
+      pendingPayment: pendingPaymentsByBill[bill.id] || null,
+    });
   };
 
   const sendReminder = async (bill) => {
@@ -318,6 +385,14 @@ export default function StatusPembayaranTab() {
                           <div className="flex items-center justify-center gap-1.5">
                             <button
                               type="button"
+                              onClick={() => handlePrint(b)}
+                              title="Cetak status tagihan"
+                              className="inline-flex items-center justify-center rounded-lg border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                            >
+                              <Icon.Printer width={14} height={14} />
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => openDetail(b)}
                               className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-pospay hover:bg-pospay-50"
                             >
@@ -428,27 +503,104 @@ export default function StatusPembayaranTab() {
         </div>
       </div>
 
-      <Modal open={!!detail || detailLoading} onClose={() => { setDetail(null); setDetailLoading(false); }} title="Detail Status Tagihan" size="lg">
+      <Modal
+        open={!!detail || detailLoading}
+        onClose={() => { setDetail(null); setDetailLoading(false); setShowReject(false); }}
+        title="Detail Status Tagihan"
+        size="lg"
+        footer={pendingPaymentForDetail && (
+          <>
+            <button
+              type="button"
+              className="btn-danger"
+              onClick={() => setShowReject(true)}
+              disabled={acting}
+            >
+              Tolak
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => verifyPayment(pendingPaymentForDetail.id)}
+              disabled={acting}
+            >
+              {acting ? <Spinner size={16} className="text-white" /> : 'Setujui & Simpan'}
+            </button>
+          </>
+        )}
+      >
         {detailLoading ? (
           <div className="flex h-32 items-center justify-center"><Spinner size={28} /></div>
         ) : detail ? (
-          <div className="space-y-3 text-sm">
-            <p><strong>Siswa:</strong> {detail.student?.fullName} ({formatClassLabel(detail.student?.schoolClass?.name)})</p>
-            <p><strong>Tagihan:</strong> {billDisplayName(detail)}</p>
-            <p><strong>Nominal:</strong> {formatIDR(detail.amount)}</p>
-            <p><strong>Terbayar:</strong> {formatIDR(detail.paidAmount)}</p>
-            <p><strong>Status:</strong> {paymentStatusDisplay(detail, pendingBillIds).label}</p>
+          <div className="space-y-4 text-sm">
+            <div className="grid gap-2 sm:grid-cols-2">
+              <p><strong>Siswa:</strong> {detail.student?.fullName} ({formatClassLabel(detail.student?.schoolClass?.name)})</p>
+              <p><strong>NIS:</strong> {detail.student?.nis}</p>
+              <p><strong>Tagihan:</strong> {billDisplayName(detail)}</p>
+              <p><strong>Nominal:</strong> {formatIDR(detail.amount)}</p>
+              <p><strong>Terbayar:</strong> {formatIDR(detail.paidAmount)}</p>
+              <p><strong>Status:</strong> {paymentStatusDisplay(detail, pendingBillIds).label}</p>
+            </div>
+            {pendingPaymentForDetail && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50/80 p-4 dark:border-amber-900/50 dark:bg-amber-950/30">
+                <p className="mb-2 font-semibold text-amber-900 dark:text-amber-200">Verifikasi Pembayaran</p>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <p><strong>Metode:</strong> {paymentMethodLabel(pendingPaymentForDetail)}</p>
+                  <p><strong>Nominal:</strong> {formatIDR(pendingPaymentForDetail.amount)}</p>
+                  <p><strong>Referensi:</strong> {pendingPaymentForDetail.reference}</p>
+                  <p><strong>Status:</strong> {verificationStatusBadge(pendingPaymentForDetail.status).label}</p>
+                </div>
+                {pendingPaymentForDetail.note && (
+                  <p className="mt-2 text-amber-800 dark:text-amber-300/90">
+                    <strong>Catatan siswa:</strong> {pendingPaymentForDetail.note}
+                  </p>
+                )}
+                <Field label="Catatan verifikasi (opsional)" className="mt-3">
+                  <textarea
+                    className="input"
+                    rows={2}
+                    value={verifyNote}
+                    onChange={(e) => setVerifyNote(e.target.value)}
+                    placeholder="Contoh: Uang tunai diterima di loket bendahara"
+                  />
+                </Field>
+              </div>
+            )}
             {detail.payments?.length > 0 && (
               <div>
                 <p className="mb-2 font-medium">Riwayat Pembayaran</p>
-                <ul className="space-y-1 rounded-lg border border-slate-100 p-3">
+                <ul className="space-y-1 rounded-lg border border-slate-100 p-3 dark:border-slate-700">
                   {detail.payments.map((p) => (
                     <li key={p.id} className="flex justify-between text-xs">
-                      <span>{p.reference} — {p.status}</span>
+                      <span>{p.reference} — {verificationStatusBadge(p.status).label}</span>
                       <span>{formatIDR(p.amount)}</span>
                     </li>
                   ))}
                 </ul>
+              </div>
+            )}
+            {showReject && pendingPaymentForDetail && (
+              <div className="rounded-lg border border-red-200 bg-red-50/80 p-4 dark:border-red-900/50 dark:bg-red-950/30">
+                <Field label="Alasan penolakan">
+                  <textarea
+                    className="input"
+                    rows={3}
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="Jelaskan alasan penolakan..."
+                  />
+                </Field>
+                <div className="mt-3 flex justify-end gap-2">
+                  <button type="button" className="btn-secondary" onClick={() => setShowReject(false)}>Batal</button>
+                  <button
+                    type="button"
+                    className="btn-danger"
+                    onClick={() => rejectPayment(pendingPaymentForDetail.id)}
+                    disabled={acting || rejectReason.trim().length < 3}
+                  >
+                    Simpan Penolakan
+                  </button>
+                </div>
               </div>
             )}
           </div>

@@ -9,6 +9,7 @@ import {
   saveBillPaymentDraft,
   saveLastPayment,
   isCashlessMethod,
+  isCashMethod,
 } from '../lib/billPaymentSession';
 import { Spinner } from '../components/ui';
 import { Icon } from '../components/Icons';
@@ -117,6 +118,7 @@ export default function BillConfirm() {
   const [awaitingCashless, setAwaitingCashless] = useState(false);
 
   const cashless = useMemo(() => isCashlessMethod(method), [method]);
+  const cash = useMemo(() => isCashMethod(method), [method]);
 
   const finishSuccess = useCallback((payment) => {
     saveLastPayment(payment);
@@ -231,6 +233,33 @@ export default function BillConfirm() {
     }
   };
 
+  const handleConfirmCash = async () => {
+    if (!bill || !method || !draft) {
+      toast.info('Selesaikan pemilihan tagihan dan metode pembayaran di langkah 1 terlebih dahulu.');
+      navigate('/tagihan');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const fd = new FormData();
+      fd.append('billId', bill.id);
+      fd.append('amount', String(amount));
+      fd.append('channel', method.channel || draft.channel || 'CASH');
+      fd.append('paymentMethodId', method.id);
+      if (note.trim()) fd.append('note', note.trim());
+      const { data } = await api.post('/portal/payments', fd);
+      saveLastPayment(data.data);
+      clearBillPaymentDraft();
+      toast.success('Pengajuan pembayaran tunai terkirim. Serahkan uang ke loket bendahara.');
+      navigate('/pembayaran-berhasil');
+    } catch (e) {
+      const msg = apiError(e);
+      if (msg) toast.error(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleComplete = async () => {
     if (!bill || !method || !draft) {
       toast.info('Selesaikan pemilihan tagihan dan metode pembayaran di langkah 1 terlebih dahulu.');
@@ -325,7 +354,9 @@ export default function BillConfirm() {
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 {cashless
                   ? 'Scan kode QR di panel kanan untuk membayar. Pembayaran akan terverifikasi otomatis tanpa unggah bukti.'
-                  : 'Periksa detail pembayaran dan ikuti panduan transfer sebelum mengunggah bukti.'}
+                  : cash
+                    ? 'Serahkan pembayaran tunai ke loket bendahara sesuai nominal. Tidak perlu unggah bukti.'
+                    : 'Periksa detail pembayaran dan ikuti panduan transfer sebelum mengunggah bukti.'}
               </p>
             </div>
 
@@ -347,7 +378,7 @@ export default function BillConfirm() {
             <div className="mb-5 rounded-xl border border-slate-100 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/40">
               <DetailRow label="Jenis Tagihan" value={bill.feeType?.name || '—'} />
               <DetailRow label="Metode Pembayaran" value={method.name} />
-              {!cashless && (
+              {!cashless && !cash && (
                 <>
                   <DetailRow
                     label="Nomor Rekening / Virtual Account"
@@ -384,7 +415,9 @@ export default function BillConfirm() {
                 <GuideAccordion title={`Cara Bayar via ${method.name}`} icon={Icon.Money}>
                   {cashless
                     ? `Buka aplikasi ${method.name}, pilih Scan QR, lalu arahkan kamera ke kode QR. Dana akan masuk ke rekening resmi sekolah secara otomatis.`
-                    : 'Ikuti petunjuk pembayaran sesuai metode yang dipilih. Setelah transfer, unggah bukti di panel kanan.'}
+                    : cash
+                      ? 'Datang ke loket bendahara SMP Pusponegoro Brebes dengan uang tunai sesuai nominal tagihan. Bendahara akan memverifikasi pembayaran setelah uang diterima.'
+                      : 'Ikuti petunjuk pembayaran sesuai metode yang dipilih. Setelah transfer, unggah bukti di panel kanan.'}
                 </GuideAccordion>
               )}
             </div>
@@ -420,6 +453,37 @@ export default function BillConfirm() {
                   </div>
                 )}
               </div>
+            </section>
+          ) : cash ? (
+            <section className={`${CARD} p-5`}>
+              <h2 className="mb-4 font-bold text-slate-800 dark:text-slate-100">Pembayaran Tunai di Loket</h2>
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 px-4 py-4 text-center dark:border-emerald-900/50 dark:bg-emerald-950/30">
+                <span className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400">
+                  <Icon.Money width={24} height={24} />
+                </span>
+                <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">
+                  {formatIDR(amount)}
+                </p>
+                <p className="mt-2 text-xs text-emerald-800 dark:text-emerald-300/90">
+                  Serahkan uang tunai ke bendahara di loket sekolah. Status akan berubah menjadi Lunas setelah bendahara menyetujui.
+                </p>
+              </div>
+              <textarea
+                className="mt-3 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:border-[#0056D2] focus:outline-none focus:ring-1 focus:ring-[#0056D2] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                rows={2}
+                placeholder="Catatan (opsional)"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+              />
+              <button
+                type="button"
+                onClick={handleConfirmCash}
+                disabled={submitting}
+                className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl bg-[#0056D2] py-3.5 text-sm font-bold text-white shadow-md disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-600"
+              >
+                {submitting ? <Spinner size={18} className="text-white" /> : <Icon.CheckCircle width={20} height={20} />}
+                Konfirmasi Pembayaran Tunai
+              </button>
             </section>
           ) : (
             <section className={`${CARD} p-5`}>
@@ -473,7 +537,9 @@ export default function BillConfirm() {
           <p className="text-center text-xs text-slate-400 dark:text-slate-500">
             {cashless
               ? 'Pembayaran cashless diverifikasi otomatis setelah dana masuk rekening sekolah.'
-              : 'Pembatalan hanya dapat dilakukan sebelum pembayaran dilakukan.'}
+              : cash
+                ? 'Pembayaran tunai menunggu verifikasi bendahara setelah uang diterima di loket.'
+                : 'Pembatalan hanya dapat dilakukan sebelum pembayaran dilakukan.'}
           </p>
         </div>
       </div>

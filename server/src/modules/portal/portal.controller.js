@@ -37,9 +37,12 @@ const submitPayment = asyncHandler(async (req, res) => {
     payment.channel,
     payment.paymentMethod?.name,
   );
+  const cash = paymentService.isCashMethod(payment.channel, payment.paymentMethod?.name);
   const message = cashless
     ? 'Pembayaran cashless dibuat. Scan QR untuk menyelesaikan pembayaran.'
-    : 'Konfirmasi pembayaran terkirim, menunggu verifikasi';
+    : cash
+      ? 'Pengajuan pembayaran tunai terkirim. Menunggu verifikasi bendahara di loket.'
+      : 'Konfirmasi pembayaran terkirim, menunggu verifikasi';
   return created(res, payment, message);
 });
 
