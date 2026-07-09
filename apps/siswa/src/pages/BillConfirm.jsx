@@ -11,6 +11,7 @@ import {
   isCashlessMethod,
   isCashMethod,
   isMidtransQrisMethod,
+  isMidtransTransferMethod,
 } from '../lib/billPaymentSession';
 import { Spinner } from '../components/ui';
 import { Icon } from '../components/Icons';
@@ -115,6 +116,7 @@ export default function BillConfirm() {
   const [note, setNote] = useState('');
   const [paymentId, setPaymentId] = useState('');
   const [qrDataUrl, setQrDataUrl] = useState('');
+  const [transferInfo, setTransferInfo] = useState(null);
   const [paymentStatus, setPaymentStatus] = useState('');
   const [awaitingCashless, setAwaitingCashless] = useState(false);
 
@@ -123,8 +125,9 @@ export default function BillConfirm() {
   const [schoolName, setSchoolName] = useState('SMP Pusponegoro Brebes');
 
   const midtrans = useMemo(() => isMidtransQrisMethod(method), [method]);
+  const midtransTransfer = useMemo(() => isMidtransTransferMethod(method), [method]);
   const cash = useMemo(() => isCashMethod(method), [method]);
-  const cashless = useMemo(() => isCashlessMethod(method) && !cash, [method, cash]);
+  const cashless = useMemo(() => (isCashlessMethod(method) || midtransTransfer) && !cash, [method, cash, midtransTransfer]);
 
   const finishSuccess = useCallback((payment) => {
     saveLastPayment(payment);
@@ -138,6 +141,10 @@ export default function BillConfirm() {
       const { data } = await api.get(`/payment/status/${id}`);
       const payment = data.data;
       setPaymentStatus(payment.status);
+      setTransferInfo({
+        vaNumber: payment.qr_string || null,
+        bank: payment.payment_method?.merchantName || payment.payment_method?.name || null,
+      });
       if (payment.status === 'VERIFIED') {
         if (pollRef.current) clearInterval(pollRef.current);
         finishSuccess(payment);
@@ -194,12 +201,16 @@ export default function BillConfirm() {
     setPaymentId(pid);
     setPaymentStatus(paymentData.status || 'PENDING');
     setQrDataUrl(paymentData.qr_url || paymentData.qrDataUrl || '');
+    setTransferInfo({
+      vaNumber: paymentData.va_number || null,
+      bank: paymentData.bank || null,
+    });
     setExpiryTime(paymentData.expiry_time || paymentData.expiryTime || null);
     setSchoolName(paymentData.school_name || 'SMP Pusponegoro Brebes');
     setAwaitingCashless(true);
 
     if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = setInterval(() => pollPaymentStatus(pid), 3000);
+    pollRef.current = setInterval(() => pollPaymentStatus(pid), 5000);
     pollPaymentStatus(pid);
   }, [note, pollPaymentStatus]);
 
@@ -229,7 +240,7 @@ export default function BillConfirm() {
     setPaymentStatus(qrRes.data.data.status || 'PENDING');
 
     if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = setInterval(() => pollPaymentStatus(pid), 2500);
+    pollRef.current = setInterval(() => pollPaymentStatus(pid), 5000);
     pollPaymentStatus(pid);
   }, [pollPaymentStatus]);
 
@@ -252,7 +263,7 @@ export default function BillConfirm() {
       setBill(billData);
       setMethod(methodData);
 
-      if (methodData && isMidtransQrisMethod(methodData)) {
+      if (methodData && (isMidtransQrisMethod(methodData) || isMidtransTransferMethod(methodData))) {
         const amount = Math.max(
           0,
           Number(billData.amount) - Number(billData.discount || 0) - Number(billData.paidAmount || 0),
@@ -491,21 +502,25 @@ export default function BillConfirm() {
         </div>
 
         <div className="space-y-5 xl:col-span-4">
-          {midtrans || (cashless && !cash) ? (
+          {midtrans || midtransTransfer || (cashless && !cash) ? (
             <section className={`${CARD} p-5`}>
-              <h2 className="mb-4 font-bold text-slate-800 dark:text-slate-100">
-                Scan QR {midtrans ? 'Midtrans' : method.name}
-              </h2>
+              <h2 className="mb-4 font-bold text-slate-800 dark:text-slate-100">{midtransTransfer ? 'Transfer Bank Midtrans' : `Scan QR ${midtrans ? 'Midtrans' : method.name}`}</h2>
               <div className="flex flex-col items-center">
-                {qrDataUrl ? (
+                {!midtransTransfer && qrDataUrl ? (
                   <img
                     src={qrDataUrl}
                     alt={`QR pembayaran ${method.name}`}
                     className="h-56 w-56 rounded-xl border border-slate-200 bg-white p-2 dark:border-slate-600"
                   />
-                ) : (
+                ) : !midtransTransfer ? (
                   <div className="flex h-56 w-56 items-center justify-center rounded-xl border border-dashed border-slate-200 dark:border-slate-600">
                     <Spinner size={32} />
+                  </div>
+                ) : (
+                  <div className="w-full rounded-xl border border-slate-200 bg-slate-50 p-4 text-center dark:border-slate-700 dark:bg-slate-800/60">
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Virtual Account</p>
+                    <p className="mt-1 text-lg font-bold text-slate-900 dark:text-slate-100">{transferInfo?.vaNumber || '-'}</p>
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Bank: {transferInfo?.bank || method?.name || '-'}</p>
                   </div>
                 )}
                 <p className="mt-4 text-center text-sm font-medium text-slate-700 dark:text-slate-200">
@@ -527,7 +542,7 @@ export default function BillConfirm() {
                 {awaitingCashless && paymentStatus === 'PENDING' && (
                   <div className="mt-4 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
                     <Spinner size={14} />
-                    {midtrans ? 'Menunggu pembayaran QRIS Midtrans...' : 'Menunggu konfirmasi pembayaran cashless...'}
+                    {midtransTransfer ? 'Menunggu pembayaran transfer Midtrans...' : (midtrans ? 'Menunggu pembayaran QRIS Midtrans...' : 'Menunggu konfirmasi pembayaran cashless...')}
                   </div>
                 )}
               </div>

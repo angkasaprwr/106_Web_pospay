@@ -53,6 +53,16 @@ function extractQrisData(chargeResponse) {
   };
 }
 
+function normalizeBankFromMethod(method) {
+  const source = `${method?.merchantName || ''} ${method?.name || ''}`.toLowerCase();
+  if (source.includes('bca')) return 'bca';
+  if (source.includes('bri')) return 'bri';
+  if (source.includes('bni')) return 'bni';
+  if (source.includes('mandiri')) return 'mandiri';
+  if (source.includes('jateng')) return 'permata';
+  return 'bca';
+}
+
 async function chargeQris({ orderId, grossAmount, method, customerDetails }) {
   const keys = resolveKeys(method);
   if (!hasValidMidtransKeys(keys)) {
@@ -75,12 +85,52 @@ async function chargeQris({ orderId, grossAmount, method, customerDetails }) {
   return extractQrisData(response);
 }
 
+async function chargeBankTransfer({ orderId, grossAmount, method, customerDetails }) {
+  const keys = resolveKeys(method);
+  if (!hasValidMidtransKeys(keys)) {
+    throw ApiError.badRequest(
+      'Konfigurasi Midtrans belum lengkap. Atur MIDTRANS_SERVER_KEY dan MIDTRANS_CLIENT_KEY di server/.env atau di Pengaturan metode transfer.',
+    );
+  }
+
+  const bank = normalizeBankFromMethod(method);
+  const core = createCoreApi(method);
+  const parameter = {
+    payment_type: 'bank_transfer',
+    transaction_details: {
+      order_id: orderId,
+      gross_amount: Math.round(grossAmount),
+    },
+    customer_details: customerDetails,
+    bank_transfer: {
+      bank,
+    },
+  };
+
+  const response = await core.charge(parameter);
+  const va = Array.isArray(response.va_numbers) ? response.va_numbers[0] : null;
+  return {
+    transactionId: response.transaction_id || null,
+    orderId: response.order_id,
+    grossAmount: response.gross_amount,
+    paymentType: response.payment_type || 'bank_transfer',
+    paymentUrl: response.permata_va_number || null,
+    vaNumber: va?.va_number || response.permata_va_number || null,
+    bank: va?.bank || bank,
+    expiryTime: response.expiry_time ? new Date(response.expiry_time) : null,
+    midtransStatus: response.transaction_status || 'pending',
+    statusCode: response.status_code || '201',
+    raw: response,
+  };
+}
+
 function isSettlementStatus(transactionStatus) {
   return ['settlement', 'capture'].includes(String(transactionStatus || '').toLowerCase());
 }
 
 module.exports = {
   chargeQris,
+  chargeBankTransfer,
   verifySignature,
   resolveKeys,
   hasValidMidtransKeys,

@@ -22,6 +22,7 @@ router.use(authenticate);
 router.get('/method', authorize('SISWA', 'BENDAHARA'), controller.methods);
 router.post('/create', authorize('SISWA'), validate({ body: createPaymentSchema }), controller.create);
 router.post('/cash', authorize('SISWA'), validate({ body: createPaymentSchema }), controller.createCash);
+router.post('/verify', authorize('BENDAHARA'), validate({ body: cashActionSchema }), controller.cashApprove);
 router.get('/status/:invoiceId', authorize('SISWA', 'BENDAHARA'), controller.status);
 router.get('/history', authorize('SISWA'), validate({ query: historyQuerySchema }), controller.history);
 router.post('/cash/approve', authorize('BENDAHARA'), validate({ body: cashActionSchema }), controller.cashApprove);

@@ -27,7 +27,12 @@ function drawPospayLogo(doc, x, y, size = 40) {
 
 function isMidtransQrisMethod(method) {
   if (!method) return false;
-  return method.gateway === 'midtrans' || method.paymentType === 'QRIS_MIDTRANS';
+  return method.paymentType === 'QRIS_MIDTRANS' || (method.gateway === 'midtrans' && method.channel === 'QRIS');
+}
+
+function isMidtransTransferMethod(method) {
+  if (!method) return false;
+  return method.paymentType === 'TRANSFER_MIDTRANS' || (method.gateway === 'midtrans' && method.channel === 'TRANSFER');
 }
 
 function isCashPaymentMethod(method) {
@@ -204,10 +209,96 @@ async function createMidtransPayment(input, actor, req) {
   };
 }
 
+async function createMidtransTransferPayment(input, actor, req) {
+  const method = await loadPaymentMethod(input.paymentMethodId);
+  if (!isMidtransTransferMethod(method)) {
+    throw ApiError.badRequest('Metode pembayaran bukan transfer Midtrans');
+  }
+
+  const { bill, student } = await validateBillForStudent(input.billId, actor);
+  const amount = input.amount ?? outstanding(bill);
+  if (amount > outstanding(bill) + 0.001) {
+    throw ApiError.badRequest(`Nominal melebihi sisa tagihan (${outstanding(bill)})`);
+  }
+
+  const orderId = generateMidtransOrderId();
+  const payment = await paymentFlowRepository.createPaymentWithHistory(
+    {
+      reference: generatePaymentRef(),
+      billId: bill.id,
+      paymentMethodId: method.id,
+      amount,
+      channel: 'TRANSFER',
+      paymentType: 'TRANSFER_MIDTRANS',
+      gateway: 'midtrans',
+      orderId,
+      note: input.note || null,
+      status: 'PENDING',
+    },
+    'Transaksi transfer Midtrans dibuat',
+  );
+
+  let charge;
+  try {
+    charge = await midtransService.chargeBankTransfer({
+      orderId,
+      grossAmount: amount,
+      method,
+      customerDetails: {
+        first_name: student.fullName,
+        email: actor.email || `${student.nis}@siswa.local`,
+        phone: student.parentPhone || actor.phone || '08123456789',
+      },
+    });
+  } catch (err) {
+    await prisma.payment.delete({ where: { id: payment.id } });
+    throw ApiError.badRequest(`Gagal membuat transaksi transfer Midtrans: ${err.message}`);
+  }
+
+  const updated = await paymentFlowRepository.updatePaymentWithHistory(
+    payment.id,
+    {
+      transactionId: charge.transactionId,
+      qrString: charge.vaNumber || null,
+      qrUrl: charge.paymentUrl || null,
+      expiryTime: charge.expiryTime,
+      midtransStatus: charge.midtransStatus,
+    },
+    { note: 'Transfer Midtrans di-generate', metadata: { statusCode: charge.statusCode, bank: charge.bank } },
+  );
+
+  await paymentFlowRepository.createMidtransLog({
+    paymentId: payment.id,
+    orderId,
+    eventType: 'charge',
+    payload: { orderId, amount, bank: charge.bank, channel: 'TRANSFER' },
+    response: charge.raw,
+  });
+
+  await recordAudit({ userId: actor.id, action: 'CREATE', entity: 'Payment', entityId: payment.id, req });
+
+  return {
+    ...updated,
+    order_id: orderId,
+    transaction_id: charge.transactionId,
+    gross_amount: toNumber(amount),
+    payment_type: charge.paymentType,
+    payment_url: charge.paymentUrl || null,
+    va_number: charge.vaNumber || null,
+    bank: charge.bank || null,
+    expiry_time: charge.expiryTime,
+    school_name: env.school.name,
+    invoice_no: bill.invoiceNo,
+  };
+}
+
 async function createPayment(input, actor, req) {
   const method = await loadPaymentMethod(input.paymentMethodId);
   if (isMidtransQrisMethod(method)) {
     return createMidtransPayment(input, actor, req);
+  }
+  if (isMidtransTransferMethod(method)) {
+    return createMidtransTransferPayment(input, actor, req);
   }
   if (isCashPaymentMethod(method)) {
     return createCashPayment(input, actor, req);
@@ -522,11 +613,13 @@ async function streamInvoicePdf(paymentId, actor, res) {
 
 module.exports = {
   isMidtransQrisMethod,
+  isMidtransTransferMethod,
   isCashPaymentMethod,
   sanitizeMethodForPortal,
   createPayment,
   createCashPayment,
   createMidtransPayment,
+  createMidtransTransferPayment,
   getStatus,
   getPaymentMethods,
   getHistory,

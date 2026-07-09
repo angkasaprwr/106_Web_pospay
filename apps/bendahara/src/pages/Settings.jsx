@@ -483,7 +483,10 @@ function PaymentMethods() {
     if (channel === 'QRIS') {
       return { ...prev, channel, paymentType: 'QRIS_MIDTRANS', gateway: 'midtrans', merchantName: prev.merchantName || 'SMP Pusponegoro Brebes' };
     }
-    return { ...prev, channel, paymentType: 'TRANSFER', gateway: 'manual' };
+    if (channel === 'TRANSFER') {
+      return { ...prev, channel, paymentType: 'TRANSFER_MIDTRANS', gateway: 'midtrans', merchantName: prev.merchantName || 'SMP Pusponegoro Brebes' };
+    }
+    return { ...prev, channel, paymentType: 'OTHER', gateway: 'manual' };
   };
 
   const openCreate = () => {
@@ -537,14 +540,23 @@ function PaymentMethods() {
               <Field label="Merchant ID"><input className="input" value={form.merchantId || ''} onChange={(e) => setForm({ ...form, merchantId: e.target.value })} /></Field>
               <Field label="Client Key"><input className="input" value={form.midtransClientKey || ''} onChange={(e) => setForm({ ...form, midtransClientKey: e.target.value })} /></Field>
               <Field label="Server Key"><input type="password" className="input" value={form.midtransServerKey || ''} onChange={(e) => setForm({ ...form, midtransServerKey: e.target.value })} /></Field>
-              <Field label="Callback URL"><input className="input" placeholder="https://domain.com/api/payment/midtrans/webhook" value={form.callbackUrl || ''} onChange={(e) => setForm({ ...form, callbackUrl: e.target.value })} /></Field>
+              <Field label="Callback URL"><input className="input" placeholder="https://domain.com/api/payment/webhook" value={form.callbackUrl || ''} onChange={(e) => setForm({ ...form, callbackUrl: e.target.value })} /></Field>
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.productionMode} onChange={(e) => setForm({ ...form, productionMode: e.target.checked })} /> Production Mode</label>
             </div>
           )}
-          {form.channel !== 'QRIS' && (
+          {form.channel !== 'QRIS' && form.channel !== 'TRANSFER' && (
             <div className="grid grid-cols-2 gap-3">
               <Field label="Atas Nama"><input className="input" value={form.accountName || ''} onChange={(e) => setForm({ ...form, accountName: e.target.value })} /></Field>
               <Field label="No. Rekening"><input className="input" value={form.accountNo || ''} onChange={(e) => setForm({ ...form, accountNo: e.target.value })} /></Field>
+            </div>
+          )}
+          {form.channel === 'TRANSFER' && (
+            <div className="space-y-3 rounded-lg border border-blue-100 bg-blue-50/50 p-3 dark:border-blue-900/50 dark:bg-blue-950/30">
+              <p className="text-xs font-semibold text-blue-800 dark:text-blue-300">Konfigurasi Transfer Bank Midtrans</p>
+              <Field label="Merchant Name"><input className="input" value={form.merchantName || ''} onChange={(e) => setForm({ ...form, merchantName: e.target.value })} /></Field>
+              <Field label="Merchant ID"><input className="input" value={form.merchantId || ''} onChange={(e) => setForm({ ...form, merchantId: e.target.value })} /></Field>
+              <Field label="Client Key"><input className="input" value={form.midtransClientKey || ''} onChange={(e) => setForm({ ...form, midtransClientKey: e.target.value })} /></Field>
+              <Field label="Server Key"><input type="password" className="input" value={form.midtransServerKey || ''} onChange={(e) => setForm({ ...form, midtransServerKey: e.target.value })} /></Field>
             </div>
           )}
           <Field label="Instruksi"><textarea className="input" rows={2} value={form.instruction || ''} onChange={(e) => setForm({ ...form, instruction: e.target.value })} /></Field>

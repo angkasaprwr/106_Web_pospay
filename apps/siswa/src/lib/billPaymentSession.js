@@ -48,7 +48,12 @@ export function isCashlessMethod(method) {
 
 export function isMidtransQrisMethod(method) {
   if (!method) return false;
-  return method.gateway === 'midtrans' || method.paymentType === 'QRIS_MIDTRANS';
+  return method.paymentType === 'QRIS_MIDTRANS' || (method.gateway === 'midtrans' && method.channel === 'QRIS');
+}
+
+export function isMidtransTransferMethod(method) {
+  if (!method) return false;
+  return method.paymentType === 'TRANSFER_MIDTRANS' || (method.gateway === 'midtrans' && method.channel === 'TRANSFER');
 }
 
 const CASH_KEYWORDS = ['tunai', 'cash', 'loket'];
@@ -62,5 +67,5 @@ export function isCashMethod(method) {
 
 export function isTransferMethod(method) {
   if (!method) return false;
-  return !isCashlessMethod(method) && !isCashMethod(method);
+  return isMidtransTransferMethod(method) || (!isCashlessMethod(method) && !isCashMethod(method));
 }
