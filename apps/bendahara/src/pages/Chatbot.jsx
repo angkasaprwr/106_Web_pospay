@@ -39,8 +39,8 @@ export default function Chatbot() {
   return (
     <div className="mx-auto max-w-[1600px] space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-pospay sm:text-3xl">Chatbot</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="text-2xl font-bold text-pospay sm:text-3xl dark:text-blue-400">Chatbot</h1>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Kelola percakapan siswa, pertanyaan & jawaban, serta jam kerja layanan chatbot.
         </p>
       </div>
@@ -57,7 +57,7 @@ export default function Chatbot() {
               className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition ${
                 active
                   ? 'bg-pospay text-white shadow-sm'
-                  : 'border border-slate-200 bg-white text-slate-700 hover:border-pospay/30 hover:text-pospay'
+                  : 'border border-slate-200 bg-white text-slate-700 hover:border-pospay/30 hover:text-pospay dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-500/40 dark:hover:text-blue-400'
               }`}
             >
               <IconC width={18} height={18} />
@@ -162,14 +162,14 @@ function QAManager() {
         <button
           type="button"
           onClick={() => setSubTab('qa')}
-          className={`rounded-lg px-4 py-2 text-sm font-medium ${subTab === 'qa' ? 'bg-pospay text-white' : 'border border-slate-200 bg-white text-slate-600'}`}
+          className={`rounded-lg px-4 py-2 text-sm font-medium ${subTab === 'qa' ? 'bg-pospay text-white' : 'border border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'}`}
         >
           Pertanyaan & Jawaban
         </button>
         <button
           type="button"
           onClick={() => setSubTab('docs')}
-          className={`rounded-lg px-4 py-2 text-sm font-medium ${subTab === 'docs' ? 'bg-pospay text-white' : 'border border-slate-200 bg-white text-slate-600'}`}
+          className={`rounded-lg px-4 py-2 text-sm font-medium ${subTab === 'docs' ? 'bg-pospay text-white' : 'border border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300'}`}
         >
           Dokumen RAG
         </button>
@@ -186,23 +186,23 @@ function QAManager() {
               <Icon.Plus width={18} height={18} /> Tambah Q&A
             </button>
           </div>
-          <div className="rounded-xl border border-slate-100 bg-white shadow-sm">
+          <div className="rounded-xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
             {loading ? (
               <div className="flex h-40 items-center justify-center"><Spinner size={32} /></div>
             ) : items.length === 0 ? (
               <EmptyState title="Belum ada Q&A" icon={Icon.Chat} />
             ) : (
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-slate-100 dark:divide-slate-800">
                 {items.map((q) => (
                   <div key={q.id} className="flex items-start justify-between gap-4 p-4">
                     <div className="min-w-0">
-                      <p className="font-medium text-slate-900">{q.question}</p>
-                      <p className="mt-0.5 text-sm text-slate-500">{q.answer}</p>
-                      {q.category && <span className="mt-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{q.category}</span>}
+                      <p className="font-medium text-slate-900 dark:text-white">{q.question}</p>
+                      <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{q.answer}</p>
+                      {q.category && <span className="mt-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600 dark:bg-slate-800 dark:text-slate-300">{q.category}</span>}
                     </div>
                     <div className="flex gap-1">
-                      <button type="button" onClick={() => { setForm({ ...q }); setModal({ mode: 'edit', data: q }); }} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-50"><Icon.Edit width={16} height={16} /></button>
-                      <button type="button" onClick={() => setConfirm({ type: 'qa', id: q.id })} className="rounded-lg p-1.5 text-red-500 hover:bg-red-50"><Icon.Trash width={16} height={16} /></button>
+                      <button type="button" onClick={() => { setForm({ ...q }); setModal({ mode: 'edit', data: q }); }} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"><Icon.Edit width={16} height={16} /></button>
+                      <button type="button" onClick={() => setConfirm({ type: 'qa', id: q.id })} className="rounded-lg p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"><Icon.Trash width={16} height={16} /></button>
                     </div>
                   </div>
                 ))}
@@ -223,22 +223,22 @@ function QAManager() {
               <Icon.Plus width={18} height={18} /> Tambah Dokumen
             </button>
           </div>
-          <div className="rounded-xl border border-slate-100 bg-white shadow-sm">
+          <div className="rounded-xl border border-slate-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
             {loading ? (
               <div className="flex h-40 items-center justify-center"><Spinner size={32} /></div>
             ) : docs.length === 0 ? (
               <EmptyState title="Belum ada dokumen RAG" icon={Icon.Report} />
             ) : (
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-slate-100 dark:divide-slate-800">
                 {docs.map((d) => (
                   <div key={d.id} className="flex items-start justify-between gap-4 p-4">
                     <div className="min-w-0">
-                      <p className="font-medium text-slate-900">{d.title}</p>
-                      <p className="mt-0.5 line-clamp-2 text-sm text-slate-500">{d.content}</p>
+                      <p className="font-medium text-slate-900 dark:text-white">{d.title}</p>
+                      <p className="mt-0.5 line-clamp-2 text-sm text-slate-500 dark:text-slate-400">{d.content}</p>
                     </div>
                     <div className="flex gap-1">
-                      <button type="button" onClick={() => { setDocForm({ ...d }); setModal({ mode: 'edit-doc', data: d }); }} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-50"><Icon.Edit width={16} height={16} /></button>
-                      <button type="button" onClick={() => setConfirm({ type: 'doc', id: d.id })} className="rounded-lg p-1.5 text-red-500 hover:bg-red-50"><Icon.Trash width={16} height={16} /></button>
+                      <button type="button" onClick={() => { setDocForm({ ...d }); setModal({ mode: 'edit-doc', data: d }); }} className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800"><Icon.Edit width={16} height={16} /></button>
+                      <button type="button" onClick={() => setConfirm({ type: 'doc', id: d.id })} className="rounded-lg p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30"><Icon.Trash width={16} height={16} /></button>
                     </div>
                   </div>
                 ))}
@@ -333,21 +333,21 @@ function WorkingHours() {
 
   return (
     <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-      <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm lg:col-span-2">
-        <h2 className="text-base font-semibold text-slate-900">Pengaturan Jam Kerja</h2>
-        <p className="mt-1 text-sm text-slate-500">
+      <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 lg:col-span-2">
+        <h2 className="text-base font-semibold text-slate-900 dark:text-white">Pengaturan Jam Kerja</h2>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Atur jam ketersediaan bendahara untuk membalas chat siswa secara langsung.
         </p>
         <div className="mt-5 space-y-3">
           {hours.map((h, i) => (
-            <div key={h.dayOfWeek} className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-100 bg-slate-50/50 px-4 py-3">
-              <label className="flex w-28 items-center gap-2 text-sm font-medium text-slate-700">
+            <div key={h.dayOfWeek} className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-100 bg-slate-50/50 px-4 py-3 dark:border-slate-800 dark:bg-slate-800/50">
+              <label className="flex w-28 items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-200">
                 <input type="checkbox" checked={h.isOpen} onChange={(e) => update(i, { isOpen: e.target.checked })} className="rounded border-slate-300" />
                 {DAYS[h.dayOfWeek]}
               </label>
-              <input type="time" className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm" value={h.openTime} onChange={(e) => update(i, { openTime: e.target.value })} disabled={!h.isOpen} />
+              <input type="time" className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" value={h.openTime} onChange={(e) => update(i, { openTime: e.target.value })} disabled={!h.isOpen} />
               <span className="text-slate-400">—</span>
-              <input type="time" className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm" value={h.closeTime} onChange={(e) => update(i, { closeTime: e.target.value })} disabled={!h.isOpen} />
+              <input type="time" className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100" value={h.closeTime} onChange={(e) => update(i, { closeTime: e.target.value })} disabled={!h.isOpen} />
             </div>
           ))}
         </div>
@@ -357,38 +357,38 @@ function WorkingHours() {
       </div>
 
       <div className="space-y-4">
-        <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
-          <p className="text-sm font-semibold text-slate-900">Status Saat Ini</p>
+        <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">Status Saat Ini</p>
           <div className="mt-3 flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-pospay">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-pospay dark:bg-blue-950/50 dark:text-blue-400">
               <Icon.Clock width={20} height={20} />
             </div>
             <div>
-              <p className="font-medium text-slate-800">{whSummary?.label || '-'}</p>
-              <p className="text-sm text-slate-500">{whSummary?.range || '-'}</p>
+              <p className="font-medium text-slate-800 dark:text-slate-100">{whSummary?.label || '-'}</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">{whSummary?.range || '-'}</p>
             </div>
             <span className={`ml-auto rounded-full px-2.5 py-1 text-xs font-semibold ${whSummary?.isOpen ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
               {whSummary?.isOpen ? 'Aktif' : 'Nonaktif'}
             </span>
           </div>
-          <p className="mt-3 text-xs text-slate-500">
+          <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
             {whSummary?.isOpen
               ? 'Saat jam operasional aktif, percakapan dijawab oleh Bendahara secara manual.'
               : 'Saat jam operasional nonaktif, Assistant (AI) aktif otomatis (Gemini 2.5 Flash + RAG).'}
           </p>
         </div>
 
-        <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
-          <p className="text-sm font-semibold text-slate-900">Sumber Jawaban</p>
+        <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <p className="text-sm font-semibold text-slate-900 dark:text-white">Sumber Jawaban</p>
           <div className="mt-3 space-y-3">
-            <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2.5 text-sm">
-              <span className="text-slate-700">Assistant (AI)</span>
+            <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2.5 text-sm dark:bg-slate-800/60">
+              <span className="text-slate-700 dark:text-slate-200">Assistant (AI)</span>
               <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusInfo?.assistantActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
                 {statusInfo?.assistantActive ? 'Aktif' : 'Nonaktif'}
               </span>
             </div>
-            <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2.5 text-sm">
-              <span className="text-slate-700">Admin (Bendahara)</span>
+            <div className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2.5 text-sm dark:bg-slate-800/60">
+              <span className="text-slate-700 dark:text-slate-200">Admin (Bendahara)</span>
               <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusInfo?.adminActive ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
                 {statusInfo?.adminActive ? 'Aktif' : 'Nonaktif'}
               </span>

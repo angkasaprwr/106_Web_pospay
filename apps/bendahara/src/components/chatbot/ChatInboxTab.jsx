@@ -52,7 +52,7 @@ function groupMessagesByDate(messages) {
 }
 
 function sessionStatusBadge(status) {
-  if (status === 'CLOSED') return { label: 'Selesai', cls: 'bg-slate-100 text-slate-600' };
+  if (status === 'CLOSED') return { label: 'Selesai', cls: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300' };
   if (status === 'WAITING_HUMAN') return { label: 'Menunggu', cls: 'bg-amber-50 text-amber-700' };
   if (status === 'HUMAN') return { label: 'Aktif', cls: 'bg-emerald-50 text-emerald-700' };
   return { label: 'Aktif', cls: 'bg-emerald-50 text-emerald-700' };
@@ -177,10 +177,10 @@ export default function ChatInboxTab({ onNavigateTab }) {
   const stBadge = detail ? sessionStatusBadge(detail.status) : null;
 
   return (
-    <div className="flex h-[calc(100vh-220px)] min-h-[560px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div className="flex h-[calc(100vh-220px)] min-h-[560px] overflow-hidden rounded-xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 shadow-sm">
       {/* Panel 1: Sidebar */}
-      <aside className="hidden w-56 shrink-0 flex-col border-r border-slate-100 bg-slate-50/60 xl:flex">
-        <div className="border-b border-slate-100 p-4">
+      <aside className="hidden w-56 shrink-0 flex-col border-r border-slate-100 dark:border-slate-800 bg-slate-50/60 dark:border-slate-800 dark:bg-slate-900/60 xl:flex">
+        <div className="border-b border-slate-100 dark:border-slate-800 p-4">
           <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Chatbot</p>
           <nav className="mt-3 space-y-1">
             <button type="button" className="flex w-full items-center gap-2 rounded-lg bg-pospay/10 px-3 py-2 text-sm font-medium text-pospay">
@@ -204,7 +204,7 @@ export default function ChatInboxTab({ onNavigateTab }) {
         </div>
 
         <div className="p-4">
-          <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+          <div className="rounded-xl border border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-900 p-3 shadow-sm">
             <p className="text-xs font-semibold text-slate-700">Status Jam Kerja</p>
             <div className="mt-2 flex items-start gap-2">
               <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-pospay">
@@ -230,18 +230,18 @@ export default function ChatInboxTab({ onNavigateTab }) {
       </aside>
 
       {/* Panel 2: Conversation list */}
-      <section className="flex w-full shrink-0 flex-col border-r border-slate-100 sm:w-72 lg:w-80">
-        <div className="border-b border-slate-100 p-4">
+      <section className="flex w-full shrink-0 flex-col border-r border-slate-100 dark:border-slate-800 sm:w-72 lg:w-80">
+        <div className="border-b border-slate-100 dark:border-slate-800 p-4">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-slate-900">Percakapan</h2>
-            <button type="button" onClick={loadSessions} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-50 hover:text-slate-600" title="Muat ulang">
+            <h2 className="font-semibold text-slate-900 dark:text-white dark:text-white">Percakapan</h2>
+            <button type="button" onClick={loadSessions} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800/60 hover:text-slate-600" title="Muat ulang">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 4v6h-6M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" /></svg>
             </button>
           </div>
           <div className="relative mt-3">
             <Icon.Search width={16} height={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
             <input
-              className="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-3 text-sm outline-none focus:border-pospay"
+              className="w-full rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800 py-2 dark:bg-slate-800 dark:text-slate-100 pl-9 pr-3 text-sm outline-none focus:border-pospay"
               placeholder="Cari nama siswa atau pesan..."
               value={search}
               onChange={(e) => { setSearch(e.target.value); setPage(1); }}
@@ -257,7 +257,7 @@ export default function ChatInboxTab({ onNavigateTab }) {
                 key={f.key}
                 type="button"
                 onClick={() => { setFilter(f.key); setPage(1); }}
-                className={`rounded-full px-2.5 py-1 text-xs font-medium ${filter === f.key ? 'bg-pospay text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                className={`rounded-full px-2.5 py-1 text-xs font-medium ${filter === f.key ? 'bg-pospay text-white' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300 hover:bg-slate-200'}`}
               >
                 {f.label}
               </button>
@@ -276,14 +276,14 @@ export default function ChatInboxTab({ onNavigateTab }) {
                 key={s.id}
                 type="button"
                 onClick={() => selectSession(s.id)}
-                className={`flex w-full items-start gap-3 border-b border-slate-50 px-4 py-3 text-left transition hover:bg-slate-50 ${activeId === s.id ? 'bg-pospay/5' : ''}`}
+                className={`flex w-full items-start gap-3 border-b border-slate-50 dark:border-slate-800 px-4 py-3 text-left transition hover:bg-slate-50 dark:hover:bg-slate-800/60 ${activeId === s.id ? 'bg-pospay/5' : ''}`}
               >
                 <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white ${avatarColor(s.studentName)}`}>
                   {s.initials}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="truncate text-sm font-semibold text-slate-900">{s.studentName}</span>
+                    <span className="truncate text-sm font-semibold text-slate-900 dark:text-white dark:text-white">{s.studentName}</span>
                     <span className="shrink-0 text-[10px] text-slate-400">{formatMessageTime(s.lastMessageAt)}</span>
                   </div>
                   <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-500">
@@ -320,13 +320,13 @@ export default function ChatInboxTab({ onNavigateTab }) {
           </div>
         ) : (
           <>
-            <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 px-4 py-3">
               <div className="flex items-center gap-3">
                 <div className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-white ${avatarColor(detail.studentName)}`}>
                   {detail.initials}
                 </div>
                 <div>
-                  <p className="font-semibold text-slate-900">{detail.studentName}</p>
+                  <p className="font-semibold text-slate-900 dark:text-white dark:text-white">{detail.studentName}</p>
                   <p className="text-xs text-slate-500">
                     Siswa Kelas {detail.className} • NIS {detail.nis}
                   </p>
@@ -424,7 +424,7 @@ export default function ChatInboxTab({ onNavigateTab }) {
                 </div>
               </form>
             ) : (
-              <div className="border-t border-slate-100 bg-slate-50 px-4 py-3 text-center text-sm text-slate-500">
+              <div className="border-t border-slate-100 bg-slate-50 px-4 py-3 text-center text-sm text-slate-500 dark:text-slate-400">
                 Percakapan ini telah diakhiri.
               </div>
             )}
@@ -440,9 +440,9 @@ export default function ChatInboxTab({ onNavigateTab }) {
           </div>
         ) : (
           <>
-            <div className="border-b border-slate-100 p-4">
+            <div className="border-b border-slate-100 dark:border-slate-800 p-4">
               <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-slate-900">Detail Percakapan</h3>
+                <h3 className="font-semibold text-slate-900 dark:text-white dark:text-white">Detail Percakapan</h3>
                 {stBadge && (
                   <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${stBadge.cls}`}>{stBadge.label}</span>
                 )}
@@ -458,7 +458,7 @@ export default function ChatInboxTab({ onNavigateTab }) {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4">
-              <h4 className="text-sm font-semibold text-slate-900">Riwayat Percakapan</h4>
+              <h4 className="text-sm font-semibold text-slate-900 dark:text-white dark:text-white">Riwayat Percakapan</h4>
               <div className="mt-3 space-y-3">
                 {(detail.timeline || []).slice(-8).reverse().map((t) => (
                   <div key={t.id} className="rounded-lg border border-slate-100 bg-white p-2.5 text-xs">

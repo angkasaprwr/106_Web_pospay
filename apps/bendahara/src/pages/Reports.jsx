@@ -39,8 +39,8 @@ export default function Reports() {
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-pospay sm:text-3xl">{pageTitle}</h1>
-        <p className="mt-1 text-sm text-slate-500">{pageDesc}</p>
+        <h1 className="text-2xl font-bold text-pospay sm:text-3xl dark:text-blue-400">{pageTitle}</h1>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{pageDesc}</p>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -55,7 +55,7 @@ export default function Reports() {
               className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition ${
                 active
                   ? 'bg-pospay text-white shadow-sm'
-                  : 'border border-slate-200 bg-white text-slate-700 hover:border-pospay/30 hover:text-pospay'
+                  : 'border border-slate-200 bg-white text-slate-700 hover:border-pospay/30 hover:text-pospay dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-500/40 dark:hover:text-blue-400'
               }`}
             >
               <IconC width={18} height={18} />

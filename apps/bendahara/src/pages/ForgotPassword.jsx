@@ -7,9 +7,10 @@ import { Icon } from '../components/Icons';
 import ForgotPasswordIllustration from '../components/login/ForgotPasswordIllustration';
 import SchoolEmblem from '../components/login/SchoolEmblem';
 import PospayLogo from '../components/login/PospayLogo';
+import ThemeToggleButton from '../components/ThemeToggleButton';
 
 const inputClass =
-  'w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-pospay focus:ring-2 focus:ring-pospay/20';
+  'w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-pospay focus:ring-2 focus:ring-pospay/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500';
 
 export default function ForgotPassword() {
   const toast = useToast();
@@ -44,7 +45,8 @@ export default function ForgotPassword() {
   };
 
   return (
-    <div className="flex min-h-screen flex-col bg-white lg:flex-row">
+    <div className="flex min-h-screen flex-col bg-white dark:bg-slate-950 lg:flex-row">
+      <ThemeToggleButton />
       <div className="relative flex w-full flex-col justify-between overflow-hidden bg-pospay px-6 py-8 text-white sm:px-10 sm:py-10 lg:w-1/2 lg:px-12 lg:py-12">
         <div
           className="pointer-events-none absolute inset-0 opacity-[0.08]"
@@ -72,12 +74,12 @@ export default function ForgotPassword() {
         </div>
       </div>
 
-      <div className="flex w-full flex-1 items-center justify-center bg-white px-4 py-8 sm:px-8 lg:w-1/2 lg:px-12">
+      <div className="flex w-full flex-1 items-center justify-center bg-white px-4 py-8 dark:bg-slate-950 sm:px-8 lg:w-1/2 lg:px-12">
         <div className="w-full max-w-[420px]">
-          <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-[0_8px_40px_rgba(0,71,171,0.08)] sm:p-8">
+          <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-[0_8px_40px_rgba(0,71,171,0.08)] dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20 sm:p-8">
             <div className="mb-6">
-              <h1 className="text-2xl font-extrabold text-pospay sm:text-[28px]">Lupa Kata Sandi</h1>
-              <p className="mt-1 text-sm text-slate-500">Masukkan email Gmail sekolah atau username akun bendahara</p>
+              <h1 className="text-2xl font-extrabold text-pospay dark:text-blue-400 sm:text-[28px]">Lupa Kata Sandi</h1>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Masukkan email Gmail sekolah atau username akun bendahara</p>
             </div>
 
             {sent ? (
