@@ -234,9 +234,9 @@ export default function Profile() {
             <ProfileRow
               icon={<Icon.Shield width={18} height={18} />}
               label="Status Akun"
-              value={display?.isActive ? 'Aktif' : 'Nonaktif'}
+              value=""
               badge={(
-                <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${display?.isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
+                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${display?.isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
                   {display?.isActive ? 'Aktif' : 'Nonaktif'}
                 </span>
               )}
@@ -271,14 +271,14 @@ export default function Profile() {
 
       <Link
         to="/bantuan"
-        className="fixed bottom-6 right-4 z-30 flex max-w-sm items-center gap-3 rounded-full bg-[#0056D2] py-3 pl-3 pr-6 text-white shadow-xl hover:bg-[#004BB8] dark:bg-blue-700 dark:hover:bg-blue-600 sm:right-8"
+        className="fixed bottom-6 right-6 z-20 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-lg transition hover:shadow-xl dark:border-slate-700 dark:bg-slate-900"
       >
-        <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/15">
-          <Icon.Chat width={24} height={24} />
+        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0056D2] text-white dark:bg-blue-600">
+          <Icon.Chat width={20} height={20} />
         </span>
-        <span className="text-left text-sm leading-tight">
-          <span className="block font-bold">Butuh Bantuan?</span>
-          <span className="text-xs text-white/90">Tanya lewat Chatbot</span>
+        <span className="hidden text-left sm:block">
+          <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">Butuh bantuan?</span>
+          <span className="text-xs text-slate-500 dark:text-slate-400">Tanya lewat Chatbot</span>
         </span>
       </Link>
 

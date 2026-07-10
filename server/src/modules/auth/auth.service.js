@@ -184,7 +184,15 @@ async function updateProfile(userId, input) {
   if (input.email !== undefined) data.email = input.email || null;
   if (input.phone !== undefined) data.phone = input.phone || null;
   if (input.avatarUrl !== undefined) data.avatarUrl = input.avatarUrl || null;
-  const user = await prisma.user.update({ where: { id: userId }, data });
+  const user = await prisma.user.update({
+    where: { id: userId },
+    data,
+    include: {
+      student: {
+        include: { schoolClass: { include: { academicYear: true } } },
+      },
+    },
+  });
   return sanitizeUser(user);
 }
 
