@@ -20,6 +20,8 @@ const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   isProd: process.env.NODE_ENV === 'production',
   port: parseInt(process.env.PORT || '4000', 10),
+  /** Bind semua interface agar IPv4/IPv6 & port-forward Cloud bisa menjangkau API */
+  host: process.env.HOST || '0.0.0.0',
   corsOrigins: (process.env.CORS_ORIGINS
     || 'http://127.0.0.1:5173,http://127.0.0.1:5174,http://localhost:5173,http://localhost:5174')
     .split(',')
