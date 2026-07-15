@@ -148,6 +148,17 @@ Jika muncul error `535 BadCredentials`:
 3. Jalankan `cd server && npm run gmail:oauth` → salin `GMAIL_REFRESH_TOKEN`
 4. Set `SMTP_AUTH_TYPE=oauth2` dan restart backend
 
+**Alternatif Google Apps Script relay** (tanpa App Password):
+1. Login Gmail sekolah → buka https://script.google.com
+2. Tempel kode di `server/scripts/gmail-apps-script/Code.gs`, set Script property `POSPAY_TOKEN`
+3. Deploy sebagai Web app (Execute as: Me, Anyone)
+4. Di `server/.env`:
+   ```
+   GMAIL_WEBHOOK_URL=https://script.google.com/macros/s/.../exec
+   GMAIL_WEBHOOK_TOKEN=<sama dengan POSPAY_TOKEN>
+   ```
+5. Restart backend — reset password akan masuk ke Inbox `smppusponegorobrebess@gmail.com` lewat saluran ini bila SMTP gagal
+
 ### Lupa kata sandi bendahara
 - Login → klik **Lupa password?** → `/lupa-kata-sandi`
 - Isi email Gmail sekolah → **Kirim Tautan Reset**
