@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api, apiError } from '../lib/api';
 import { useToast } from '../context/ToastContext';
 import { formatIDR, formatDate, BILL_STATUS } from '../lib/format';
-import { saveBillPaymentDraft } from '../lib/billPaymentSession';
+import { saveBillPaymentDraft, isMidtransQrisMethod } from '../lib/billPaymentSession';
 import { usePortalCatalogSync } from '../hooks/usePortalCatalogSync';
 import { Spinner, Badge } from '../components/ui';
 import { Icon } from '../components/Icons';
@@ -149,12 +149,27 @@ export default function Bills() {
       toast.error('Pilih metode pembayaran terlebih dahulu.');
       return;
     }
-    if (hasPendingPayment) {
-      toast.info('Tagihan ini masih menunggu verifikasi pembayaran sebelumnya.');
-      return;
-    }
     if (totalDue <= 0) {
       toast.error('Tagihan ini tidak memiliki sisa pembayaran.');
+      return;
+    }
+
+    const pendingPay = selectedBill?.payments?.find((p) => p.status === 'PENDING');
+    // QRIS Midtrans yang masih pending → lanjut ke konfirmasi untuk menampilkan QR yang sama
+    if (pendingPay && isMidtransQrisMethod(selectedMethod)) {
+      saveBillPaymentDraft({
+        billId: selectedBill.id,
+        paymentMethodId: selectedMethod.id,
+        amount: totalDue,
+        channel: selectedMethod.channel || 'QRIS',
+        paymentId: pendingPay.id,
+      });
+      navigate('/tagihan/konfirmasi');
+      return;
+    }
+
+    if (hasPendingPayment) {
+      toast.info('Tagihan ini masih menunggu verifikasi pembayaran sebelumnya.');
       return;
     }
 

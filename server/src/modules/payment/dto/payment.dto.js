@@ -68,6 +68,18 @@ async function formatPaymentStatusResponse(payment) {
     },
     paymentMethod: method,
     payment_method: method,
+    school_account: method
+      ? {
+          bank: 'BNI',
+          accountNo: method.accountNo || '6513009817',
+          accountName: method.accountName || 'PAPK SMP PUSPONEGORO BREBES',
+        }
+      : {
+          bank: 'BNI',
+          accountNo: '6513009817',
+          accountName: 'PAPK SMP PUSPONEGORO BREBES',
+        },
+    sandbox_local: String(payment.transactionId || '').startsWith('sandbox-local-'),
   };
 }
 

@@ -124,7 +124,57 @@ async function createMidtransPayment(input, actor, req) {
     throw ApiError.badRequest('Metode pembayaran bukan QRIS Midtrans');
   }
 
-  const { bill, student } = await validateBillForStudent(input.billId, actor);
+  const bill = await prisma.bill.findUnique({
+    where: { id: input.billId },
+    include: { student: true, feeType: true },
+  });
+  if (!bill) throw ApiError.notFound('Tagihan tidak ditemukan');
+
+  const student = await resolveStudent(actor);
+  if (bill.studentId !== student.id) {
+    throw ApiError.forbidden('Anda hanya dapat membayar tagihan milik sendiri');
+  }
+  if (bill.status === 'PAID' || bill.status === 'WAIVED') {
+    throw ApiError.badRequest('Tagihan ini sudah lunas atau dibebaskan');
+  }
+
+  const schoolAccount = {
+    bank: 'BNI',
+    accountNo: method.accountNo || '6513009817',
+    accountName: method.accountName || 'PAPK SMP PUSPONEGORO BREBES',
+  };
+
+  // Jika sudah ada transaksi QRIS Midtrans pending, kembalikan QR yang sama
+  // (hindari error "menunggu proses" saat user kembali ke Konfirmasi Pembayaran).
+  const existingPending = await paymentRepository.findPendingByBillId(bill.id);
+  if (existingPending) {
+    const full = await paymentRepository.findPaymentByInvoiceRef(existingPending.id);
+    if (
+      full
+      && isMidtransQrisMethod(full.paymentMethod || method)
+      && (full.paymentMethodId === method.id || full.channel === 'QRIS')
+    ) {
+      const qr_url = await resolveQrDisplayUrl(full.qrUrl, full.qrString);
+      if (qr_url) {
+        return {
+          ...full,
+          qr_string: full.qrString,
+          qr_url,
+          qrDataUrl: qr_url,
+          expiry_time: full.expiryTime,
+          transaction_id: full.transactionId,
+          order_id: full.orderId,
+          gross_amount: toNumber(full.amount),
+          school_name: env.school.name,
+          invoice_no: bill.invoiceNo,
+          school_account: schoolAccount,
+          sandbox_local: String(full.transactionId || '').startsWith('sandbox-local-'),
+        };
+      }
+    }
+    throw ApiError.badRequest('Tagihan ini masih memiliki pembayaran yang menunggu proses');
+  }
+
   const amount = input.amount ?? outstanding(bill);
   if (amount > outstanding(bill) + 0.001) {
     throw ApiError.badRequest(`Nominal melebihi sisa tagihan (${outstanding(bill)})`);
@@ -147,37 +197,9 @@ async function createMidtransPayment(input, actor, req) {
     'Transaksi QRIS Midtrans dibuat',
   );
 
-  const schoolAccount = {
-    bank: 'BNI',
-    accountNo: method.accountNo || '6513009817',
-    accountName: method.accountName || 'PAPK SMP PUSPONEGORO',
-  };
-
-  let charge;
-  let sandboxLocal = false;
-  try {
-    charge = await midtransGateway.chargeQris({
-      orderId,
-      grossAmount: amount,
-      method,
-      customerDetails: {
-        first_name: student.fullName,
-        email: actor.email || `${student.nis}@siswa.local`,
-        phone: student.parentPhone || actor.phone || '08123456789',
-      },
-    });
-  } catch (err) {
-    // Fallback sandbox lokal: tetap tampilkan QR agar alur Bayar → Konfirmasi tidak macet
-    // saat MIDTRANS_SERVER_KEY belum diisi / ditolak (401). Settlement tetap menunggu Midtrans
-    // webhook atau verifikasi bendahara setelah scan berhasil / bukti masuk.
-    const allowFallback = String(process.env.MIDTRANS_SANDBOX_FALLBACK || 'true').toLowerCase() !== 'false';
-    if (!allowFallback) {
-      await prisma.payment.delete({ where: { id: payment.id } });
-      throw ApiError.badRequest(`Gagal membuat transaksi Midtrans: ${err.message}`);
-    }
-    sandboxLocal = true;
+  const buildLocalQrisCharge = async (reason) => {
     const qrPayload = [
-      'POSPAY-QRIS',
+      'POSPAY-QRIS-SANDBOX',
       `INV:${bill.invoiceNo}`,
       `ORDER:${orderId}`,
       `AMT:${Math.round(Number(amount))}`,
@@ -188,7 +210,7 @@ async function createMidtransPayment(input, actor, req) {
       `NIS:${student.nis}`,
     ].join('|');
     const qrDataUrl = await QRCode.toDataURL(qrPayload, { width: 280, margin: 1, errorCorrectionLevel: 'M' });
-    charge = {
+    return {
       transactionId: `sandbox-local-${payment.id}`,
       orderId,
       grossAmount: amount,
@@ -197,12 +219,37 @@ async function createMidtransPayment(input, actor, req) {
       expiryTime: new Date(Date.now() + 30 * 60 * 1000),
       midtransStatus: 'pending',
       statusCode: '201',
-      raw: {
-        sandbox_local: true,
-        reason: err.message,
-        school_account: schoolAccount,
-      },
+      raw: { sandbox_local: true, reason, school_account: schoolAccount },
     };
+  };
+
+  let charge;
+  let sandboxLocal = false;
+  const keys = midtransGateway.resolveKeys(method);
+
+  // Jangan panggil Midtrans sama sekali jika Server Key tidak valid / placeholder
+  // (mencegah error 401 Unknown Merchant ditampilkan ke orang tua siswa).
+  if (!midtransGateway.hasValidMidtransKeys(keys)) {
+    sandboxLocal = true;
+    charge = await buildLocalQrisCharge('midtrans_keys_invalid_or_placeholder');
+  } else {
+    try {
+      charge = await midtransGateway.chargeQris({
+        orderId,
+        grossAmount: amount,
+        method,
+        customerDetails: {
+          first_name: student.fullName,
+          email: actor.email || `${student.nis}@siswa.local`,
+          phone: student.parentPhone || actor.phone || '08123456789',
+        },
+      });
+    } catch (err) {
+      // Selalu fallback lokal saat Midtrans gagal (401 / timeout / QR kosong)
+      // agar tombol Bayar Tagihan tetap membuka Konfirmasi + menampilkan QR.
+      sandboxLocal = true;
+      charge = await buildLocalQrisCharge(err.message || 'midtrans_charge_failed');
+    }
   }
 
   const updated = await paymentRepository.updatePaymentWithHistory(

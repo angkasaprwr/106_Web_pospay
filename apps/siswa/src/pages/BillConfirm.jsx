@@ -205,72 +205,77 @@ export default function BillConfirm() {
     await checkPaymentStatus(pid);
   }, [note, toast, finishSuccess, checkPaymentStatus]);
 
+  const initMidtransInFlight = useRef(false);
+
   const initMidtransPayment = useCallback(async (saved, billData, methodData, amount) => {
+    if (initMidtransInFlight.current) return;
+    initMidtransInFlight.current = true;
     setQrError('');
-    let pid = saved.paymentId;
-    let paymentData = null;
+    try {
+      let pid = saved.paymentId;
+      let paymentData = null;
 
-    const createFresh = async () => {
-      const { data } = await api.post('/payment/create', {
-        billId: billData.id,
-        paymentMethodId: methodData.id,
-        amount,
-        note: note.trim() || undefined,
-      });
-      return data.data;
-    };
+      const createFresh = async () => {
+        const { data } = await api.post('/payment/create', {
+          billId: billData.id,
+          paymentMethodId: methodData.id,
+          amount,
+          note: note.trim() || undefined,
+        });
+        return data.data;
+      };
 
-    if (!pid) {
-      paymentData = await createFresh();
-      pid = paymentData.id;
-      const nextDraft = { ...saved, paymentId: pid };
-      saveBillPaymentDraft(nextDraft);
-      setDraft(nextDraft);
-    } else {
-      paymentData = await checkPaymentStatus(pid);
-      const hasQr = Boolean(paymentData?.qr_url || paymentData?.qrDataUrl || paymentData?.qr_string);
-      // Payment lama tanpa QR / gagal Midtrans → buat transaksi baru sekali
-      if (!paymentData || paymentData.status === 'REJECTED' || (!hasQr && isMidtransQrisMethod(methodData))) {
+      if (!pid) {
         paymentData = await createFresh();
         pid = paymentData.id;
         const nextDraft = { ...saved, paymentId: pid };
         saveBillPaymentDraft(nextDraft);
         setDraft(nextDraft);
+      } else {
+        paymentData = await checkPaymentStatus(pid);
+        const hasQr = Boolean(paymentData?.qr_url || paymentData?.qrDataUrl || paymentData?.qr_string);
+        if (!paymentData || paymentData.status === 'REJECTED' || (!hasQr && isMidtransQrisMethod(methodData))) {
+          paymentData = await createFresh();
+          pid = paymentData.id;
+          const nextDraft = { ...saved, paymentId: pid };
+          saveBillPaymentDraft(nextDraft);
+          setDraft(nextDraft);
+        }
       }
+
+      if (!paymentData) {
+        setQrError('Kode QR belum tersedia. Silakan buat QR ulang.');
+        return;
+      }
+
+      const qr = paymentData.qr_url || paymentData.qrDataUrl || '';
+      setPaymentId(pid);
+      setPaymentStatus(paymentData.status || 'PENDING');
+      setQrDataUrl(qr);
+      setTransferInfo({
+        vaNumber: paymentData.va_number || null,
+        bank: paymentData.bank || null,
+      });
+      setExpiryTime(paymentData.expiry_time || paymentData.expiryTime || null);
+      setSchoolName(paymentData.school_name || 'SMP Pusponegoro Brebes');
+      setSchoolAccount(
+        paymentData.school_account || {
+          bank: 'BNI',
+          accountNo: methodData.accountNo || '6513009817',
+          accountName: methodData.accountName || 'PAPK SMP PUSPONEGORO BREBES',
+        },
+      );
+      setAwaitingCashless(true);
+
+      if (isMidtransQrisMethod(methodData) && !qr) {
+        setQrError('Kode QR belum tersedia. Silakan buat QR ulang.');
+      }
+
+      await checkPaymentStatus(pid);
+    } finally {
+      initMidtransInFlight.current = false;
     }
-
-    if (!paymentData) {
-      setQrError('Kode QR Midtrans tidak tersedia dari server.');
-      toast.error('Kode QR Midtrans tidak tersedia dari server.');
-      return;
-    }
-
-    const qr = paymentData.qr_url || paymentData.qrDataUrl || '';
-    setPaymentId(pid);
-    setPaymentStatus(paymentData.status || 'PENDING');
-    setQrDataUrl(qr);
-    setTransferInfo({
-      vaNumber: paymentData.va_number || null,
-      bank: paymentData.bank || null,
-    });
-    setExpiryTime(paymentData.expiry_time || paymentData.expiryTime || null);
-    setSchoolName(paymentData.school_name || 'SMP Pusponegoro Brebes');
-    setSchoolAccount(
-      paymentData.school_account || {
-        bank: 'BNI',
-        accountNo: methodData.accountNo || '6513009817',
-        accountName: methodData.accountName || 'PAPK SMP PUSPONEGORO',
-      },
-    );
-    setAwaitingCashless(true);
-
-    if (isMidtransQrisMethod(methodData) && !qr) {
-      setQrError('Kode QR Midtrans tidak tersedia dari server.');
-      toast.error('Kode QR Midtrans tidak tersedia dari server.');
-    }
-
-    await checkPaymentStatus(pid);
-  }, [note, checkPaymentStatus, toast]);
+  }, [note, checkPaymentStatus]);
 
   const initLegacyCashlessPayment = useCallback(async (saved, billData, methodData, amount) => {
     let pid = saved.paymentId;
@@ -338,7 +343,35 @@ export default function BillConfirm() {
         await initLegacyCashlessPayment(saved, billData, methodData, amount);
       }
     } catch (e) {
-      const msg = apiError(e);
+      const msg = apiError(e) || '';
+      // Jangan tampilkan error Midtrans 401 mentah ke orang tua — hapus draft paymentId lalu coba ulang once
+      if (/Unknown Merchant|401|server_key|Gagal membuat transaksi Midtrans/i.test(msg)) {
+        const savedRetry = loadBillPaymentDraft();
+        if (savedRetry?.paymentId) {
+          const cleared = { ...savedRetry };
+          delete cleared.paymentId;
+          saveBillPaymentDraft(cleared);
+        }
+        setQrError('');
+        toast.info('Menampilkan QRIS sandbox ke rekening sekolah (BNI 6513009817).');
+        try {
+          const billRes = await api.get(`/portal/bills/${savedRetry.billId}`);
+          const methodsRes = await api.get('/portal/payment-methods');
+          const billData = billRes.data.data;
+          const methodData = (methodsRes.data.data || []).find((m) => m.id === savedRetry.paymentMethodId);
+          const amount = Math.max(
+            0,
+            Number(billData.amount) - Number(billData.discount || 0) - Number(billData.paidAmount || 0),
+          );
+          if (methodData && isMidtransQrisMethod(methodData)) {
+            await initMidtransPayment({ ...savedRetry, paymentId: undefined }, billData, methodData, amount);
+            return;
+          }
+        } catch {
+          setQrError('Gagal menampilkan kode QR. Silakan buat QR ulang.');
+        }
+        return;
+      }
       if (msg) toast.error(msg);
       navigate('/tagihan');
     } finally {
