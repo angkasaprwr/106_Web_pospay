@@ -110,16 +110,23 @@ const classes = {
   create: async (data, actorId, req) => {
     const item = await prisma.schoolClass.create({ data });
     await recordAudit({ userId: actorId, action: 'CREATE', entity: 'SchoolClass', entityId: item.id, req });
+    notifyCatalog('class_created', { classId: item.id });
     return item;
   },
   update: async (id, data, actorId, req) => {
     const item = await prisma.schoolClass.update({ where: { id }, data });
     await recordAudit({ userId: actorId, action: 'UPDATE', entity: 'SchoolClass', entityId: id, req });
+    notifyCatalog('class_updated', { classId: id });
     return item;
   },
   remove: async (id, actorId, req) => {
+    const linked = await prisma.student.count({ where: { classId: id } });
+    if (linked > 0) {
+      throw ApiError.badRequest(`Kelas masih memiliki ${linked} siswa. Pindahkan siswa terlebih dahulu.`);
+    }
     await prisma.schoolClass.delete({ where: { id } });
     await recordAudit({ userId: actorId, action: 'DELETE', entity: 'SchoolClass', entityId: id, req });
+    notifyCatalog('class_deleted', { classId: id });
   },
 };
 

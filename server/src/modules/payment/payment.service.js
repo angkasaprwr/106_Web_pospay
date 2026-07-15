@@ -26,7 +26,7 @@ const {
   formatPaymentStatusResponse,
   isEmvQrisString,
 } = require('./dto/payment.dto');
-const { emitPaymentUpdated } = require('../../services/socket.service');
+const { emitPaymentUpdated, emitCatalogChanged } = require('../../services/socket.service');
 
 function drawPospayLogo(doc, x, y, size = 40) {
   doc.save();
@@ -90,6 +90,19 @@ async function createCashPayment(input, actor, req) {
   const amount = input.amount ?? outstanding(bill);
   if (amount > outstanding(bill) + 0.001) {
     throw ApiError.badRequest(`Nominal melebihi sisa tagihan (${outstanding(bill)})`);
+  }
+
+  // Satu pembayaran PENDING per tagihan — hindari duplikat setelah batal/bayar ulang.
+  const existingPending = await paymentRepository.findPendingByBillId(bill.id);
+  if (existingPending) {
+    if (
+      existingPending.paymentMethodId === method.id
+      || existingPending.channel === 'CASH'
+      || existingPending.paymentType === 'CASH'
+    ) {
+      return paymentRepository.findPaymentById(existingPending.id);
+    }
+    await prisma.payment.delete({ where: { id: existingPending.id } }).catch(() => {});
   }
 
   const payment = await paymentRepository.createPaymentWithHistory(
@@ -768,6 +781,72 @@ async function rejectPayment(paymentId, input, actor, req) {
   return legacyPaymentService.reject(paymentId, input, actor, req);
 }
 
+/**
+ * Siswa membatalkan pembayaran yang masih PENDING.
+ * Hapus permanen dari PostgreSQL → tagihan kembali status belumbayar / menunggu verifikasi hilang.
+ */
+async function cancelPendingPayment(paymentId, actor, req) {
+  if (!paymentId) throw ApiError.badRequest('ID pembayaran wajib diisi');
+  const student = await resolveStudent(actor);
+
+  const payment = await prisma.payment.findUnique({
+    where: { id: paymentId },
+    include: { bill: { include: { student: true, feeType: true } } },
+  });
+  if (!payment) throw ApiError.notFound('Pembayaran tidak ditemukan');
+  if (payment.bill.studentId !== student.id) {
+    throw ApiError.forbidden('Anda hanya dapat membatalkan pembayaran milik sendiri');
+  }
+  if (payment.status !== 'PENDING') {
+    throw ApiError.badRequest('Hanya pembayaran menunggu verifikasi yang dapat dibatalkan');
+  }
+
+  // Hapus permanen — PaymentHistory / MidtransLog ikut cascade / setNull.
+  await prisma.payment.delete({ where: { id: paymentId } });
+
+  await recordAudit({
+    userId: actor.id,
+    action: 'DELETE',
+    entity: 'Payment',
+    entityId: paymentId,
+    metadata: {
+      cancelledBy: 'SISWA',
+      billId: payment.billId,
+      previousStatus: 'PENDING',
+      reason: 'Dibatalkan siswa pada konfirmasi pembayaran',
+    },
+    req,
+  });
+
+  const billStatus = payment.bill.status === 'PAID' || payment.bill.status === 'WAIVED'
+    ? payment.bill.status
+    : (Number(payment.bill.paidAmount || 0) > 0 ? 'PARTIAL' : 'UNPAID');
+
+  emitPaymentUpdated(
+    {
+      id: paymentId,
+      billId: payment.billId,
+      status: 'REJECTED',
+      bill: payment.bill,
+    },
+    { cancelled: true, billStatus },
+  );
+  emitCatalogChanged({
+    reason: 'payment_cancelled',
+    paymentId,
+    billId: payment.billId,
+    billStatus,
+  });
+
+  return {
+    paymentId,
+    billId: payment.billId,
+    bill_status: billStatus,
+    cancelled: true,
+    message: 'Pembayaran dibatalkan. Tagihan kembali belum dibayar.',
+  };
+}
+
 async function streamInvoicePdf(paymentId, actor, res) {
   const payment = await paymentRepository.findPaymentById(paymentId);
   if (!payment) throw ApiError.notFound('Pembayaran tidak ditemukan');
@@ -852,6 +931,7 @@ module.exports = {
   handleMidtransWebhook,
   approvePayment,
   rejectPayment,
+  cancelPendingPayment,
   streamInvoicePdf,
   finalizeVerifiedPayment,
 };

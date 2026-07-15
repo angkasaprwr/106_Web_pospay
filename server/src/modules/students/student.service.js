@@ -126,8 +126,36 @@ async function update(id, input, actorId, req) {
 
 async function remove(id, actorId, req) {
   const existing = await getById(id);
-  await prisma.student.delete({ where: { id } });
-  await recordAudit({ userId: actorId, action: 'DELETE', entity: 'Student', entityId: id, req });
+  const userIdToDelete = existing.userId || existing.user?.id || null;
+  const nis = existing.nis;
+
+  // Hapus permanen siswa + akun login (User) sekali di transaksi — tidak meninggalkan orphan username.
+  await prisma.$transaction(async (tx) => {
+    await tx.student.delete({ where: { id } });
+    if (userIdToDelete) {
+      await tx.refreshToken.deleteMany({ where: { userId: userIdToDelete } }).catch(() => {});
+      await tx.deviceToken.deleteMany({ where: { userId: userIdToDelete } }).catch(() => {});
+      await tx.notification.deleteMany({ where: { userId: userIdToDelete } }).catch(() => {});
+      await tx.user.delete({ where: { id: userIdToDelete } }).catch(() => {});
+    } else if (nis) {
+      const orphan = await tx.user.findFirst({ where: { username: nis, role: 'SISWA' }, select: { id: true } });
+      if (orphan) {
+        await tx.refreshToken.deleteMany({ where: { userId: orphan.id } }).catch(() => {});
+        await tx.deviceToken.deleteMany({ where: { userId: orphan.id } }).catch(() => {});
+        await tx.notification.deleteMany({ where: { userId: orphan.id } }).catch(() => {});
+        await tx.user.delete({ where: { id: orphan.id } }).catch(() => {});
+      }
+    }
+  });
+
+  await recordAudit({
+    userId: actorId,
+    action: 'DELETE',
+    entity: 'Student',
+    entityId: id,
+    metadata: { nis, userIdDeleted: userIdToDelete || null },
+    req,
+  });
   emitStudentChanged('deleted', existing);
 }
 

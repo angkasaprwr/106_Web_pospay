@@ -544,9 +544,22 @@ export default function BillConfirm() {
 
   const handleCancel = async () => {
     if (pollRef.current) clearInterval(pollRef.current);
-    clearBillPaymentDraft();
-    toast.info('Pembayaran dibatalkan.');
-    navigate('/tagihan');
+    const pid = paymentId || draft?.paymentId || loadBillPaymentDraft()?.paymentId;
+    try {
+      if (pid) {
+        await api.post(`/payment/cancel/${pid}`);
+      }
+      clearBillPaymentDraft();
+      toast.success('Pembayaran dibatalkan. Tagihan kembali ke status belum dibayar.');
+      navigate('/tagihan');
+    } catch (e) {
+      const msg = apiError(e);
+      // Jika sudah tidak pending / sudah dihapus — tetap bersihkan draft
+      clearBillPaymentDraft();
+      if (msg) toast.error(msg);
+      else toast.info('Pembayaran dibatalkan.');
+      navigate('/tagihan');
+    }
   };
 
   if (loading) {
