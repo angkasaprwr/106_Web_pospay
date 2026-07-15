@@ -24,6 +24,7 @@ const {
   sanitizeMethodForPortal,
   resolveQrDisplayUrl,
   formatPaymentStatusResponse,
+  isEmvQrisString,
 } = require('./dto/payment.dto');
 const { emitPaymentUpdated } = require('../../services/socket.service');
 
@@ -144,6 +145,8 @@ async function createMidtransPayment(input, actor, req) {
     accountName: method.accountName || 'PAPK SMP PUSPONEGORO BREBES',
   };
 
+  const keys = midtransGateway.resolveKeys(method);
+
   // Jika sudah ada transaksi QRIS Midtrans pending, kembalikan QR yang sama
   // (hindari error "menunggu proses" saat user kembali ke Konfirmasi Pembayaran).
   const existingPending = await paymentRepository.findPendingByBillId(bill.id);
@@ -154,8 +157,9 @@ async function createMidtransPayment(input, actor, req) {
       && isMidtransQrisMethod(full.paymentMethod || method)
       && (full.paymentMethodId === method.id || full.channel === 'QRIS')
     ) {
-      const qr_url = await resolveQrDisplayUrl(full.qrUrl, full.qrString);
+      const qr_url = await resolveQrDisplayUrl(full.qrUrl, full.qrString, { serverKey: keys.serverKey });
       if (qr_url) {
+        const sandboxLocal = String(full.transactionId || '').startsWith('sandbox-local-');
         return {
           ...full,
           qr_string: full.qrString,
@@ -168,7 +172,8 @@ async function createMidtransPayment(input, actor, req) {
           school_name: env.school.name,
           invoice_no: bill.invoiceNo,
           school_account: schoolAccount,
-          sandbox_local: String(full.transactionId || '').startsWith('sandbox-local-'),
+          sandbox_local: sandboxLocal,
+          scannable: isEmvQrisString(full.qrString) && !sandboxLocal,
         };
       }
     }
@@ -198,16 +203,15 @@ async function createMidtransPayment(input, actor, req) {
   );
 
   const buildLocalQrisCharge = async (reason) => {
+    // QR demo — BUKAN EMV QRIS, tidak bisa di-scan e-wallet/bank (hanya alur UI dev)
     const qrPayload = [
-      'POSPAY-QRIS-SANDBOX',
+      'POSPAY-QRIS-DEMO-NOT-SCANNABLE',
       `INV:${bill.invoiceNo}`,
       `ORDER:${orderId}`,
       `AMT:${Math.round(Number(amount))}`,
       `BANK:${schoolAccount.bank}`,
       `REK:${schoolAccount.accountNo}`,
       `AN:${schoolAccount.accountName}`,
-      `SISWA:${student.fullName}`,
-      `NIS:${student.nis}`,
     ].join('|');
     const qrDataUrl = await QRCode.toDataURL(qrPayload, { width: 280, margin: 1, errorCorrectionLevel: 'M' });
     return {
@@ -219,17 +223,34 @@ async function createMidtransPayment(input, actor, req) {
       expiryTime: new Date(Date.now() + 30 * 60 * 1000),
       midtransStatus: 'pending',
       statusCode: '201',
-      raw: { sandbox_local: true, reason, school_account: schoolAccount },
+      scannable: false,
+      raw: { sandbox_local: true, reason, school_account: schoolAccount, scannable: false },
     };
   };
 
   let charge;
   let sandboxLocal = false;
-  const keys = midtransGateway.resolveKeys(method);
+  const itemDetails = [
+    {
+      id: bill.id.slice(-12),
+      price: Math.round(Number(amount)),
+      quantity: 1,
+      name: `${bill.feeType?.name || 'Tagihan'} - ${student.nis}`.slice(0, 50),
+    },
+  ];
+  const customerDetails = {
+    first_name: student.fullName,
+    email: actor.email || `${student.nis}@siswa.local`,
+    phone: student.parentPhone || actor.phone || '08123456789',
+  };
 
-  // Jangan panggil Midtrans sama sekali jika Server Key tidak valid / placeholder
-  // (mencegah error 401 Unknown Merchant ditampilkan ke orang tua siswa).
   if (!midtransGateway.hasValidMidtransKeys(keys)) {
+    if (!env.midtrans.sandboxFallback) {
+      await prisma.payment.delete({ where: { id: payment.id } }).catch(() => {});
+      throw ApiError.badRequest(
+        'QRIS Midtrans belum dikonfigurasi. Isi MIDTRANS_SERVER_KEY dan MIDTRANS_CLIENT_KEY Sandbox di server/.env agar QR bisa di-scan GoPay/Dana/ShopeePay/BRImo/Livin.',
+      );
+    }
     sandboxLocal = true;
     charge = await buildLocalQrisCharge('midtrans_keys_invalid_or_placeholder');
   } else {
@@ -238,15 +259,16 @@ async function createMidtransPayment(input, actor, req) {
         orderId,
         grossAmount: amount,
         method,
-        customerDetails: {
-          first_name: student.fullName,
-          email: actor.email || `${student.nis}@siswa.local`,
-          phone: student.parentPhone || actor.phone || '08123456789',
-        },
+        customerDetails,
+        itemDetails,
       });
     } catch (err) {
-      // Selalu fallback lokal saat Midtrans gagal (401 / timeout / QR kosong)
-      // agar tombol Bayar Tagihan tetap membuka Konfirmasi + menampilkan QR.
+      if (!env.midtrans.sandboxFallback) {
+        await prisma.payment.delete({ where: { id: payment.id } }).catch(() => {});
+        throw ApiError.badRequest(
+          `Gagal membuat QRIS Midtrans: ${err.message || 'error'}. Pastikan QRIS aktif di dashboard Sandbox.`,
+        );
+      }
       sandboxLocal = true;
       charge = await buildLocalQrisCharge(err.message || 'midtrans_charge_failed');
     }
@@ -277,13 +299,15 @@ async function createMidtransPayment(input, actor, req) {
 
   await recordAudit({ userId: actor.id, action: 'CREATE', entity: 'Payment', entityId: payment.id, req });
 
-  const qr_url = await resolveQrDisplayUrl(charge.qrUrl, charge.qrString);
+  const qr_url = await resolveQrDisplayUrl(charge.qrUrl, charge.qrString, { serverKey: keys.serverKey });
   if (!qr_url) {
     await prisma.payment.delete({ where: { id: payment.id } }).catch(() => {});
     throw ApiError.badRequest('Kode QR Midtrans tidak tersedia dari server. Periksa MIDTRANS_SERVER_KEY Sandbox di server/.env.');
   }
 
-  emitPaymentUpdated({ ...updated, bill: { student } }, { paymentType: 'QRIS_MIDTRANS', sandboxLocal });
+  const scannable = !sandboxLocal && (charge.scannable || isEmvQrisString(charge.qrString));
+
+  emitPaymentUpdated({ ...updated, bill: { student } }, { paymentType: 'QRIS_MIDTRANS', sandboxLocal, scannable });
 
   return {
     ...updated,
@@ -298,6 +322,10 @@ async function createMidtransPayment(input, actor, req) {
     invoice_no: bill.invoiceNo,
     school_account: schoolAccount,
     sandbox_local: sandboxLocal,
+    scannable,
+    midtrans_simulator_url: !env.midtrans.isProduction && scannable
+      ? 'https://simulator.sandbox.midtrans.com/openapi/qris/index'
+      : null,
   };
 }
 
@@ -448,7 +476,8 @@ async function getStatus(invoiceRef, actor) {
     if (payment.bill.studentId !== student.id) throw ApiError.forbidden('Akses ditolak');
   }
 
-  return formatPaymentStatusResponse(payment);
+  const keys = midtransGateway.resolveKeys(payment.paymentMethod);
+  return formatPaymentStatusResponse(payment, { serverKey: keys.serverKey });
 }
 
 async function getPaymentMethods() {

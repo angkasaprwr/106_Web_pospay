@@ -127,6 +127,8 @@ export default function BillConfirm() {
 
   const [qrError, setQrError] = useState('');
   const [schoolAccount, setSchoolAccount] = useState(null);
+  const [qrScannable, setQrScannable] = useState(true);
+  const [sandboxLocal, setSandboxLocal] = useState(false);
 
   const midtrans = useMemo(() => isMidtransQrisMethod(method), [method]);
   const midtransTransfer = useMemo(() => isMidtransTransferMethod(method), [method]);
@@ -147,6 +149,8 @@ export default function BillConfirm() {
       setPaymentStatus(payment.status);
       const nextQr = payment.qr_url || payment.qrDataUrl || '';
       if (nextQr) setQrDataUrl(nextQr);
+      if (payment.scannable !== undefined) setQrScannable(Boolean(payment.scannable));
+      if (payment.sandbox_local !== undefined) setSandboxLocal(Boolean(payment.sandbox_local));
       setTransferInfo({
         vaNumber: payment.qr_string || payment.va_number || null,
         bank: payment.payment_method?.merchantName || payment.payment_method?.name || payment.paymentMethod?.name || null,
@@ -252,6 +256,8 @@ export default function BillConfirm() {
       setPaymentId(pid);
       setPaymentStatus(paymentData.status || 'PENDING');
       setQrDataUrl(qr);
+      setQrScannable(paymentData.scannable !== false && !paymentData.sandbox_local);
+      setSandboxLocal(Boolean(paymentData.sandbox_local));
       setTransferInfo({
         vaNumber: paymentData.va_number || null,
         bank: paymentData.bank || null,
@@ -646,6 +652,28 @@ export default function BillConfirm() {
                       {schoolAccount.accountNo} — {schoolAccount.bank} — {schoolAccount.accountName}
                     </span>
                   </p>
+                )}
+                {midtrans && sandboxLocal && qrDataUrl && (
+                  <div className="mt-3 w-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
+                    QR ini belum EMV QRIS Midtrans (tidak bisa di-scan). Isi <strong>MIDTRANS_SERVER_KEY</strong> dan{' '}
+                    <strong>MIDTRANS_CLIENT_KEY</strong> Sandbox di Pengaturan Bendahara atau <code className="text-[10px]">server/.env</code>{' '}
+                    agar QR bisa dibayar via GoPay, Dana, ShopeePay, BRImo, Livin, BNI Mobile, BCA, Mandiri, dll.
+                  </div>
+                )}
+                {midtrans && qrScannable && !sandboxLocal && (
+                  <div className="mt-3 w-full rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-left text-[11px] leading-relaxed text-sky-900 dark:border-sky-900/50 dark:bg-sky-950/40 dark:text-sky-200">
+                    Buka aplikasi <strong>GoPay, Dana, ShopeePay, SeaBank, OVO, LinkAja, Livin, BRImo, BNI Mobile, BCA, Mandiri</strong>{' '}
+                    atau bank lain yang mendukung <strong>QRIS Tap</strong>, lalu scan kode QR ini. Pembayaran masuk ke rekening resmi sekolah{' '}
+                    <strong>BNI 6513009817</strong> (PAPK SMP PUSPONEGORO BREBES) melalui Midtrans Sandbox.
+                    <a
+                      href="https://simulator.sandbox.midtrans.com/openapi/qris/index"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="mt-1 block font-semibold text-[#0056D2] underline dark:text-blue-400"
+                    >
+                      Uji pembayaran di Simulator QRIS Sandbox Midtrans
+                    </a>
+                  </div>
                 )}
                 {bill?.invoiceNo && (
                   <p className="mt-1 text-center text-xs text-slate-500 dark:text-slate-400">
