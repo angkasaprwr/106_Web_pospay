@@ -4,23 +4,36 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-TMUX_BIN="${TMUX_BIN:-tmux}"
-TMUX_CONF="${TMUX_CONF:-/exec-daemon/tmux.portal.conf}"
-TMUX() { "$TMUX_BIN" -f "$TMUX_CONF" "$@"; }
+
+# Pastikan Node/npm tersedia (hindari nvm broken oleh npm_config_prefix=/)
+unset npm_config_prefix || true
+export NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+NODE_BIN=""
+if [ -x "$HOME/.nvm/versions/node/v22.22.2/bin/npm" ]; then
+  NODE_BIN="$HOME/.nvm/versions/node/v22.22.2/bin"
+elif [ -s "$NVM_DIR/nvm.sh" ]; then
+  # shellcheck disable=SC1090
+  . "$NVM_DIR/nvm.sh"
+  NODE_BIN="$(dirname "$(command -v npm)")"
+fi
+if [ -n "$NODE_BIN" ]; then
+  export PATH="$NODE_BIN:$PATH"
+fi
+if ! command -v npm >/dev/null 2>&1; then
+  echo "ERROR: npm tidak ditemukan. Periksa instalasi Node.js / nvm."
+  exit 1
+fi
 
 kill_port() {
   local port="$1"
   local pids=""
   if command -v lsof >/dev/null 2>&1; then
     pids=$(lsof -t -i:"$port" 2>/dev/null || true)
-  elif command -v fuser >/dev/null 2>&1; then
-    pids=$(fuser "${port}/tcp" 2>/dev/null || true)
   fi
   if [ -n "${pids:-}" ]; then
     echo "Menghentikan proses di port $port: $pids"
     kill $pids 2>/dev/null || true
     sleep 1
-    # force jika masih hidup
     for pid in $pids; do
       if kill -0 "$pid" 2>/dev/null; then
         kill -9 "$pid" 2>/dev/null || true
@@ -37,7 +50,6 @@ ensure_postgres() {
         echo "  PostgreSQL siap di 127.0.0.1:5433"
         return 0
       fi
-      # coba start cluster jika down
       if [ "$i" -eq 3 ] && command -v pg_ctlcluster >/dev/null 2>&1; then
         sudo pg_ctlcluster 16 main start 2>/dev/null || true
       fi
@@ -52,56 +64,71 @@ kill_port 4000
 kill_port 5173
 kill_port 5174
 
-for session in pospay-backend pospay-bendahara pospay-siswa; do
-  TMUX kill-session -t "$session" 2>/dev/null || true
-done
+# Matikan proses lama dari log nohup / tmux sebelumnya
+pkill -f "nodemon src/index.js" 2>/dev/null || true
+pkill -f "vite.*5173" 2>/dev/null || true
+pkill -f "vite.*5174" 2>/dev/null || true
+sleep 1
 
 ensure_postgres
 
-# Pastikan HOST bind semua interface
+# Pastikan HOST + DATABASE_URL di server/.env
+mkdir -p "$ROOT/server"
 if [ -f "$ROOT/server/.env" ]; then
   if ! grep -q '^HOST=' "$ROOT/server/.env" 2>/dev/null; then
     echo 'HOST=0.0.0.0' >> "$ROOT/server/.env"
   else
     sed -i 's/^HOST=.*/HOST=0.0.0.0/' "$ROOT/server/.env"
   fi
-  # DATABASE_URL wajib format yang diminta
   if grep -q '^DATABASE_URL=' "$ROOT/server/.env"; then
     sed -i 's|^DATABASE_URL=.*|DATABASE_URL="postgresql://postgres:db123@127.0.0.1:5433/db_sikes?schema=public"|' "$ROOT/server/.env"
   fi
 fi
 
-start_session() {
-  local name="$1"
-  local dir="$2"
-  local cmd="$3"
-  TMUX new-session -d -s "$name" -c "$dir" -- "${SHELL:-bash}" -l
-  TMUX send-keys -t "$name:0.0" "$cmd" C-m
-  echo "  + sesi tmux: $name"
-}
+LOG_DIR="/tmp/pospay-dev"
+mkdir -p "$LOG_DIR"
 
 echo "==> Memulai backend API (HOST=0.0.0.0 PORT=4000)..."
-start_session pospay-backend "$ROOT/server" "HOST=0.0.0.0 PORT=4000 npm run dev"
+(
+  cd "$ROOT/server"
+  unset npm_config_prefix || true
+  export HOST=0.0.0.0 PORT=4000
+  export PATH="$PATH"
+  nohup npm run dev > "$LOG_DIR/backend.log" 2>&1 &
+  echo $! > "$LOG_DIR/backend.pid"
+)
+echo "  + backend pid $(cat "$LOG_DIR/backend.pid") → log $LOG_DIR/backend.log"
 
-echo "==> Menunggu backend siap (IPv4 127.0.0.1 + health)..."
+echo "==> Menunggu backend siap..."
 for i in $(seq 1 60); do
   if curl -sf http://127.0.0.1:4000/api/health >/dev/null 2>&1 \
-    || curl -sf http://localhost:4000/api/health >/dev/null 2>&1; then
+    || curl -sf http://[::1]:4000/api/health >/dev/null 2>&1; then
     echo "  Backend API siap (port 4000, bind 0.0.0.0)"
     break
   fi
   if [ "$i" -eq 60 ]; then
-    echo "ERROR: Backend tidak merespons di port 4000. Periksa:"
-    echo "  - DATABASE_URL di server/.env"
-    echo "  - tmux -f $TMUX_CONF capture-pane -t pospay-backend -p | tail -40"
+    echo "ERROR: Backend tidak merespons di port 4000"
+    tail -40 "$LOG_DIR/backend.log" || true
     exit 1
   fi
   sleep 1
 done
 
-echo "==> Memulai portal bendahara & siswa (host 0.0.0.0)..."
-start_session pospay-bendahara "$ROOT/apps/bendahara" "npm run dev -- --host 0.0.0.0 --port 5173"
-start_session pospay-siswa "$ROOT/apps/siswa" "npm run dev -- --host 0.0.0.0 --port 5174"
+echo "==> Memulai portal bendahara (0.0.0.0:5173)..."
+(
+  cd "$ROOT/apps/bendahara"
+  unset npm_config_prefix || true
+  nohup npm run dev -- --host 0.0.0.0 --port 5173 > "$LOG_DIR/bendahara.log" 2>&1 &
+  echo $! > "$LOG_DIR/bendahara.pid"
+)
+
+echo "==> Memulai portal siswa (0.0.0.0:5174)..."
+(
+  cd "$ROOT/apps/siswa"
+  unset npm_config_prefix || true
+  nohup npm run dev -- --host 0.0.0.0 --port 5174 > "$LOG_DIR/siswa.log" 2>&1 &
+  echo $! > "$LOG_DIR/siswa.pid"
+)
 
 echo "==> Menunggu seluruh layanan siap..."
 for i in $(seq 1 40); do
@@ -117,8 +144,9 @@ for i in $(seq 1 40); do
     echo "  Backend API     : http://127.0.0.1:4000/api/health"
     echo "  Portal Bendahara: http://127.0.0.1:5173/login"
     echo "  Portal Siswa    : http://127.0.0.1:5174/login"
-    echo "  Socket.IO       : path /socket.io (proxy Vite → backend)"
-    echo "  Database        : postgresql://…@127.0.0.1:5433/db_sikes"
+    echo "  Socket.IO       : /socket.io"
+    echo "  Database        : postgresql://postgres:***@127.0.0.1:5433/db_sikes"
+    echo "  Logs            : $LOG_DIR/*.log"
     echo ""
     echo "Jika browser ERR_CONNECTION_REFUSED di Cursor Cloud:"
     echo "  Forward port 4000, 5173, dan 5174 di tab Ports"
@@ -127,8 +155,11 @@ for i in $(seq 1 40); do
   sleep 1
 done
 
-echo "PERINGATAN: Beberapa layanan belum merespons. Periksa log tmux:"
-echo "  tmux -f $TMUX_CONF capture-pane -t pospay-backend -p | tail -50"
-echo "  tmux -f $TMUX_CONF capture-pane -t pospay-bendahara -p | tail -30"
-echo "  tmux -f $TMUX_CONF capture-pane -t pospay-siswa -p | tail -30"
+echo "PERINGATAN: Beberapa layanan belum merespons."
+echo "  Backend  : $(curl -sf http://127.0.0.1:4000/api/health >/dev/null && echo OK || echo FAIL)"
+echo "  Bendahara: $(curl -sf http://127.0.0.1:5173/ >/dev/null && echo OK || echo FAIL)"
+echo "  Siswa    : $(curl -sf http://127.0.0.1:5174/ >/dev/null && echo OK || echo FAIL)"
+tail -20 "$LOG_DIR/backend.log" || true
+tail -10 "$LOG_DIR/bendahara.log" || true
+tail -10 "$LOG_DIR/siswa.log" || true
 exit 1
