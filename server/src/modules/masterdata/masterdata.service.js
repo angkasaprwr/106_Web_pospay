@@ -2,9 +2,24 @@ const { prisma } = require('../../config/prisma');
 const { ApiError } = require('../../core/ApiError');
 const { recordAudit } = require('../audit/audit.service');
 const { emitCatalogChanged } = require('../../services/socket.service');
+const { applyMidtransKeysFromMethod } = require('../../services/midtrans-setup.service');
 
 function notifyCatalog(reason, extra = {}) {
   emitCatalogChanged({ reason, ...extra });
+}
+
+function withSchoolAccountDefaults(data = {}) {
+  const next = { ...data };
+  if (next.channel === 'QRIS' || next.paymentType === 'QRIS_MIDTRANS' || next.channel === 'TRANSFER' || next.paymentType === 'TRANSFER_MIDTRANS') {
+    next.accountNo = next.accountNo || '6513009817';
+    next.accountName = next.accountName || 'PAPK SMP PUSPONEGORO BREBES';
+    next.gateway = next.gateway || 'midtrans';
+  }
+  if (next.channel === 'QRIS') next.paymentType = next.paymentType || 'QRIS_MIDTRANS';
+  if (next.channel === 'TRANSFER' && next.gateway === 'midtrans') {
+    next.paymentType = next.paymentType || 'TRANSFER_MIDTRANS';
+  }
+  return next;
 }
 
 // ---------------- Fee Types ----------------
@@ -35,13 +50,17 @@ const feeTypes = {
 const paymentMethods = {
   list: () => prisma.paymentMethod.findMany({ orderBy: { name: 'asc' } }),
   create: async (data, actorId, req) => {
-    const item = await prisma.paymentMethod.create({ data });
+    const payload = withSchoolAccountDefaults(data);
+    const item = await prisma.paymentMethod.create({ data: payload });
+    await applyMidtransKeysFromMethod(payload).catch(() => {});
     await recordAudit({ userId: actorId, action: 'CREATE', entity: 'PaymentMethod', entityId: item.id, req });
     notifyCatalog('payment_method_created', { paymentMethodId: item.id });
     return item;
   },
   update: async (id, data, actorId, req) => {
-    const item = await prisma.paymentMethod.update({ where: { id }, data });
+    const payload = withSchoolAccountDefaults(data);
+    const item = await prisma.paymentMethod.update({ where: { id }, data: payload });
+    await applyMidtransKeysFromMethod(payload).catch(() => {});
     await recordAudit({ userId: actorId, action: 'UPDATE', entity: 'PaymentMethod', entityId: id, req });
     notifyCatalog('payment_method_updated', { paymentMethodId: id });
     return item;

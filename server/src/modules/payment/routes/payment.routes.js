@@ -30,5 +30,7 @@ router.patch('/approve/:id', authorize('BENDAHARA'), validate({ body: approveSch
 router.patch('/reject/:id', authorize('BENDAHARA'), validate({ body: rejectSchema }), controller.reject);
 router.get('/invoice/:id/pdf', authorize('SISWA', 'BENDAHARA'), controller.invoice);
 router.get('/invoice/:id', authorize('SISWA', 'BENDAHARA'), controller.invoice);
+router.get('/midtrans/status', authorize('BENDAHARA'), controller.midtransStatus);
+router.post('/midtrans/test-qris', authorize('BENDAHARA'), controller.testQris);
 
 module.exports = router;

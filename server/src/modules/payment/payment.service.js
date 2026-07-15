@@ -148,7 +148,7 @@ async function createMidtransPayment(input, actor, req) {
   const keys = midtransGateway.resolveKeys(method);
 
   // Jika sudah ada transaksi QRIS Midtrans pending, kembalikan QR yang sama
-  // (hindari error "menunggu proses" saat user kembali ke Konfirmasi Pembayaran).
+  // kecuali pending lama adalah demo lokal — regenerate jika key Midtrans sudah valid.
   const existingPending = await paymentRepository.findPendingByBillId(bill.id);
   if (existingPending) {
     const full = await paymentRepository.findPaymentByInvoiceRef(existingPending.id);
@@ -157,27 +157,43 @@ async function createMidtransPayment(input, actor, req) {
       && isMidtransQrisMethod(full.paymentMethod || method)
       && (full.paymentMethodId === method.id || full.channel === 'QRIS')
     ) {
-      const qr_url = await resolveQrDisplayUrl(full.qrUrl, full.qrString, { serverKey: keys.serverKey });
-      if (qr_url) {
-        const sandboxLocal = String(full.transactionId || '').startsWith('sandbox-local-');
-        return {
-          ...full,
-          qr_string: full.qrString,
-          qr_url,
-          qrDataUrl: qr_url,
-          expiry_time: full.expiryTime,
-          transaction_id: full.transactionId,
-          order_id: full.orderId,
-          gross_amount: toNumber(full.amount),
-          school_name: env.school.name,
-          invoice_no: bill.invoiceNo,
-          school_account: schoolAccount,
-          sandbox_local: sandboxLocal,
-          scannable: isEmvQrisString(full.qrString) && !sandboxLocal,
-        };
+      const wasLocal = String(full.transactionId || '').startsWith('sandbox-local-')
+        || !isEmvQrisString(full.qrString);
+      const canUpgrade = wasLocal && midtransGateway.hasValidMidtransKeys(keys);
+
+      if (!canUpgrade) {
+        const qr_url = await resolveQrDisplayUrl(full.qrUrl, full.qrString, { serverKey: keys.serverKey });
+        if (qr_url) {
+          const sandboxLocal = String(full.transactionId || '').startsWith('sandbox-local-');
+          return {
+            ...full,
+            qr_string: full.qrString,
+            qr_url,
+            qrDataUrl: qr_url,
+            expiry_time: full.expiryTime,
+            transaction_id: full.transactionId,
+            order_id: full.orderId,
+            gross_amount: toNumber(full.amount),
+            school_name: env.school.name,
+            invoice_no: bill.invoiceNo,
+            school_account: schoolAccount,
+            sandbox_local: sandboxLocal,
+            scannable: isEmvQrisString(full.qrString) && !sandboxLocal,
+            midtrans_simulator_url: !env.midtrans.isProduction && isEmvQrisString(full.qrString)
+              ? 'https://simulator.sandbox.midtrans.com/openapi/qris/index'
+              : null,
+          };
+        }
+        throw ApiError.badRequest('Tagihan ini masih memiliki pembayaran yang menunggu proses');
       }
+      // Tolak pending demo → buat charge Midtrans EMV baru
+      await prisma.payment.update({
+        where: { id: full.id },
+        data: { status: 'REJECTED', rejectionReason: 'Diganti QRIS Midtrans EMV scannable' },
+      });
+    } else {
+      throw ApiError.badRequest('Tagihan ini masih memiliki pembayaran yang menunggu proses');
     }
-    throw ApiError.badRequest('Tagihan ini masih memiliki pembayaran yang menunggu proses');
   }
 
   const amount = input.amount ?? outstanding(bill);
