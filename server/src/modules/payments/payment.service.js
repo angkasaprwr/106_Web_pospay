@@ -6,6 +6,7 @@ const { generatePaymentRef } = require('../../utils/identifiers');
 const { toNumber } = require('../../utils/money');
 const { recordAudit } = require('../audit/audit.service');
 const { notifyUser } = require('../notifications/notification.service');
+const { emitPaymentUpdated } = require('../../services/socket.service');
 const { resolveStudent } = require('../portal/portal.service');
 const { isCashlessPayment, isCashMethod, requiresProofUpload, isMidtransQrisMethod, generateQrDataUrl } = require('./payment.util');
 
@@ -271,7 +272,9 @@ async function verify(id, input, actor, req) {
     });
   }
 
-  return getById(result.id);
+  const verified = await getById(result.id);
+  emitPaymentUpdated({ ...verified, bill: payment.bill }, { settled: true });
+  return verified;
 }
 
 async function reject(id, input, actor, req) {
@@ -314,7 +317,9 @@ async function reject(id, input, actor, req) {
     });
   }
 
-  return getById(id);
+  const rejected = await getById(id);
+  emitPaymentUpdated({ ...rejected, bill: payment.bill }, { failed: true });
+  return rejected;
 }
 
 async function notifyTreasurers(payload) {
