@@ -244,8 +244,8 @@ async function requestPasswordReset(identifier, req) {
 
   return {
     message: mailResult.smtpError
-      ? `Tautan reset dibuat untuk ${deliveryEmail}, tetapi Gmail SMTP menolak login (App Password tidak valid). Perbarui SMTP_PASS di server/.env, lalu restart backend.`
-      : 'SMTP belum dikonfigurasi. Gunakan tautan reset yang ditampilkan untuk pengujian developer.',
+      ? `Tautan reset dibuat untuk ${deliveryEmail}, tetapi pengiriman Gmail gagal (SMTP App Password tidak valid). Perbarui SMTP_PASS atau pasang GMAIL_WEBHOOK_URL (lihat server/scripts/gmail-apps-script/Code.gs), lalu restart backend.`
+      : 'Saluran email belum dikonfigurasi. Gunakan tautan reset yang ditampilkan untuk pengujian developer.',
     emailSent: false,
     deliveryEmail,
     devResetUrl: mailResult.devResetUrl || resetUrl,
