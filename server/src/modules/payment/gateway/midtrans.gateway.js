@@ -63,6 +63,46 @@ function normalizeBankFromMethod(method) {
   return 'bca';
 }
 
+function createSnapApi(method) {
+  const keys = resolveKeys(method);
+  return new midtransClient.Snap({
+    isProduction: keys.isProduction,
+    serverKey: keys.serverKey,
+    clientKey: keys.clientKey,
+  });
+}
+
+/**
+ * Snap Sandbox transaction token (Midtrans Snap API).
+ * Digunakan untuk fallback / integrasi Snap.js; QRIS custom UI memakai CoreApi.charge(payment_type=qris).
+ */
+async function createSnapTransaction({ orderId, grossAmount, method, customerDetails, enabledPayments }) {
+  const keys = resolveKeys(method);
+  if (!hasValidMidtransKeys(keys)) {
+    throw ApiError.badRequest(
+      'Konfigurasi Midtrans belum lengkap. Atur MIDTRANS_SERVER_KEY dan MIDTRANS_CLIENT_KEY di server/.env.',
+    );
+  }
+
+  const snap = createSnapApi(method);
+  const parameter = {
+    transaction_details: {
+      order_id: orderId,
+      gross_amount: Math.round(grossAmount),
+    },
+    customer_details: customerDetails,
+    enabled_payments: enabledPayments || ['qris', 'gopay', 'other_qris'],
+  };
+
+  const result = await snap.createTransaction(parameter);
+  return {
+    snapToken: result.token,
+    redirectUrl: result.redirect_url,
+    clientKey: keys.clientKey,
+    isProduction: keys.isProduction,
+  };
+}
+
 async function chargeQris({ orderId, grossAmount, method, customerDetails }) {
   const keys = resolveKeys(method);
   if (!hasValidMidtransKeys(keys)) {
@@ -71,6 +111,8 @@ async function chargeQris({ orderId, grossAmount, method, customerDetails }) {
     );
   }
 
+  // Midtrans Sandbox (MIDTRANS_IS_PRODUCTION=false): charge payment_type=qris
+  // memakai midtrans-client → menghasilkan QR scannable (GoPay/Dana/ShopeePay/dll).
   const core = createCoreApi(method);
   const parameter = {
     payment_type: 'qris',
@@ -131,6 +173,7 @@ function isSettlementStatus(transactionStatus) {
 module.exports = {
   chargeQris,
   chargeBankTransfer,
+  createSnapTransaction,
   verifySignature,
   resolveKeys,
   hasValidMidtransKeys,

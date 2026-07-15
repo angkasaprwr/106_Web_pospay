@@ -4,6 +4,7 @@ const { prisma } = require('./config/prisma');
 const { logger } = require('./utils/logger');
 const fcm = require('./services/fcm.service');
 const emailService = require('./services/email.service');
+const { initSocket } = require('./services/socket.service');
 const { startReminderJob, stopReminderJob } = require('./jobs/reminder.job');
 
 async function bootstrap() {
@@ -24,6 +25,7 @@ async function bootstrap() {
     logger.info(`POSPAY API berjalan di port ${env.port} (${env.nodeEnv})`);
   });
 
+  initSocket(server);
   startReminderJob();
 
   const shutdown = async (signal) => {

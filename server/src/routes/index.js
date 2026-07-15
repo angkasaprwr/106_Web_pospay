@@ -19,6 +19,10 @@ const chatbotRoutes = require('../modules/chatbot/chatbot.routes');
 const notificationRoutes = require('../modules/notifications/notification.routes');
 const portalRoutes = require('../modules/portal/portal.routes');
 const { paymentRoutes: paymentGatewayRoutes } = require('../modules/payment');
+const {
+  createPaymentsAliasRouter,
+  createPaymentMethodsAliasRouter,
+} = require('../modules/payment/routes/payment.alias.routes');
 
 const router = Router();
 
@@ -27,6 +31,9 @@ router.get('/health', (req, res) => ok(res, { status: 'up', time: new Date().toI
 router.use('/auth', authRoutes);
 router.use('/students', studentRoutes);
 router.use('/bills', billRoutes);
+// Spec aliases (must be before /payments/:id legacy routes)
+router.use('/payments', createPaymentsAliasRouter());
+router.use('/payment-methods', createPaymentMethodsAliasRouter());
 router.use('/payments', legacyPaymentRoutes);
 router.use('/dispensations', dispensationRoutes);
 router.use('/masterdata', masterdataRoutes);

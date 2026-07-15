@@ -5,6 +5,7 @@ import { useToast } from '../../context/ToastContext';
 import { Spinner, Modal, EmptyState, Field } from '../ui';
 import { Icon } from '../Icons';
 import { formatIDR, formatDateTime } from '../../lib/format';
+import { useSocket } from '../../hooks/useSocket';
 import {
   TagihanPagination,
   billDisplayName,
@@ -176,6 +177,14 @@ export default function StatusPembayaranTab() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useSocket({
+    'payment:updated': () => { loadAux(); load(); },
+    'payment:verified': () => { loadAux(); load(); },
+    'payment:pending': () => { loadAux(); load(); },
+    'catalog:changed': () => { loadAux(); load(); },
+    'bill:created': () => { loadAux(); load(); },
+  });
 
   useEffect(() => {
     if (tagihanGroups.length > 0 && !filters.tagihanKey) {

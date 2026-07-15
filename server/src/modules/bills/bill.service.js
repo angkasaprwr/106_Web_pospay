@@ -6,6 +6,7 @@ const { generateInvoiceNo } = require('../../utils/identifiers');
 const { recordAudit } = require('../audit/audit.service');
 const { notifyUser } = require('../notifications/notification.service');
 const { formatIDR } = require('../../utils/money');
+const { emitBillCreated } = require('../../services/socket.service');
 
 async function list(query) {
   return billRepository.list(query);
@@ -51,6 +52,7 @@ async function create(input, actorId, req) {
     });
   }
 
+  emitBillCreated({ ...bill, student: { ...(bill.student || {}), userId: userId || bill.student?.userId } });
   return bill;
 }
 

@@ -21,6 +21,12 @@ export default defineConfig({
         ws: true,
         timeout: 30_000,
       },
+      '/socket.io': {
+        target: API_TARGET,
+        changeOrigin: true,
+        secure: false,
+        ws: true,
+      },
       '/uploads': {
         target: API_TARGET,
         changeOrigin: true,

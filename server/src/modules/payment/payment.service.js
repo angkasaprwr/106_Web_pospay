@@ -25,6 +25,7 @@ const {
   resolveQrDisplayUrl,
   formatPaymentStatusResponse,
 } = require('./dto/payment.dto');
+const { emitPaymentUpdated } = require('../../services/socket.service');
 
 function drawPospayLogo(doc, x, y, size = 40) {
   doc.save();
@@ -113,6 +114,7 @@ async function createCashPayment(input, actor, req) {
     data: { paymentId: payment.id, billId: bill.id },
   });
 
+  emitPaymentUpdated({ ...payment, bill: { student: bill.student } }, { paymentType: 'CASH' });
   return payment;
 }
 
@@ -404,6 +406,7 @@ async function finalizeVerifiedPayment(payment, actor, req, meta = {}) {
     data: { paymentId: payment.id, billId: payment.billId },
   });
 
+  emitPaymentUpdated(result, { settled: true });
   return result;
 }
 
@@ -446,7 +449,7 @@ async function handleMidtransWebhook(payload) {
   const transactionStatus = String(payload.transaction_status || '').toLowerCase();
   const fraudStatus = payload.fraud_status || null;
 
-  if (midtransGateway.isSettlementStatus(transactionStatus)) {
+  if (midtransGateway.isSettlementStatus(transactionStatus) || transactionStatus === 'success') {
     await paymentRepository.createPaymentTransaction({
       paymentId: payment.id,
       transactionId: payload.transaction_id || payment.transactionId,
@@ -494,7 +497,18 @@ async function handleMidtransWebhook(payload) {
       );
     }
 
+    emitPaymentUpdated({ ...rejected, bill: payment.bill }, { failed: true });
     return { payment: rejected, failed: true };
+  }
+
+  if (transactionStatus === 'challenge') {
+    const challenged = await paymentRepository.updatePaymentWithHistory(
+      payment.id,
+      { midtransStatus: transactionStatus, fraudStatus },
+      { note: 'Pembayaran menunggu challenge 3DS / fraud review Midtrans', metadata: payload },
+    );
+    emitPaymentUpdated({ ...challenged, bill: payment.bill }, { challenge: true });
+    return { payment: challenged, challenge: true };
   }
 
   const pending = await paymentRepository.updatePaymentWithHistory(
@@ -502,6 +516,7 @@ async function handleMidtransWebhook(payload) {
     { midtransStatus: transactionStatus, fraudStatus },
     { note: `Status Midtrans: ${transactionStatus}`, metadata: payload },
   );
+  emitPaymentUpdated({ ...pending, bill: payment.bill }, { pending: true });
   return { payment: pending, pending: true };
 }
 
