@@ -246,7 +246,8 @@ export default function BillConfirm() {
         setDraft(nextDraft);
       } else {
         paymentData = await checkPaymentStatus(pid);
-        const hasQr = Boolean(paymentData?.qr_url || paymentData?.qrDataUrl || paymentData?.qr_string);
+        const hasSnap = Boolean(paymentData?.snap_token) || String(paymentData?.qr_string || '').startsWith('SNAP:');
+        const hasQr = Boolean(paymentData?.qr_url || paymentData?.qrDataUrl || paymentData?.qr_string || hasSnap);
         if (!paymentData || paymentData.status === 'REJECTED' || (!hasQr && isMidtransQrisMethod(methodData))) {
           paymentData = await createFresh();
           pid = paymentData.id;
@@ -262,12 +263,13 @@ export default function BillConfirm() {
       }
 
       const qr = paymentData.qr_url || paymentData.qrDataUrl || '';
+      const nextSnapToken = paymentData.snap_token || (String(paymentData.qr_string || '').startsWith('SNAP:') ? String(paymentData.qr_string).slice(5) : '');
       setPaymentId(pid);
       setPaymentStatus(paymentData.status || 'PENDING');
       setQrDataUrl(qr);
       setQrScannable(paymentData.scannable !== false && !paymentData.sandbox_local);
       setSandboxLocal(Boolean(paymentData.sandbox_local));
-      setSnapToken(paymentData.snap_token || (String(paymentData.qr_string || '').startsWith('SNAP:') ? String(paymentData.qr_string).slice(5) : ''));
+      setSnapToken(nextSnapToken);
       setSnapRedirectUrl(paymentData.snap_redirect_url || (paymentData.qr_url?.includes?.('midtrans.com/snap') ? paymentData.qr_url : ''));
       setMidtransClientKey(paymentData.midtrans_client_key || '');
       setMidtransIsProduction(Boolean(paymentData.midtrans_is_production));
@@ -286,8 +288,10 @@ export default function BillConfirm() {
       );
       setAwaitingCashless(true);
 
-      if (isMidtransQrisMethod(methodData) && !qr) {
+      if (isMidtransQrisMethod(methodData) && !qr && !nextSnapToken) {
         setQrError('Kode QR belum tersedia. Silakan buat QR ulang.');
+      } else {
+        setQrError('');
       }
 
       await checkPaymentStatus(pid);
