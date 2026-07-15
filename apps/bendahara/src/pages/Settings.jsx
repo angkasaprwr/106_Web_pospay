@@ -513,9 +513,9 @@ function PaymentMethods() {
     setForm(applyChannelDefaults('QRIS', {
       name,
       channel: 'QRIS',
-      accountName: '',
-      accountNo: '',
-      instruction: `Buka aplikasi ${name}, pilih Scan QR, lalu arahkan kamera ke kode QR. Dana masuk ke rekening resmi sekolah secara otomatis.`,
+      accountName: 'PAPK SMP PUSPONEGORO',
+      accountNo: '6513009817',
+      instruction: `Buka aplikasi ${name} / QRIS antar bank, Scan QR. Dana masuk ke rekening resmi sekolah BNI 6513009817 a.n. PAPK SMP PUSPONEGORO (via Midtrans Sandbox).`,
       isActive: true,
       paymentType: 'QRIS_MIDTRANS',
       gateway: 'midtrans',
@@ -569,6 +569,10 @@ function PaymentMethods() {
           {form.channel === 'QRIS' && (
             <div className="space-y-3 rounded-lg border border-blue-100 bg-blue-50/50 p-3 dark:border-blue-900/50 dark:bg-blue-950/30">
               <p className="text-xs font-semibold text-blue-800 dark:text-blue-300">Konfigurasi Midtrans QRIS</p>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Atas Nama Rekening Sekolah"><input className="input" value={form.accountName || ''} onChange={(e) => setForm({ ...form, accountName: e.target.value })} placeholder="PAPK SMP PUSPONEGORO" /></Field>
+                <Field label="No. Rekening (BNI)"><input className="input" value={form.accountNo || ''} onChange={(e) => setForm({ ...form, accountNo: e.target.value })} placeholder="6513009817" /></Field>
+              </div>
               <Field label="Merchant Name"><input className="input" value={form.merchantName || ''} onChange={(e) => setForm({ ...form, merchantName: e.target.value })} /></Field>
               <Field label="Merchant ID"><input className="input" value={form.merchantId || ''} onChange={(e) => setForm({ ...form, merchantId: e.target.value })} /></Field>
               <Field label="Client Key"><input className="input" value={form.midtransClientKey || ''} onChange={(e) => setForm({ ...form, midtransClientKey: e.target.value })} /></Field>

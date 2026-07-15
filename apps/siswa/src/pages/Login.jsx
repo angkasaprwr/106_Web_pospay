@@ -9,9 +9,12 @@ import LoginIllustration from '../components/login/LoginIllustration';
 import SchoolEmblem from '../components/login/SchoolEmblem';
 import PospayLogo from '../components/login/PospayLogo';
 import ApiConnectionBanner from '../components/ApiConnectionBanner';
+import ThemeToggleButton from '../components/ThemeToggleButton';
 
 const REMEMBER_KEY = 'pospay_siswa_remember';
 const NAVY = '#1a48a0';
+const inputClass =
+  'w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-pospay focus:ring-2 focus:ring-pospay/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500';
 
 export default function Login() {
   const { login } = useAuth();
@@ -23,16 +26,11 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
-    document.documentElement.classList.remove('dark');
     const saved = localStorage.getItem(REMEMBER_KEY);
     if (saved) {
       setForm((f) => ({ ...f, username: saved }));
       setRemember(true);
     }
-    return () => {
-      const stored = localStorage.getItem('pospay_theme_siswa');
-      if (stored === 'dark') document.documentElement.classList.add('dark');
-    };
   }, []);
 
   const submit = async (e) => {
@@ -57,7 +55,8 @@ export default function Login() {
   };
 
   return (
-    <div className="flex min-h-screen w-full flex-col bg-white">
+    <div className="flex min-h-screen w-full flex-col bg-white dark:bg-slate-950">
+      <ThemeToggleButton />
       <ApiConnectionBanner />
       <div className="flex min-h-0 flex-1 flex-col md:flex-row">
       {/* Panel kiri — branding biru */}
@@ -96,19 +95,19 @@ export default function Login() {
       </div>
 
       {/* Panel kanan — form login */}
-      <div className="flex w-full flex-1 items-center justify-center bg-white px-4 py-10 sm:px-8 md:min-h-screen md:w-1/2 md:px-12">
+      <div className="flex w-full flex-1 items-center justify-center bg-white px-4 py-10 dark:bg-slate-950 sm:px-8 md:min-h-screen md:w-1/2 md:px-12">
         <div className="w-full max-w-[420px]">
-          <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-[0_8px_40px_rgba(26,72,160,0.12)] sm:p-8">
+          <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-[0_8px_40px_rgba(26,72,160,0.12)] dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20 sm:p-8">
             <div className="mb-8">
-              <h1 className="text-2xl font-extrabold sm:text-[28px]" style={{ color: NAVY }}>
+              <h1 className="text-2xl font-extrabold text-[#1a48a0] dark:text-blue-400 sm:text-[28px]">
                 Masuk
               </h1>
-              <p className="mt-1 text-sm text-slate-500">Masuk untuk mengakses sistem POSPAY</p>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Masuk untuk mengakses sistem POSPAY</p>
             </div>
 
             <form onSubmit={submit} className="space-y-5">
               <div>
-                <label htmlFor="username" className="mb-1.5 block text-sm font-bold" style={{ color: NAVY }}>
+                <label htmlFor="username" className="mb-1.5 block text-sm font-bold text-[#1a48a0] dark:text-blue-400">
                   Username
                 </label>
                 <div className="relative">
@@ -117,7 +116,7 @@ export default function Login() {
                   </span>
                   <input
                     id="username"
-                    className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-[#1a48a0] focus:ring-2 focus:ring-[#1a48a0]/20"
+                    className={inputClass}
                     value={form.username}
                     onChange={(e) => setForm({ ...form, username: e.target.value })}
                     placeholder="Nanti akan menggunakan NIS siswa"
@@ -129,7 +128,7 @@ export default function Login() {
               </div>
 
               <div>
-                <label htmlFor="password" className="mb-1.5 block text-sm font-bold" style={{ color: NAVY }}>
+                <label htmlFor="password" className="mb-1.5 block text-sm font-bold text-[#1a48a0] dark:text-blue-400">
                   Password
                 </label>
                 <div className="relative">
@@ -138,7 +137,7 @@ export default function Login() {
                   </span>
                   <input
                     id="password"
-                    className="w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-10 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-[#1a48a0] focus:ring-2 focus:ring-[#1a48a0]/20"
+                    className={`${inputClass} pr-10`}
                     type={showPassword ? 'text' : 'password'}
                     value={form.password}
                     onChange={(e) => setForm({ ...form, password: e.target.value })}
@@ -158,7 +157,7 @@ export default function Login() {
               </div>
 
               <div className="flex items-center justify-between text-sm">
-                <label className="flex cursor-pointer items-center gap-2 text-slate-600">
+                <label className="flex cursor-pointer items-center gap-2 text-slate-600 dark:text-slate-400">
                   <input
                     type="checkbox"
                     checked={remember}
@@ -170,8 +169,7 @@ export default function Login() {
                 <button
                   type="button"
                   onClick={handleForgotPassword}
-                  className="font-semibold hover:underline"
-                  style={{ color: NAVY }}
+                  className="font-semibold text-[#1a48a0] hover:underline dark:text-blue-400"
                 >
                   Lupa password?
                 </button>
@@ -187,9 +185,9 @@ export default function Login() {
               </button>
             </form>
 
-            <div className="mt-6 border-t border-slate-200 pt-5 text-center">
-              <div className="flex items-center justify-center gap-2 text-xs text-slate-400">
-                <Icon.Shield width={14} height={14} style={{ color: NAVY }} />
+            <div className="mt-6 border-t border-slate-200 pt-5 text-center dark:border-slate-800">
+              <div className="flex items-center justify-center gap-2 text-xs text-slate-400 dark:text-slate-500">
+                <Icon.Shield width={14} height={14} className="text-[#1a48a0] dark:text-blue-400" />
                 <span>Halaman ini hanya untuk akses siswa.</span>
               </div>
               <p className="mt-3 text-xs text-slate-400">© {new Date().getFullYear()} POSPAY. All rights reserved.</p>

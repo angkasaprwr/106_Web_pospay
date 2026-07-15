@@ -81,7 +81,7 @@ async function main() {
   // ---- Payment methods ----
   const methods = [
     { name: 'Transfer Bank BRI', channel: 'TRANSFER', accountName: 'SMP Pusponegoro', accountNo: '0123-01-000000-50-1', instruction: 'Transfer ke rekening lalu unggah bukti.' },
-    { name: 'QRIS Sekolah', channel: 'QRIS', accountName: 'SMP Pusponegoro', instruction: 'Scan QRIS pada aplikasi e-wallet/m-banking.' },
+    { name: 'QRIS Sekolah', channel: 'QRIS', accountName: 'PAPK SMP PUSPONEGORO', accountNo: '6513009817', paymentType: 'QRIS_MIDTRANS', gateway: 'midtrans', merchantName: 'SMP Pusponegoro Brebes', instruction: 'Scan QRIS via GoPay/Dana/ShopeePay/Livin/BRImo. Dana masuk rekening BNI 6513009817 a.n. PAPK SMP PUSPONEGORO (Midtrans Sandbox).' },
     { name: 'Tunai di Loket', channel: 'CASH', instruction: 'Bayar langsung ke loket bendahara.' },
   ];
   for (const m of methods) {
