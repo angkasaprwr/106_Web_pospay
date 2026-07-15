@@ -12,7 +12,13 @@ function resolveKeys(method) {
 }
 
 function hasValidMidtransKeys(keys) {
-  return Boolean(keys.serverKey && keys.serverKey.length > 8 && !keys.serverKey.includes('your-'));
+  const sk = String(keys?.serverKey || '').trim();
+  const ck = String(keys?.clientKey || '').trim();
+  if (!sk || sk.length < 20) return false;
+  const invalid = /replace_me|your-|changeme|xxx|placeholder|example|dummy/i;
+  if (invalid.test(sk) || invalid.test(ck)) return false;
+  if (!/^SB-Mid-server-|^Mid-server-/.test(sk)) return false;
+  return true;
 }
 
 function createCoreApi(method) {
@@ -33,12 +39,16 @@ function verifySignature({ order_id: orderId, status_code: statusCode, gross_amo
 }
 
 function extractQrisData(chargeResponse) {
-  const actions = chargeResponse.actions || [];
-  const qrAction = actions.find((a) => /qr/i.test(a.name || '')) || actions[0];
+  const actions = Array.isArray(chargeResponse.actions) ? chargeResponse.actions : [];
+  const qrAction =
+    actions.find((a) => /generate-qr-code|qr-code|qr/i.test(String(a.name || '')))
+    || actions.find((a) => /qr/i.test(String(a.url || '')))
+    || actions[0];
   const qrUrl = qrAction?.url || chargeResponse.qr_url || null;
+  // Prefer EMV qr_string; jangan pakai URL HTTP sebagai qrString (nanti kita generate dataURL terpisah).
   const qrString = chargeResponse.qr_string
     || chargeResponse.qrString
-    || (qrUrl && !qrUrl.startsWith('data:') ? qrUrl : null);
+    || null;
 
   return {
     transactionId: chargeResponse.transaction_id || null,
@@ -124,7 +134,18 @@ async function chargeQris({ orderId, grossAmount, method, customerDetails }) {
   };
 
   const response = await core.charge(parameter);
-  return extractQrisData(response);
+  if (String(response.status_code || '').startsWith('4') || String(response.status_code || '').startsWith('5')) {
+    throw ApiError.badRequest(
+      `Midtrans menolak charge QRIS (${response.status_code}): ${response.status_message || 'error'}`,
+    );
+  }
+  const extracted = extractQrisData(response);
+  if (!extracted.qrString && !extracted.qrUrl) {
+    throw ApiError.badRequest(
+      'Midtrans tidak mengembalikan kode QR. Pastikan fitur QRIS aktif di dashboard Sandbox Midtrans dan Server Key benar.',
+    );
+  }
+  return extracted;
 }
 
 async function chargeBankTransfer({ orderId, grossAmount, method, customerDetails }) {

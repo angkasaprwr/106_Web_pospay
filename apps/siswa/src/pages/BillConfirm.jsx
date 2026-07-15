@@ -125,6 +125,9 @@ export default function BillConfirm() {
   const [countdown, setCountdown] = useState('');
   const [schoolName, setSchoolName] = useState('SMP Pusponegoro Brebes');
 
+  const [qrError, setQrError] = useState('');
+  const [schoolAccount, setSchoolAccount] = useState(null);
+
   const midtrans = useMemo(() => isMidtransQrisMethod(method), [method]);
   const midtransTransfer = useMemo(() => isMidtransTransferMethod(method), [method]);
   const cash = useMemo(() => isCashMethod(method), [method]);
@@ -142,7 +145,8 @@ export default function BillConfirm() {
       const { data } = await api.get(`/payment/status/${id}`);
       const payment = data.data;
       setPaymentStatus(payment.status);
-      setQrDataUrl(payment.qr_url || payment.qrDataUrl || '');
+      const nextQr = payment.qr_url || payment.qrDataUrl || '';
+      if (nextQr) setQrDataUrl(nextQr);
       setTransferInfo({
         vaNumber: payment.qr_string || payment.va_number || null,
         bank: payment.payment_method?.merchantName || payment.payment_method?.name || payment.paymentMethod?.name || null,
@@ -202,36 +206,71 @@ export default function BillConfirm() {
   }, [note, toast, finishSuccess, checkPaymentStatus]);
 
   const initMidtransPayment = useCallback(async (saved, billData, methodData, amount) => {
+    setQrError('');
     let pid = saved.paymentId;
     let paymentData = null;
-    if (!pid) {
+
+    const createFresh = async () => {
       const { data } = await api.post('/payment/create', {
         billId: billData.id,
         paymentMethodId: methodData.id,
         amount,
         note: note.trim() || undefined,
       });
-      paymentData = data.data;
+      return data.data;
+    };
+
+    if (!pid) {
+      paymentData = await createFresh();
       pid = paymentData.id;
       const nextDraft = { ...saved, paymentId: pid };
       saveBillPaymentDraft(nextDraft);
       setDraft(nextDraft);
     } else {
       paymentData = await checkPaymentStatus(pid);
+      const hasQr = Boolean(paymentData?.qr_url || paymentData?.qrDataUrl || paymentData?.qr_string);
+      // Payment lama tanpa QR / gagal Midtrans → buat transaksi baru sekali
+      if (!paymentData || paymentData.status === 'REJECTED' || (!hasQr && isMidtransQrisMethod(methodData))) {
+        paymentData = await createFresh();
+        pid = paymentData.id;
+        const nextDraft = { ...saved, paymentId: pid };
+        saveBillPaymentDraft(nextDraft);
+        setDraft(nextDraft);
+      }
     }
 
+    if (!paymentData) {
+      setQrError('Kode QR Midtrans tidak tersedia dari server.');
+      toast.error('Kode QR Midtrans tidak tersedia dari server.');
+      return;
+    }
+
+    const qr = paymentData.qr_url || paymentData.qrDataUrl || '';
     setPaymentId(pid);
     setPaymentStatus(paymentData.status || 'PENDING');
-    setQrDataUrl(paymentData.qr_url || paymentData.qrDataUrl || '');
+    setQrDataUrl(qr);
     setTransferInfo({
       vaNumber: paymentData.va_number || null,
       bank: paymentData.bank || null,
     });
     setExpiryTime(paymentData.expiry_time || paymentData.expiryTime || null);
     setSchoolName(paymentData.school_name || 'SMP Pusponegoro Brebes');
+    setSchoolAccount(
+      paymentData.school_account || {
+        bank: 'BNI',
+        accountNo: methodData.accountNo || '6513009817',
+        accountName: methodData.accountName || 'PAPK SMP PUSPONEGORO',
+      },
+    );
     setAwaitingCashless(true);
+
+    if (isMidtransQrisMethod(methodData) && !qr) {
+      setQrError('Kode QR Midtrans tidak tersedia dari server.');
+      toast.error('Kode QR Midtrans tidak tersedia dari server.');
+    }
+
     await checkPaymentStatus(pid);
-  }, [note, checkPaymentStatus]);
+  }, [note, checkPaymentStatus, toast]);
 
   const initLegacyCashlessPayment = useCallback(async (saved, billData, methodData, amount) => {
     let pid = saved.paymentId;
@@ -528,9 +567,31 @@ export default function BillConfirm() {
                     alt={`QR pembayaran ${method.name}`}
                     className="h-56 w-56 rounded-xl border border-slate-200 bg-white p-2 dark:border-slate-600"
                   />
+                ) : !midtransTransfer && qrError ? (
+                  <div className="flex h-56 w-56 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-rose-200 bg-rose-50 px-3 text-center dark:border-rose-900 dark:bg-rose-950/30">
+                    <p className="text-xs font-semibold text-rose-700 dark:text-rose-300">{qrError}</p>
+                    <button
+                      type="button"
+                      className="rounded-lg bg-[#0056D2] px-3 py-1.5 text-xs font-semibold text-white"
+                      onClick={() => {
+                        const saved = loadBillPaymentDraft();
+                        if (saved) {
+                          const cleared = { ...saved };
+                          delete cleared.paymentId;
+                          saveBillPaymentDraft(cleared);
+                        }
+                        load();
+                      }}
+                    >
+                      Buat QR ulang
+                    </button>
+                  </div>
                 ) : !midtransTransfer ? (
-                  <div className="flex h-56 w-56 items-center justify-center rounded-xl border border-dashed border-slate-200 dark:border-slate-600">
+                  <div className="flex h-56 w-56 flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-200 dark:border-slate-600">
                     <Spinner size={32} />
+                    <p className="px-3 text-center text-[11px] text-slate-500 dark:text-slate-400">
+                      Memuat kode QR Midtrans (sandbox)…
+                    </p>
                   </div>
                 ) : (
                   <div className="w-full rounded-xl border border-slate-200 bg-slate-50 p-4 text-center dark:border-slate-700 dark:bg-slate-800/60">
@@ -545,6 +606,14 @@ export default function BillConfirm() {
                 <p className="mt-1 text-center text-xs text-slate-500 dark:text-slate-400">
                   {schoolName}
                 </p>
+                {midtrans && schoolAccount && (
+                  <p className="mt-2 text-center text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
+                    Dana masuk rekening sekolah:<br />
+                    <span className="font-semibold text-slate-700 dark:text-slate-200">
+                      {schoolAccount.accountNo} — {schoolAccount.bank} — {schoolAccount.accountName}
+                    </span>
+                  </p>
+                )}
                 {bill?.invoiceNo && (
                   <p className="mt-1 text-center text-xs text-slate-500 dark:text-slate-400">
                     Invoice: {bill.invoiceNo}

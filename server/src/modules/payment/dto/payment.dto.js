@@ -8,10 +8,30 @@ function sanitizeMethodForPortal(method) {
 }
 
 async function resolveQrDisplayUrl(qrUrl, qrString) {
-  if (qrUrl) return qrUrl;
+  // Data URL / relative sudah siap ditampilkan
+  if (qrUrl && (qrUrl.startsWith('data:') || qrUrl.startsWith('/'))) return qrUrl;
+
+  // URL gambar Midtrans (actions.generate-qr-code) — fetch lalu bungkus data URL agar tidak CORS di browser
+  if (qrUrl && /^https?:\/\//i.test(qrUrl)) {
+    try {
+      const res = await fetch(qrUrl, { redirect: 'follow' });
+      if (res.ok) {
+        const ctype = res.headers.get('content-type') || 'image/png';
+        if (ctype.includes('image') || ctype.includes('octet-stream')) {
+          const buf = Buffer.from(await res.arrayBuffer());
+          return `data:${ctype.split(';')[0]};base64,${buf.toString('base64')}`;
+        }
+      }
+    } catch {
+      // lanjut ke qrString
+    }
+    // Fallback: pakai URL langsung (kadang Midtrans image bisa di-embed)
+    return qrUrl;
+  }
+
   if (!qrString) return null;
   try {
-    return await QRCode.toDataURL(qrString, { width: 280, margin: 1 });
+    return await QRCode.toDataURL(qrString, { width: 280, margin: 1, errorCorrectionLevel: 'M' });
   } catch {
     return null;
   }

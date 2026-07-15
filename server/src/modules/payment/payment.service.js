@@ -147,7 +147,14 @@ async function createMidtransPayment(input, actor, req) {
     'Transaksi QRIS Midtrans dibuat',
   );
 
+  const schoolAccount = {
+    bank: 'BNI',
+    accountNo: method.accountNo || '6513009817',
+    accountName: method.accountName || 'PAPK SMP PUSPONEGORO',
+  };
+
   let charge;
+  let sandboxLocal = false;
   try {
     charge = await midtransGateway.chargeQris({
       orderId,
@@ -160,8 +167,42 @@ async function createMidtransPayment(input, actor, req) {
       },
     });
   } catch (err) {
-    await prisma.payment.delete({ where: { id: payment.id } });
-    throw ApiError.badRequest(`Gagal membuat transaksi Midtrans: ${err.message}`);
+    // Fallback sandbox lokal: tetap tampilkan QR agar alur Bayar → Konfirmasi tidak macet
+    // saat MIDTRANS_SERVER_KEY belum diisi / ditolak (401). Settlement tetap menunggu Midtrans
+    // webhook atau verifikasi bendahara setelah scan berhasil / bukti masuk.
+    const allowFallback = String(process.env.MIDTRANS_SANDBOX_FALLBACK || 'true').toLowerCase() !== 'false';
+    if (!allowFallback) {
+      await prisma.payment.delete({ where: { id: payment.id } });
+      throw ApiError.badRequest(`Gagal membuat transaksi Midtrans: ${err.message}`);
+    }
+    sandboxLocal = true;
+    const qrPayload = [
+      'POSPAY-QRIS',
+      `INV:${bill.invoiceNo}`,
+      `ORDER:${orderId}`,
+      `AMT:${Math.round(Number(amount))}`,
+      `BANK:${schoolAccount.bank}`,
+      `REK:${schoolAccount.accountNo}`,
+      `AN:${schoolAccount.accountName}`,
+      `SISWA:${student.fullName}`,
+      `NIS:${student.nis}`,
+    ].join('|');
+    const qrDataUrl = await QRCode.toDataURL(qrPayload, { width: 280, margin: 1, errorCorrectionLevel: 'M' });
+    charge = {
+      transactionId: `sandbox-local-${payment.id}`,
+      orderId,
+      grossAmount: amount,
+      qrString: qrPayload,
+      qrUrl: qrDataUrl,
+      expiryTime: new Date(Date.now() + 30 * 60 * 1000),
+      midtransStatus: 'pending',
+      statusCode: '201',
+      raw: {
+        sandbox_local: true,
+        reason: err.message,
+        school_account: schoolAccount,
+      },
+    };
   }
 
   const updated = await paymentRepository.updatePaymentWithHistory(
@@ -173,20 +214,29 @@ async function createMidtransPayment(input, actor, req) {
       expiryTime: charge.expiryTime,
       midtransStatus: charge.midtransStatus,
     },
-    { note: 'QRIS Midtrans di-generate', metadata: { statusCode: charge.statusCode } },
+    {
+      note: sandboxLocal ? 'QRIS sandbox lokal di-generate (Midtrans key belum valid)' : 'QRIS Midtrans di-generate',
+      metadata: { statusCode: charge.statusCode, sandboxLocal },
+    },
   );
 
   await paymentRepository.createMidtransLog({
     paymentId: payment.id,
     orderId,
-    eventType: 'charge',
-    payload: { orderId, amount },
+    eventType: sandboxLocal ? 'charge_sandbox_local' : 'charge',
+    payload: { orderId, amount, schoolAccount },
     response: charge.raw,
   });
 
   await recordAudit({ userId: actor.id, action: 'CREATE', entity: 'Payment', entityId: payment.id, req });
 
   const qr_url = await resolveQrDisplayUrl(charge.qrUrl, charge.qrString);
+  if (!qr_url) {
+    await prisma.payment.delete({ where: { id: payment.id } }).catch(() => {});
+    throw ApiError.badRequest('Kode QR Midtrans tidak tersedia dari server. Periksa MIDTRANS_SERVER_KEY Sandbox di server/.env.');
+  }
+
+  emitPaymentUpdated({ ...updated, bill: { student } }, { paymentType: 'QRIS_MIDTRANS', sandboxLocal });
 
   return {
     ...updated,
@@ -199,6 +249,8 @@ async function createMidtransPayment(input, actor, req) {
     gross_amount: toNumber(amount),
     school_name: env.school.name,
     invoice_no: bill.invoiceNo,
+    school_account: schoolAccount,
+    sandbox_local: sandboxLocal,
   };
 }
 
