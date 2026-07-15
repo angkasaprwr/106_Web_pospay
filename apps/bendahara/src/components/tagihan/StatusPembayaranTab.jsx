@@ -136,9 +136,16 @@ export default function StatusPembayaranTab() {
       setTagihanGroups(buildTagihanGroups(groupsRes.data.data));
       setClasses(classRes.data.data);
       const methods = methodsRes?.data?.data || [];
-      setCashMethodId(
-        methods.find((m) => m.channel === 'CASH' || /tunai|cash|loket/i.test(m.name || ''))?.id || null,
-      );
+      let cashId = methods.find((m) => m.channel === 'CASH' || /tunai|cash|loket/i.test(m.name || ''))?.id || null;
+      if (!cashId) {
+        try {
+          const ensured = await api.post('/masterdata/payment-methods/ensure-cash');
+          cashId = ensured?.data?.data?.id || null;
+        } catch {
+          /* ignore — receiveCashAtLoket akan coba lagi */
+        }
+      }
+      setCashMethodId(cashId);
     } catch {
       /* ignore */
     }
@@ -303,10 +310,6 @@ export default function StatusPembayaranTab() {
 
   /** Terima tunai di loket tanpa siswa memilih metode di portal (langsung lunas). */
   const receiveCashAtLoket = async (bill) => {
-    if (!cashMethodId) {
-      toast.error('Metode pembayaran Tunai belum dikonfigurasi.');
-      return;
-    }
     const remaining = Math.max(
       0,
       Number(bill.amount) - Number(bill.discount || 0) - Number(bill.paidAmount || 0),
@@ -317,9 +320,15 @@ export default function StatusPembayaranTab() {
     }
     setActing(true);
     try {
+      let methodId = cashMethodId;
+      if (!methodId) {
+        const ensured = await api.post('/masterdata/payment-methods/ensure-cash');
+        methodId = ensured?.data?.data?.id || null;
+        if (methodId) setCashMethodId(methodId);
+      }
       await api.post('/payments', {
         billId: bill.id,
-        paymentMethodId: cashMethodId,
+        paymentMethodId: methodId || undefined,
         amount: remaining,
         channel: 'CASH',
         note: 'Diterima tunai di loket bendahara',
@@ -497,9 +506,9 @@ export default function StatusPembayaranTab() {
                                 <button
                                   type="button"
                                   onClick={() => receiveCashAtLoket(b)}
-                                  disabled={acting || !cashMethodId}
-                                  title="Catat pembayaran tunai di loket tanpa siswa memilih metode di portal"
-                                  className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                                  disabled={acting}
+                                  title="Catat pembayaran tunai di loket — tagihan langsung lunas di database"
+                                  className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/70"
                                 >
                                   <Icon.Money width={14} height={14} />
                                   Terima Tunai

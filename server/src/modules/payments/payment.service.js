@@ -120,6 +120,21 @@ async function create(input, { actor, asTreasurer = false, req }) {
     }
   }
 
+  // Bendahara Terima Tunai: pastikan metode CASH tersedia bila belum dikonfigurasi
+  if (asTreasurer && (input.channel === 'CASH' || !paymentMethod)) {
+    const wantsCash = input.channel === 'CASH'
+      || paymentMethod?.channel === 'CASH'
+      || /tunai|cash|loket/i.test(paymentMethod?.name || '');
+    if (wantsCash || (!paymentMethod && input.channel === 'CASH')) {
+      const { ensureCashLoketMethod } = require('../masterdata/masterdata.service');
+      const cashMethod = await ensureCashLoketMethod();
+      if (!paymentMethod || paymentMethod.channel !== 'CASH') {
+        paymentMethod = cashMethod;
+        input.paymentMethodId = cashMethod.id;
+      }
+    }
+  }
+
   if (!asTreasurer && isMidtransQrisMethod(paymentMethod)) {
     throw ApiError.badRequest('Gunakan endpoint /payment/create untuk pembayaran QRIS Midtrans');
   }
