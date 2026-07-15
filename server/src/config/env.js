@@ -1,7 +1,17 @@
 const dotenv = require('dotenv');
 const path = require('path');
+const fs = require('fs');
 
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+// Prioritas: server/.env (folder backend), fallback root /.env
+const serverEnvPath = path.resolve(__dirname, '../../.env'); // server/src/config → server/.env
+const rootEnvPath = path.resolve(__dirname, '../../../.env');
+if (fs.existsSync(serverEnvPath)) {
+  dotenv.config({ path: serverEnvPath });
+} else if (fs.existsSync(rootEnvPath)) {
+  dotenv.config({ path: rootEnvPath });
+} else {
+  dotenv.config();
+}
 
 function bool(value, fallback = false) {
   if (value === undefined) return fallback;
@@ -77,7 +87,7 @@ const env = {
     user: (process.env.SMTP_USER || process.env.SCHOOL_GMAIL_ADDRESS || 'smppusponegorobrebess@gmail.com')
       .toLowerCase()
       .trim(),
-    pass: normalizeSmtpPass(process.env.SMTP_PASS),
+    pass: normalizeSmtpPass(process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD),
     authType: (process.env.SMTP_AUTH_TYPE || 'app_password').toLowerCase(),
     oauth: {
       clientId: process.env.GMAIL_CLIENT_ID || '',

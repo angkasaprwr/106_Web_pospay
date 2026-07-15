@@ -117,18 +117,18 @@ Akun default hasil seed:
 > `SEED_DEFAULT_BENDAHARA=false npm run prisma:seed` agar belum ada akun bendahara,
 > lalu daftar via halaman `/register` aplikasi bendahara dan verifikasi di `/register/verify`.
 
-### Gmail SMTP (verifikasi pendaftaran bendahara)
+### Gmail SMTP (verifikasi pendaftaran & reset kata sandi)
 Isi di `server/.env`:
 ```
 DATABASE_URL="postgresql://postgres:db123@127.0.0.1:5433/db_sikes?schema=public"
 SCHOOL_GMAIL_ADDRESS=smppusponegorobrebess@gmail.com
 SMTP_USER=smppusponegorobrebess@gmail.com
-SMTP_PASS="uzak lscf nowu szkt"
+SMTP_PASS="xxxx xxxx xxxx xxxx"
 SCHOOL_EMAIL_DOMAIN=smppusponegoro.sch.id
 ```
-Email pendaftar dapat menggunakan domain sekolah (`@smppusponegoro.sch.id`) atau Gmail resmi sekolah (`smppusponegorobrebess@gmail.com`).
+Ganti `SMTP_PASS` dengan **App Password Gmail yang masih aktif** (16 karakter). Spasi otomatis dihapus oleh backend. File `server/.env` tidak di-commit ke GitHub demi keamanan.
 
-Spasi pada App Password otomatis dihapus oleh backend. File `server/.env` tidak di-commit ke GitHub demi keamanan.
+Tautan reset password bendahara **selalu** dikirim ke `SCHOOL_GMAIL_ADDRESS` (Inbox Gmail sekolah), bukan ke email `@…sch.id` yang tidak punya kotak masuk Gmail.
 
 **Uji SMTP setelah mengubah `.env`:**
 ```bash
@@ -136,11 +136,11 @@ cd server && npm run test:smtp
 ```
 
 Jika muncul error `535 BadCredentials`:
-1. Pastikan 2FA aktif di Gmail sekolah
+1. Pastikan 2FA aktif di Gmail sekolah (`smppusponegorobrebess@gmail.com`)
 2. Buat **App Password baru** (nama app: `web pospay`) di https://myaccount.google.com/apppasswords
 3. Aktifkan IMAP di Gmail → Settings → Forwarding and POP/IMAP
-4. Di `server/.env`: `SMTP_PASS="uzak lscf nowu szkt"` lalu restart backend
-5. Uji: `cd server && npm run test:smtp`
+4. Salin App Password baru ke `server/.env` sebagai `SMTP_PASS="xxxx xxxx xxxx xxxx"` (jangan gunakan App Password lama yang sudah dicabut)
+5. Restart backend, lalu uji: `cd server && npm run test:smtp`
 
 **Alternatif OAuth2** (jika App Password tetap gagal):
 1. Buat OAuth Client di Google Cloud Console, aktifkan Gmail API

@@ -23,8 +23,8 @@ async function main() {
   console.error('GAGAL:', result.reason);
   console.error('\nLangkah perbaikan:');
   console.error('1. Aktifkan 2FA di akun smppusponegorobrebess@gmail.com');
-  console.error('2. Buat App Password baru (nama: web pospay): https://myaccount.google.com/apppasswords');
-  console.error('3. Di server/.env: SMTP_PASS="uzak lscf nowu szkt"');
+  console.error('2. Buat App Password BARU (nama: web pospay): https://myaccount.google.com/apppasswords');
+  console.error('3. Di server/.env: SMTP_PASS="xxxx xxxx xxxx xxxx" (App Password aktif, bukan yang sudah dicabut)');
   console.error('4. Aktifkan IMAP di Gmail → Settings → Forwarding and POP/IMAP');
   console.error('5. Restart backend: npm run dev:server');
   process.exit(1);

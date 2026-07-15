@@ -12,7 +12,8 @@ function getLiveSmtpCredentials() {
     user: (process.env.SMTP_USER || process.env.SCHOOL_GMAIL_ADDRESS || env.smtp.user)
       .toLowerCase()
       .trim(),
-    pass: normalizeSmtpPass(process.env.SMTP_PASS),
+    // GMAIL_APP_PASSWORD adalah alias resmi; SMTP_PASS tetap didukung
+    pass: normalizeSmtpPass(process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || env.smtp.pass),
   };
 }
 
@@ -47,11 +48,11 @@ function getOAuth2Transporter() {
 
 function smtpHelpMessage() {
   return [
-    'Periksa SMTP_PASS (App Password Gmail 16 karakter).',
-    'Buat App Password baru (nama: web pospay): https://myaccount.google.com/apppasswords',
-    'Pastikan 2FA aktif dan IMAP diaktifkan di pengaturan Gmail.',
-    'Di server/.env: SMTP_PASS="uzak lscf nowu szkt" (spasi otomatis dihapus).',
-    'Restart backend setelah mengubah .env.',
+    'SMTP_PASS / GMAIL_APP_PASSWORD ditolak Google (535 BadCredentials).',
+    'Buat App Password BARU (nama: web pospay): https://myaccount.google.com/apppasswords',
+    'Pastikan 2FA aktif dan IMAP aktif di Gmail.',
+    'Simpan 16 karakter ke server/.env sebagai SMTP_PASS="xxxx xxxx xxxx xxxx" (spasi dihapus otomatis).',
+    'Jangan memakai App Password lama yang sudah dicabut. Restart backend setelah mengubah .env.',
   ].join(' ');
 }
 
