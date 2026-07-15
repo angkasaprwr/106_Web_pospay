@@ -3,10 +3,7 @@ import { useSocket } from './useSocket';
 
 const DEBOUNCE_MS = 250;
 
-/**
- * Realtime sync via Socket.IO — refresh data sekali (debounced) saat CRUD bendahara/siswa.
- * Tanpa polling; cocok untuk jaringan lambat (satu request API per burst event).
- */
+/** Realtime refresh sekali (debounced) untuk portal bendahara. */
 export function usePortalCatalogSync(onDataChange) {
   const syncingRef = useRef(false);
   const timerRef = useRef(null);
@@ -34,7 +31,5 @@ export function usePortalCatalogSync(onDataChange) {
     'student:changed': refreshOnce,
   });
 
-  return {
-    checkForUpdates: refreshOnce,
-  };
+  return { checkForUpdates: refreshOnce };
 }

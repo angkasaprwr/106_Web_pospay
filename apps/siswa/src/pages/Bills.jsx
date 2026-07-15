@@ -121,18 +121,11 @@ export default function Bills() {
     }
   }, [toast]);
 
-  const { setVersionSnapshot } = usePortalCatalogSync(loadData, { intervalMs: 60000 });
+  usePortalCatalogSync(loadData);
 
   useEffect(() => {
-    let active = true;
-    (async () => {
-      await loadData({ silent: false });
-      if (active) await setVersionSnapshot();
-    })();
-    return () => {
-      active = false;
-    };
-  }, [loadData, setVersionSnapshot]);
+    loadData({ silent: false });
+  }, [loadData]);
 
   const selectedBill = useMemo(
     () => bills.find((b) => b.id === selectedBillId) || null,

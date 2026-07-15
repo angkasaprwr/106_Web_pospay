@@ -4,6 +4,7 @@ const { ApiError } = require('../../core/ApiError');
 const { env } = require('../../config/env');
 const { studentRepository } = require('./student.repository');
 const { recordAudit } = require('../audit/audit.service');
+const { emitStudentChanged } = require('../../services/socket.service');
 
 function cleanData(input) {
   const data = { ...input };
@@ -96,6 +97,7 @@ async function create(input, actorId, req) {
   });
 
   await recordAudit({ userId: actorId, action: 'CREATE', entity: 'Student', entityId: result.id, req });
+  emitStudentChanged('created', result);
   return result;
 }
 
@@ -118,13 +120,15 @@ async function update(id, input, actorId, req) {
     });
   }
   await recordAudit({ userId: actorId, action: 'UPDATE', entity: 'Student', entityId: id, req });
+  emitStudentChanged('updated', student);
   return student;
 }
 
 async function remove(id, actorId, req) {
-  await getById(id);
+  const existing = await getById(id);
   await prisma.student.delete({ where: { id } });
   await recordAudit({ userId: actorId, action: 'DELETE', entity: 'Student', entityId: id, req });
+  emitStudentChanged('deleted', existing);
 }
 
 async function resetPassword(id, newPassword, actorId, req) {

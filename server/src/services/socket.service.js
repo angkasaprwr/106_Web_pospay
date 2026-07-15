@@ -13,15 +13,19 @@ const EVENTS = {
   PAYMENT_VERIFIED: 'payment:verified',
   PAYMENT_PENDING: 'payment:pending',
   CATALOG_CHANGED: 'catalog:changed',
+  STUDENT_CHANGED: 'student:changed',
 };
 
 function initSocket(httpServer) {
   io = new Server(httpServer, {
     cors: {
-      origin: env.corsOrigins,
+      // Development: izinkan semua origin (port-forward / jaringan lambat)
+      origin: env.isProd ? env.corsOrigins : true,
       credentials: true,
     },
     path: '/socket.io',
+    pingInterval: 25000,
+    pingTimeout: 20000,
   });
 
   io.use((socket, next) => {
@@ -110,6 +114,20 @@ function emitPaymentUpdated(payment, extra = {}) {
   emitCatalogChanged({ reason: 'payment_updated', paymentId: payment.id, status: payment.status });
 }
 
+function emitStudentChanged(action, student) {
+  if (!io || !student) return;
+  const data = {
+    action,
+    studentId: student.id,
+    nis: student.nis,
+    fullName: student.fullName,
+    userId: student.userId || student.user?.id || null,
+  };
+  if (data.userId) emitToUser(data.userId, EVENTS.STUDENT_CHANGED, data);
+  emitToRole('BENDAHARA', EVENTS.STUDENT_CHANGED, data);
+  emitCatalogChanged({ reason: `student_${action}`, ...data });
+}
+
 module.exports = {
   initSocket,
   getIO,
@@ -118,5 +136,6 @@ module.exports = {
   emitCatalogChanged,
   emitBillCreated,
   emitPaymentUpdated,
+  emitStudentChanged,
   EVENTS,
 };
