@@ -26,7 +26,8 @@ async function main() {
     });
   }
 
-  // ---- Default treasurer (bendahara) + sinkron Gmail sekolah untuk reset password ----
+  // ---- Default treasurer (bendahara) — hanya jika SEED_DEFAULT_BENDAHARA=true ----
+  // Default: false agar akun masuk bendahara harus dibuat lewat /register (bukan seed otomatis).
   const schoolGmail = (process.env.SCHOOL_GMAIL_ADDRESS || 'smppusponegorobrebess@gmail.com').toLowerCase();
 
   if (SEED_BENDAHARA) {
@@ -45,29 +46,31 @@ async function main() {
       });
       console.log(`  -> Akun bendahara: username "bendahara", email ${schoolGmail}, password "bendahara123"`);
     }
-  }
 
-  // Pastikan minimal satu bendahara memakai Gmail resmi sekolah (inbox notifikasi reset).
-  const gmailOwner = await prisma.user.findFirst({
-    where: { role: 'BENDAHARA', email: { equals: schoolGmail, mode: 'insensitive' } },
-  });
-  if (!gmailOwner) {
-    const conflict = await prisma.user.findFirst({
-      where: { email: { equals: schoolGmail, mode: 'insensitive' } },
+    // Sinkron Gmail sekolah hanya saat seed bendahara diizinkan.
+    const gmailOwner = await prisma.user.findFirst({
+      where: { role: 'BENDAHARA', email: { equals: schoolGmail, mode: 'insensitive' } },
     });
-    if (!conflict) {
-      const primary = await prisma.user.findFirst({
-        where: { role: 'BENDAHARA', isActive: true },
-        orderBy: { createdAt: 'asc' },
+    if (!gmailOwner) {
+      const conflict = await prisma.user.findFirst({
+        where: { email: { equals: schoolGmail, mode: 'insensitive' } },
       });
-      if (primary) {
-        await prisma.user.update({
-          where: { id: primary.id },
-          data: { email: schoolGmail, emailVerified: true },
+      if (!conflict) {
+        const primary = await prisma.user.findFirst({
+          where: { role: 'BENDAHARA', isActive: true },
+          orderBy: { createdAt: 'asc' },
         });
-        console.log(`  -> Email bendahara "${primary.username}" diset ke ${schoolGmail} (notifikasi Gmail)`);
+        if (primary) {
+          await prisma.user.update({
+            where: { id: primary.id },
+            data: { email: schoolGmail, emailVerified: true },
+          });
+          console.log(`  -> Email bendahara "${primary.username}" diset ke ${schoolGmail} (notifikasi Gmail)`);
+        }
       }
     }
+  } else {
+    console.log('  -> SEED_DEFAULT_BENDAHARA=false — tidak membuat/mengubah akun bendahara');
   }
 
   // ---- Academic year & classes ----
