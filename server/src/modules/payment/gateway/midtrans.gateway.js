@@ -5,11 +5,14 @@ const { ApiError } = require('../../../core/ApiError');
 const { isEmvQrisString } = require('../dto/payment.dto');
 
 function resolveKeys(method) {
-  return {
-    serverKey: method?.midtransServerKey || env.midtrans.serverKey,
-    clientKey: method?.midtransClientKey || env.midtrans.clientKey,
-    isProduction: method?.productionMode ?? env.midtrans.isProduction,
-  };
+  const serverKey = String(method?.midtransServerKey || env.midtrans.serverKey || '').trim();
+  const clientKey = String(method?.midtransClientKey || env.midtrans.clientKey || '').trim();
+  // Deteksi otomatis: Mid-server- = Production, SB-Mid-server- = Sandbox
+  // (mencegah 401 jika key production dipakai dengan isProduction=false)
+  let isProduction = method?.productionMode ?? env.midtrans.isProduction;
+  if (/^Mid-server-/.test(serverKey)) isProduction = true;
+  if (/^SB-Mid-server-/.test(serverKey)) isProduction = false;
+  return { serverKey, clientKey, isProduction };
 }
 
 function hasValidMidtransKeys(keys) {
@@ -18,7 +21,9 @@ function hasValidMidtransKeys(keys) {
   if (!sk || sk.length < 20) return false;
   const invalid = /replace_me|your-|changeme|xxx|placeholder|example|dummy/i;
   if (invalid.test(sk) || invalid.test(ck)) return false;
+  // Sandbox: SB-Mid-server- / SB-Mid-client- ; Production: Mid-server- / Mid-client-
   if (!/^SB-Mid-server-|^Mid-server-/.test(sk)) return false;
+  if (ck && !/^SB-Mid-client-|^Mid-client-/.test(ck)) return false;
   return true;
 }
 

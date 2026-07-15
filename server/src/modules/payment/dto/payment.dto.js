@@ -86,10 +86,21 @@ async function formatPaymentStatusResponse(payment, options = {}) {
   const serverKey = options.serverKey
     || payment.paymentMethod?.midtransServerKey
     || null;
-  const qr_url = await resolveQrDisplayUrl(payment.qrUrl, payment.qrString, { serverKey });
-  const method = sanitizeMethodForPortal(payment.paymentMethod);
+  const clientKey = options.clientKey
+    || payment.paymentMethod?.midtransClientKey
+    || null;
+  const isProduction = options.isProduction;
+  const snapToken = String(payment.qrString || '').startsWith('SNAP:')
+    ? String(payment.qrString).slice(5)
+    : (String(payment.transactionId || '').includes('-') && String(payment.qrUrl || '').includes('midtrans.com/snap')
+      ? payment.transactionId
+      : null);
   const sandboxLocal = String(payment.transactionId || '').startsWith('sandbox-local-');
-  const scannable = isEmvQrisString(payment.qrString) && !sandboxLocal;
+  const qr_url = snapToken
+    ? null
+    : await resolveQrDisplayUrl(payment.qrUrl, payment.qrString, { serverKey });
+  const method = sanitizeMethodForPortal(payment.paymentMethod);
+  const scannable = Boolean(snapToken) || (isEmvQrisString(payment.qrString) && !sandboxLocal);
 
   return {
     id: payment.id,
@@ -103,9 +114,13 @@ async function formatPaymentStatusResponse(payment, options = {}) {
     amount: toNumber(payment.amount),
     channel: payment.channel,
     qr_string: payment.qrString,
-    qr_url,
+    qr_url: qr_url || payment.qrUrl,
     qrDataUrl: qr_url,
     scannable,
+    snap_token: snapToken,
+    snap_redirect_url: snapToken ? (payment.qrUrl || null) : null,
+    midtrans_client_key: clientKey,
+    midtrans_is_production: isProduction,
     expiry_time: payment.expiryTime,
     paid_at: payment.verifiedAt || payment.paidAt,
     verifiedAt: payment.verifiedAt,

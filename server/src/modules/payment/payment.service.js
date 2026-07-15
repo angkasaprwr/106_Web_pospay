@@ -162,13 +162,18 @@ async function createMidtransPayment(input, actor, req) {
       const canUpgrade = wasLocal && midtransGateway.hasValidMidtransKeys(keys);
 
       if (!canUpgrade) {
-        const qr_url = await resolveQrDisplayUrl(full.qrUrl, full.qrString, { serverKey: keys.serverKey });
-        if (qr_url) {
+        const snapTok = String(full.qrString || '').startsWith('SNAP:')
+          ? String(full.qrString).slice(5)
+          : null;
+        const qr_url = snapTok
+          ? null
+          : await resolveQrDisplayUrl(full.qrUrl, full.qrString, { serverKey: keys.serverKey });
+        if (qr_url || snapTok) {
           const sandboxLocal = String(full.transactionId || '').startsWith('sandbox-local-');
           return {
             ...full,
             qr_string: full.qrString,
-            qr_url,
+            qr_url: qr_url || full.qrUrl,
             qrDataUrl: qr_url,
             expiry_time: full.expiryTime,
             transaction_id: full.transactionId,
@@ -178,10 +183,11 @@ async function createMidtransPayment(input, actor, req) {
             invoice_no: bill.invoiceNo,
             school_account: schoolAccount,
             sandbox_local: sandboxLocal,
-            scannable: isEmvQrisString(full.qrString) && !sandboxLocal,
-            midtrans_simulator_url: !env.midtrans.isProduction && isEmvQrisString(full.qrString)
-              ? 'https://simulator.sandbox.midtrans.com/openapi/qris/index'
-              : null,
+            scannable: Boolean(snapTok) || (isEmvQrisString(full.qrString) && !sandboxLocal),
+            snap_token: snapTok,
+            snap_redirect_url: snapTok ? full.qrUrl : null,
+            midtrans_client_key: keys.clientKey,
+            midtrans_is_production: keys.isProduction,
           };
         }
         throw ApiError.badRequest('Tagihan ini masih memiliki pembayaran yang menunggu proses');
@@ -246,6 +252,7 @@ async function createMidtransPayment(input, actor, req) {
 
   let charge;
   let sandboxLocal = false;
+  let snapPayload = null;
   const itemDetails = [
     {
       id: bill.id.slice(-12),
@@ -264,7 +271,7 @@ async function createMidtransPayment(input, actor, req) {
     if (!env.midtrans.sandboxFallback) {
       await prisma.payment.delete({ where: { id: payment.id } }).catch(() => {});
       throw ApiError.badRequest(
-        'QRIS Midtrans belum dikonfigurasi. Isi MIDTRANS_SERVER_KEY dan MIDTRANS_CLIENT_KEY Sandbox di server/.env agar QR bisa di-scan GoPay/Dana/ShopeePay/BRImo/Livin.',
+        'QRIS Midtrans belum dikonfigurasi. Isi MIDTRANS_SERVER_KEY dan MIDTRANS_CLIENT_KEY di server/.env.',
       );
     }
     sandboxLocal = true;
@@ -278,15 +285,42 @@ async function createMidtransPayment(input, actor, req) {
         customerDetails,
         itemDetails,
       });
-    } catch (err) {
-      if (!env.midtrans.sandboxFallback) {
-        await prisma.payment.delete({ where: { id: payment.id } }).catch(() => {});
-        throw ApiError.badRequest(
-          `Gagal membuat QRIS Midtrans: ${err.message || 'error'}. Pastikan QRIS aktif di dashboard Sandbox.`,
-        );
+    } catch (coreErr) {
+      // Core API QRIS sering 402 jika kanal belum diaktifkan — fallback Snap (QRIS Tap via UI Midtrans)
+      try {
+        snapPayload = await midtransGateway.createSnapTransaction({
+          orderId,
+          grossAmount: amount,
+          method,
+          customerDetails,
+          enabledPayments: ['qris', 'gopay', 'other_qris'],
+        });
+        charge = {
+          transactionId: snapPayload.snapToken,
+          orderId,
+          grossAmount: amount,
+          qrString: `SNAP:${snapPayload.snapToken}`,
+          qrUrl: snapPayload.redirectUrl,
+          expiryTime: new Date(Date.now() + 30 * 60 * 1000),
+          midtransStatus: 'pending',
+          statusCode: '201',
+          scannable: true,
+          snapToken: snapPayload.snapToken,
+          snapRedirectUrl: snapPayload.redirectUrl,
+          clientKey: snapPayload.clientKey,
+          isProduction: snapPayload.isProduction,
+          raw: { snap: true, ...snapPayload, core_error: coreErr.message },
+        };
+      } catch (snapErr) {
+        if (!env.midtrans.sandboxFallback) {
+          await prisma.payment.delete({ where: { id: payment.id } }).catch(() => {});
+          throw ApiError.badRequest(
+            `Gagal membuat QRIS Midtrans: ${coreErr.message || snapErr.message}. Aktifkan kanal QRIS/GoPay di dashboard Midtrans.`,
+          );
+        }
+        sandboxLocal = true;
+        charge = await buildLocalQrisCharge(coreErr.message || 'midtrans_charge_failed');
       }
-      sandboxLocal = true;
-      charge = await buildLocalQrisCharge(err.message || 'midtrans_charge_failed');
     }
   }
 
@@ -300,35 +334,42 @@ async function createMidtransPayment(input, actor, req) {
       midtransStatus: charge.midtransStatus,
     },
     {
-      note: sandboxLocal ? 'QRIS sandbox lokal di-generate (Midtrans key belum valid)' : 'QRIS Midtrans di-generate',
-      metadata: { statusCode: charge.statusCode, sandboxLocal },
+      note: sandboxLocal
+        ? 'QRIS demo lokal (belum scannable)'
+        : snapPayload
+          ? 'QRIS Midtrans Snap (QRIS Tap e-wallet/bank)'
+          : 'QRIS Midtrans Core (EMV scannable)',
+      metadata: { statusCode: charge.statusCode, sandboxLocal, snap: Boolean(snapPayload) },
     },
   );
 
   await paymentRepository.createMidtransLog({
     paymentId: payment.id,
     orderId,
-    eventType: sandboxLocal ? 'charge_sandbox_local' : 'charge',
+    eventType: sandboxLocal ? 'charge_sandbox_local' : (snapPayload ? 'charge_snap' : 'charge'),
     payload: { orderId, amount, schoolAccount },
     response: charge.raw,
   });
 
   await recordAudit({ userId: actor.id, action: 'CREATE', entity: 'Payment', entityId: payment.id, req });
 
-  const qr_url = await resolveQrDisplayUrl(charge.qrUrl, charge.qrString, { serverKey: keys.serverKey });
-  if (!qr_url) {
+  const qr_url = sandboxLocal || !snapPayload
+    ? await resolveQrDisplayUrl(charge.qrUrl, charge.qrString, { serverKey: keys.serverKey })
+    : null;
+
+  if (!qr_url && !snapPayload) {
     await prisma.payment.delete({ where: { id: payment.id } }).catch(() => {});
-    throw ApiError.badRequest('Kode QR Midtrans tidak tersedia dari server. Periksa MIDTRANS_SERVER_KEY Sandbox di server/.env.');
+    throw ApiError.badRequest('Kode QR Midtrans tidak tersedia dari server. Periksa konfigurasi Midtrans.');
   }
 
-  const scannable = !sandboxLocal && (charge.scannable || isEmvQrisString(charge.qrString));
+  const scannable = !sandboxLocal && (Boolean(snapPayload) || charge.scannable || isEmvQrisString(charge.qrString));
 
-  emitPaymentUpdated({ ...updated, bill: { student } }, { paymentType: 'QRIS_MIDTRANS', sandboxLocal, scannable });
+  emitPaymentUpdated({ ...updated, bill: { student } }, { paymentType: 'QRIS_MIDTRANS', sandboxLocal, scannable, snap: Boolean(snapPayload) });
 
   return {
     ...updated,
     qr_string: charge.qrString,
-    qr_url,
+    qr_url: qr_url || charge.qrUrl,
     qrDataUrl: qr_url,
     expiry_time: charge.expiryTime,
     transaction_id: charge.transactionId,
@@ -339,7 +380,11 @@ async function createMidtransPayment(input, actor, req) {
     school_account: schoolAccount,
     sandbox_local: sandboxLocal,
     scannable,
-    midtrans_simulator_url: !env.midtrans.isProduction && scannable
+    snap_token: snapPayload?.snapToken || null,
+    snap_redirect_url: snapPayload?.redirectUrl || null,
+    midtrans_client_key: snapPayload?.clientKey || keys.clientKey || null,
+    midtrans_is_production: snapPayload?.isProduction ?? keys.isProduction,
+    midtrans_simulator_url: !keys.isProduction && scannable && !snapPayload
       ? 'https://simulator.sandbox.midtrans.com/openapi/qris/index'
       : null,
   };
@@ -493,7 +538,11 @@ async function getStatus(invoiceRef, actor) {
   }
 
   const keys = midtransGateway.resolveKeys(payment.paymentMethod);
-  return formatPaymentStatusResponse(payment, { serverKey: keys.serverKey });
+  return formatPaymentStatusResponse(payment, {
+    serverKey: keys.serverKey,
+    clientKey: keys.clientKey,
+    isProduction: keys.isProduction,
+  });
 }
 
 async function getPaymentMethods() {

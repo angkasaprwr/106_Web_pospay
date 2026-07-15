@@ -129,6 +129,11 @@ export default function BillConfirm() {
   const [schoolAccount, setSchoolAccount] = useState(null);
   const [qrScannable, setQrScannable] = useState(true);
   const [sandboxLocal, setSandboxLocal] = useState(false);
+  const [snapToken, setSnapToken] = useState('');
+  const [snapRedirectUrl, setSnapRedirectUrl] = useState('');
+  const [midtransClientKey, setMidtransClientKey] = useState('');
+  const [midtransIsProduction, setMidtransIsProduction] = useState(false);
+  const [openingSnap, setOpeningSnap] = useState(false);
 
   const midtrans = useMemo(() => isMidtransQrisMethod(method), [method]);
   const midtransTransfer = useMemo(() => isMidtransTransferMethod(method), [method]);
@@ -151,6 +156,10 @@ export default function BillConfirm() {
       if (nextQr) setQrDataUrl(nextQr);
       if (payment.scannable !== undefined) setQrScannable(Boolean(payment.scannable));
       if (payment.sandbox_local !== undefined) setSandboxLocal(Boolean(payment.sandbox_local));
+      if (payment.snap_token) setSnapToken(payment.snap_token);
+      if (payment.snap_redirect_url) setSnapRedirectUrl(payment.snap_redirect_url);
+      if (payment.midtrans_client_key) setMidtransClientKey(payment.midtrans_client_key);
+      if (payment.midtrans_is_production !== undefined) setMidtransIsProduction(Boolean(payment.midtrans_is_production));
       setTransferInfo({
         vaNumber: payment.qr_string || payment.va_number || null,
         bank: payment.payment_method?.merchantName || payment.payment_method?.name || payment.paymentMethod?.name || null,
@@ -258,6 +267,10 @@ export default function BillConfirm() {
       setQrDataUrl(qr);
       setQrScannable(paymentData.scannable !== false && !paymentData.sandbox_local);
       setSandboxLocal(Boolean(paymentData.sandbox_local));
+      setSnapToken(paymentData.snap_token || (String(paymentData.qr_string || '').startsWith('SNAP:') ? String(paymentData.qr_string).slice(5) : ''));
+      setSnapRedirectUrl(paymentData.snap_redirect_url || (paymentData.qr_url?.includes?.('midtrans.com/snap') ? paymentData.qr_url : ''));
+      setMidtransClientKey(paymentData.midtrans_client_key || '');
+      setMidtransIsProduction(Boolean(paymentData.midtrans_is_production));
       setTransferInfo({
         vaNumber: paymentData.va_number || null,
         bank: paymentData.bank || null,
@@ -428,6 +441,70 @@ export default function BillConfirm() {
       toast.error('Gagal menyalin nomor rekening');
     }
   };
+
+  const openSnapPay = useCallback(async () => {
+    if (!snapToken) {
+      if (snapRedirectUrl) {
+        window.open(snapRedirectUrl, '_blank', 'noopener,noreferrer');
+        return;
+      }
+      toast.error('Token Snap Midtrans belum tersedia.');
+      return;
+    }
+    setOpeningSnap(true);
+    try {
+      const clientKey = midtransClientKey;
+      if (!clientKey) {
+        if (snapRedirectUrl) window.open(snapRedirectUrl, '_blank', 'noopener,noreferrer');
+        else toast.error('Client Key Midtrans belum tersedia.');
+        return;
+      }
+      const snapSrc = midtransIsProduction
+        ? 'https://app.midtrans.com/snap/snap.js'
+        : 'https://app.sandbox.midtrans.com/snap/snap.js';
+
+      await new Promise((resolve, reject) => {
+        if (window.snap) {
+          resolve();
+          return;
+        }
+        const existing = document.querySelector(`script[src="${snapSrc}"]`);
+        if (existing) {
+          existing.addEventListener('load', () => resolve());
+          existing.addEventListener('error', reject);
+          return;
+        }
+        const script = document.createElement('script');
+        script.src = snapSrc;
+        script.setAttribute('data-client-key', clientKey);
+        script.onload = () => resolve();
+        script.onerror = reject;
+        document.body.appendChild(script);
+      });
+
+      window.snap.pay(snapToken, {
+        onSuccess: () => {
+          toast.success('Pembayaran berhasil diproses Midtrans');
+          if (paymentId) checkPaymentStatus(paymentId);
+        },
+        onPending: () => {
+          toast.info('Menunggu pembayaran QRIS. Scan QR di halaman Midtrans dengan GoPay/Dana/bank.');
+          if (paymentId) checkPaymentStatus(paymentId);
+        },
+        onError: () => {
+          toast.error('Pembayaran Midtrans gagal. Coba lagi.');
+        },
+        onClose: () => {
+          toast.info('Jendela pembayaran ditutup. Tagihan tetap menunggu hingga dibayar.');
+        },
+      });
+    } catch {
+      if (snapRedirectUrl) window.open(snapRedirectUrl, '_blank', 'noopener,noreferrer');
+      else toast.error('Gagal membuka Midtrans Snap.');
+    } finally {
+      setOpeningSnap(false);
+    }
+  }, [snapToken, snapRedirectUrl, midtransClientKey, midtransIsProduction, toast, paymentId, checkPaymentStatus]);
 
   const handleComplete = async () => {
     if (!bill || !method || !draft) {
@@ -600,7 +677,35 @@ export default function BillConfirm() {
             <section className={`${CARD} p-5`}>
               <h2 className="mb-4 font-bold text-slate-800 dark:text-slate-100">{midtransTransfer ? 'Transfer Bank Midtrans' : `Scan QR ${midtrans ? 'Midtrans' : method.name}`}</h2>
               <div className="flex flex-col items-center">
-                {!midtransTransfer && qrDataUrl ? (
+                {midtrans && snapToken ? (
+                  <div className="w-full space-y-3 text-center">
+                    <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-5 dark:border-sky-900/50 dark:bg-sky-950/40">
+                      <p className="text-sm font-semibold text-sky-900 dark:text-sky-100">Pembayaran QRIS Midtrans siap</p>
+                      <p className="mt-2 text-[11px] leading-relaxed text-sky-800 dark:text-sky-200/90">
+                        Klik tombol di bawah untuk membuka halaman QRIS. Scan dengan <strong>GoPay, Dana, ShopeePay, SeaBank, OVO, Livin, BRImo, BNI Mobile, BCA, Mandiri</strong>, atau bank lain yang mendukung QRIS Tap.
+                        Dana masuk rekening sekolah <strong>BNI 6513009817 – PAPK SMP PUSPONEGORO BREBES</strong>.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={openSnapPay}
+                        disabled={openingSnap}
+                        className="mt-4 w-full rounded-xl bg-[#0056D2] py-3 text-sm font-bold text-white hover:bg-[#004BB8] disabled:opacity-60"
+                      >
+                        {openingSnap ? 'Membuka Midtrans…' : 'Bayar via QRIS Tap (Midtrans)'}
+                      </button>
+                      {snapRedirectUrl && (
+                        <a
+                          href={snapRedirectUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="mt-2 block text-[11px] font-semibold text-[#0056D2] underline dark:text-blue-400"
+                        >
+                          Buka halaman pembayaran di tab baru
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ) : !midtransTransfer && qrDataUrl ? (
                   <img
                     src={qrDataUrl}
                     alt={`QR pembayaran ${method.name}`}
@@ -653,26 +758,16 @@ export default function BillConfirm() {
                     </span>
                   </p>
                 )}
-                {midtrans && sandboxLocal && qrDataUrl && (
+                {midtrans && sandboxLocal && qrDataUrl && !snapToken && (
                   <div className="mt-3 w-full rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
-                    QR ini belum EMV QRIS Midtrans (tidak bisa di-scan). Isi <strong>MIDTRANS_SERVER_KEY</strong> dan{' '}
-                    <strong>MIDTRANS_CLIENT_KEY</strong> Sandbox di Pengaturan Bendahara atau <code className="text-[10px]">server/.env</code>{' '}
-                    agar QR bisa dibayar via GoPay, Dana, ShopeePay, BRImo, Livin, BNI Mobile, BCA, Mandiri, dll.
+                    QR demo belum bisa di-scan. Pastikan key Midtrans sudah terisi dan kanal QRIS/GoPay aktif di dashboard Midtrans, lalu buat QR ulang.
                   </div>
                 )}
-                {midtrans && qrScannable && !sandboxLocal && (
+                {midtrans && qrScannable && !sandboxLocal && !snapToken && (
                   <div className="mt-3 w-full rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-left text-[11px] leading-relaxed text-sky-900 dark:border-sky-900/50 dark:bg-sky-950/40 dark:text-sky-200">
                     Buka aplikasi <strong>GoPay, Dana, ShopeePay, SeaBank, OVO, LinkAja, Livin, BRImo, BNI Mobile, BCA, Mandiri</strong>{' '}
                     atau bank lain yang mendukung <strong>QRIS Tap</strong>, lalu scan kode QR ini. Pembayaran masuk ke rekening resmi sekolah{' '}
-                    <strong>BNI 6513009817</strong> (PAPK SMP PUSPONEGORO BREBES) melalui Midtrans Sandbox.
-                    <a
-                      href="https://simulator.sandbox.midtrans.com/openapi/qris/index"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="mt-1 block font-semibold text-[#0056D2] underline dark:text-blue-400"
-                    >
-                      Uji pembayaran di Simulator QRIS Sandbox Midtrans
-                    </a>
+                    <strong>BNI 6513009817</strong> (PAPK SMP PUSPONEGORO BREBES).
                   </div>
                 )}
                 {bill?.invoiceNo && (

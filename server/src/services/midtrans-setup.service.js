@@ -109,52 +109,71 @@ async function testQrisCharge({ methodId, amount = 10000 } = {}) {
   const keys = midtransGateway.resolveKeys(method);
   if (!midtransGateway.hasValidMidtransKeys(keys)) {
     throw ApiError.badRequest(
-      'Server Key / Client Key Midtrans belum valid. Isi di Pengaturan → Metode Pembayaran (QRIS) dari dashboard Sandbox Midtrans.',
+      'Server Key / Client Key Midtrans belum valid. Isi di Pengaturan → Metode Pembayaran (QRIS) dari dashboard Midtrans.',
     );
   }
 
   const orderId = `POSPAY-TEST-${Date.now()}-${Math.random().toString(16).slice(2, 8).toUpperCase()}`;
-  const charge = await midtransGateway.chargeQris({
-    orderId,
-    grossAmount: amount,
-    method,
-    customerDetails: {
-      first_name: 'POSPAY Test',
-      email: 'test@smppusponegoro.local',
-      phone: '081234567890',
-    },
-    itemDetails: [
-      {
-        id: 'test-qris',
-        price: Math.round(amount),
-        quantity: 1,
-        name: 'Uji QRIS Sekolah',
-      },
-    ],
-  });
-
-  const qr_url = await resolveQrDisplayUrl(charge.qrUrl, charge.qrString, { serverKey: keys.serverKey });
-  const scannable = isEmvQrisString(charge.qrString);
-
-  return {
-    success: scannable,
-    scannable,
-    order_id: orderId,
-    transaction_id: charge.transactionId,
-    qr_string: charge.qrString,
-    qr_url,
-    qrDataUrl: qr_url,
-    acquirer: charge.acquirer,
-    school_account: {
-      bank: 'BNI',
-      accountNo: method?.accountNo || '6513009817',
-      accountName: method?.accountName || 'PAPK SMP PUSPONEGORO BREBES',
-    },
-    midtrans_simulator_url: 'https://simulator.sandbox.midtrans.com/openapi/qris/index',
-    message: scannable
-      ? 'QRIS EMV berhasil. Scan via GoPay/Dana/ShopeePay/BRImo/Livin atau Simulator Midtrans Sandbox.'
-      : 'Charge berhasil tetapi qr_string belum EMV. Periksa aktivasi QRIS di dashboard Midtrans.',
+  const customerDetails = {
+    first_name: 'POSPAY Test',
+    email: 'test@smppusponegoro.local',
+    phone: '081234567890',
   };
+
+  try {
+    const charge = await midtransGateway.chargeQris({
+      orderId,
+      grossAmount: amount,
+      method,
+      customerDetails,
+      itemDetails: [{ id: 'test-qris', price: Math.round(amount), quantity: 1, name: 'Uji QRIS Sekolah' }],
+    });
+    const qr_url = await resolveQrDisplayUrl(charge.qrUrl, charge.qrString, { serverKey: keys.serverKey });
+    const scannable = isEmvQrisString(charge.qrString);
+    return {
+      success: scannable,
+      scannable,
+      mode: 'core_api',
+      order_id: orderId,
+      transaction_id: charge.transactionId,
+      qr_string: charge.qrString,
+      qr_url,
+      qrDataUrl: qr_url,
+      school_account: {
+        bank: 'BNI',
+        accountNo: method?.accountNo || '6513009817',
+        accountName: method?.accountName || 'PAPK SMP PUSPONEGORO BREBES',
+      },
+      message: scannable
+        ? 'QRIS EMV berhasil (Core API). Scan via GoPay/Dana/ShopeePay/BRImo/Livin.'
+        : 'Charge Core OK tetapi qr_string belum EMV.',
+    };
+  } catch (coreErr) {
+    const snap = await midtransGateway.createSnapTransaction({
+      orderId,
+      grossAmount: amount,
+      method,
+      customerDetails,
+      enabledPayments: ['qris', 'gopay', 'other_qris'],
+    });
+    return {
+      success: true,
+      scannable: true,
+      mode: 'snap',
+      order_id: orderId,
+      snap_token: snap.snapToken,
+      snap_redirect_url: snap.redirectUrl,
+      midtrans_client_key: snap.clientKey,
+      midtrans_is_production: snap.isProduction,
+      school_account: {
+        bank: 'BNI',
+        accountNo: method?.accountNo || '6513009817',
+        accountName: method?.accountName || 'PAPK SMP PUSPONEGORO BREBES',
+      },
+      message:
+        `Core API QRIS belum aktif (${coreErr.message}). Fallback Snap OK — gunakan halaman Snap untuk scan QRIS Tap (GoPay/Dana/bank).`,
+    };
+  }
 }
 
 async function applyMidtransKeysFromMethod(data = {}) {
