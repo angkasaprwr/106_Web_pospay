@@ -71,6 +71,7 @@ function emitToRole(role, event, data) {
 
 function emitCatalogChanged(payload = {}) {
   if (!io) return;
+  // Broadcast sekali ke kedua role (client debounce → 1 API refresh)
   io.to('role:SISWA').emit(EVENTS.CATALOG_CHANGED, payload);
   io.to('role:BENDAHARA').emit(EVENTS.CATALOG_CHANGED, payload);
 }
@@ -84,6 +85,7 @@ function emitBillCreated(bill) {
     status: bill.status,
     feeTypeName: bill.feeType?.name,
   };
+  // Targeted bill event + satu catalog (portal sync debounce kedua event → 1 refresh)
   if (bill.student?.userId) emitToUser(bill.student.userId, EVENTS.BILL_CREATED, data);
   emitToRole('BENDAHARA', EVENTS.BILL_CREATED, data);
   emitCatalogChanged({ reason: 'bill_created', billId: bill.id });
@@ -100,17 +102,12 @@ function emitPaymentUpdated(payment, extra = {}) {
     ...extra,
   };
   const studentUserId = payment.bill?.student?.userId;
-  if (studentUserId) emitToUser(studentUserId, EVENTS.PAYMENT_UPDATED, data);
-  emitToRole('BENDAHARA', EVENTS.PAYMENT_UPDATED, data);
+  const eventName = payment.status === 'VERIFIED' ? EVENTS.PAYMENT_VERIFIED : EVENTS.PAYMENT_UPDATED;
 
-  if (payment.status === 'VERIFIED') {
-    if (studentUserId) emitToUser(studentUserId, EVENTS.PAYMENT_VERIFIED, data);
-    emitToRole('BENDAHARA', EVENTS.PAYMENT_VERIFIED, data);
-  }
-  if (payment.status === 'PENDING') {
-    emitToRole('BENDAHARA', EVENTS.PAYMENT_PENDING, data);
-  }
+  if (studentUserId) emitToUser(studentUserId, eventName, data);
+  emitToRole('BENDAHARA', eventName, data);
 
+  // Satu catalog saja — jangan emit payment:updated + payment:pending + verified bersamaan
   emitCatalogChanged({ reason: 'payment_updated', paymentId: payment.id, status: payment.status });
 }
 

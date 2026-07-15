@@ -5,7 +5,7 @@ import { useToast } from '../../context/ToastContext';
 import { Spinner, Modal, EmptyState, Field } from '../ui';
 import { Icon } from '../Icons';
 import { formatIDR, formatDateTime } from '../../lib/format';
-import { useSocket } from '../../hooks/useSocket';
+import { usePortalCatalogSync } from '../../hooks/usePortalCatalogSync';
 import {
   TagihanPagination,
   billDisplayName,
@@ -178,13 +178,10 @@ export default function StatusPembayaranTab() {
     load();
   }, [load]);
 
-  useSocket({
-    'payment:updated': () => { loadAux(); load(); },
-    'payment:verified': () => { loadAux(); load(); },
-    'payment:pending': () => { loadAux(); load(); },
-    'catalog:changed': () => { loadAux(); load(); },
-    'bill:created': () => { loadAux(); load(); },
-  });
+  // Satu refresh debounced saat CRUD bendahara↔siswa (hindari load berkali-kali)
+  usePortalCatalogSync(useCallback(async () => {
+    await Promise.all([loadAux(), load()]);
+  }, [loadAux, load]));
 
   useEffect(() => {
     if (tagihanGroups.length > 0 && !filters.tagihanKey) {
