@@ -7,6 +7,7 @@ import { Spinner, Modal, Field, EmptyState, ConfirmDialog } from '../components/
 import { Icon } from '../components/Icons';
 import { formatDateTime } from '../lib/format';
 import About from './About';
+import { deleteOnce } from '../lib/deleteOnce';
 
 const TABS = [
   { id: 'school', label: 'Profil Sekolah', icon: Icon.School },
@@ -408,7 +409,22 @@ function Users() {
       toast.success('Tersimpan'); setModal(null); load();
     } catch (e) { toast.error(apiError(e)); } finally { setSaving(false); }
   };
-  const del = async () => { setSaving(true); try { await api.delete(`/settings/users/${confirm.id}`); setConfirm(null); load(); toast.success('Dihapus'); } catch (e) { toast.error(apiError(e)); } finally { setSaving(false); } };
+  const del = async () => {
+    if (!confirm?.id || saving) return;
+    setSaving(true);
+    try {
+      await deleteOnce(`user:${confirm.id}`, async () => {
+        await api.delete(`/settings/users/${confirm.id}`);
+      });
+      setConfirm(null);
+      load();
+      toast.success('Pengguna dihapus permanen');
+    } catch (e) {
+      toast.error(apiError(e));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="card overflow-hidden">
@@ -550,7 +566,22 @@ function PaymentMethods() {
       setSaving(false);
     }
   };
-  const del = async () => { setSaving(true); try { await api.delete(`/masterdata/payment-methods/${confirm.id}`); setConfirm(null); load(); } catch (e) { toast.error(apiError(e)); } finally { setSaving(false); } };
+  const del = async () => {
+    if (!confirm?.id || saving) return;
+    setSaving(true);
+    try {
+      await deleteOnce(`payment-method:${confirm.id}`, async () => {
+        await api.delete(`/masterdata/payment-methods/${confirm.id}`);
+      });
+      setConfirm(null);
+      load();
+      toast.success('Metode pembayaran dihapus permanen');
+    } catch (e) {
+      toast.error(apiError(e));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="card overflow-hidden">

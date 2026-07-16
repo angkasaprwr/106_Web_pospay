@@ -5,6 +5,7 @@ import { Spinner, Modal, Field, EmptyState, ConfirmDialog } from '../components/
 import { Icon } from '../components/Icons';
 import StudentCreateModal from './StudentCreateModal';
 import ClassManagementSection from './ClassManagementSection';
+import { deleteOnce } from '../lib/deleteOnce';
 
 const emptyForm = {
   nis: '',
@@ -235,10 +236,13 @@ export default function Students() {
   };
 
   const del = async () => {
+    if (!confirm?.id || saving) return;
     setSaving(true);
     try {
-      await api.delete(`/students/${confirm.id}`);
-      toast.success('Siswa dihapus');
+      await deleteOnce(`student:${confirm.id}`, async () => {
+        await api.delete(`/students/${confirm.id}`);
+      });
+      toast.success('Siswa dan akun login dihapus permanen');
       setConfirm(null);
       load();
       loadStats();

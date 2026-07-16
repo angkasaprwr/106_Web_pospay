@@ -58,6 +58,12 @@ const cashReject = asyncHandler(async (req, res) => {
   return ok(res, payment, 'Pembayaran tunai ditolak');
 });
 
+const cancel = asyncHandler(async (req, res) => {
+  const paymentId = req.params.id || req.body?.paymentId;
+  const result = await paymentService.cancelPendingPayment(paymentId, req.user, req);
+  return ok(res, result, result.message || 'Pembayaran dibatalkan');
+});
+
 const invoice = asyncHandler(async (req, res) => {
   await paymentService.streamInvoicePdf(req.params.id, req.user, res);
 });
@@ -103,6 +109,7 @@ module.exports = {
   reject,
   cashApprove,
   cashReject,
+  cancel,
   invoice,
   midtransStatus,
   testQris,
