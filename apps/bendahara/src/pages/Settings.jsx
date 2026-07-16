@@ -7,6 +7,7 @@ import { Spinner, Modal, Field, EmptyState, ConfirmDialog } from '../components/
 import { Icon } from '../components/Icons';
 import { formatDateTime } from '../lib/format';
 import About from './About';
+import { deleteOnce } from '../lib/deleteOnce';
 
 const TABS = [
   { id: 'school', label: 'Profil Sekolah', icon: Icon.School },
@@ -408,7 +409,22 @@ function Users() {
       toast.success('Tersimpan'); setModal(null); load();
     } catch (e) { toast.error(apiError(e)); } finally { setSaving(false); }
   };
-  const del = async () => { setSaving(true); try { await api.delete(`/settings/users/${confirm.id}`); setConfirm(null); load(); toast.success('Dihapus'); } catch (e) { toast.error(apiError(e)); } finally { setSaving(false); } };
+  const del = async () => {
+    if (!confirm?.id || saving) return;
+    setSaving(true);
+    try {
+      await deleteOnce(`user:${confirm.id}`, async () => {
+        await api.delete(`/settings/users/${confirm.id}`);
+      });
+      setConfirm(null);
+      load();
+      toast.success('Pengguna dihapus permanen');
+    } catch (e) {
+      toast.error(apiError(e));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="card overflow-hidden">
@@ -472,6 +488,8 @@ function PaymentMethods() {
   });
   const [saving, setSaving] = useState(false);
   const [confirm, setConfirm] = useState(null);
+  const [testingQris, setTestingQris] = useState(false);
+  const [testQrPreview, setTestQrPreview] = useState('');
 
   const load = async () => { try { const { data } = await api.get('/masterdata/payment-methods'); setItems(data.data); } catch (e) { toast.error(apiError(e)); } finally { setLoading(false); } };
   useEffect(() => { load(); }, []); // eslint-disable-line
@@ -508,13 +526,79 @@ function PaymentMethods() {
     }));
     setModal({ mode: 'create' });
   };
-  const openEdit = (m) => { setForm({ ...m, callbackUrl: m.callbackUrl || '', midtransClientKey: m.midtransClientKey || '', midtransServerKey: m.midtransServerKey || '' }); setModal({ mode: 'edit', data: m }); };
-  const save = async () => { setSaving(true); try { if (modal.mode === 'create') await api.post('/masterdata/payment-methods', form); else await api.patch(`/masterdata/payment-methods/${modal.data.id}`, form); toast.success('Tersimpan'); setModal(null); load(); } catch (e) { toast.error(apiError(e)); } finally { setSaving(false); } };
-  const del = async () => { setSaving(true); try { await api.delete(`/masterdata/payment-methods/${confirm.id}`); setConfirm(null); load(); } catch (e) { toast.error(apiError(e)); } finally { setSaving(false); } };
+
+  const openCreateQrisPreset = (name) => {
+    setForm(applyChannelDefaults('QRIS', {
+      name,
+      channel: 'QRIS',
+      accountName: 'PAPK SMP PUSPONEGORO',
+      accountNo: '6513009817',
+      instruction: `Buka aplikasi ${name} / QRIS antar bank, Scan QR. Dana masuk ke rekening resmi sekolah BNI 6513009817 a.n. PAPK SMP PUSPONEGORO (via Midtrans Sandbox).`,
+      isActive: true,
+      paymentType: 'QRIS_MIDTRANS',
+      gateway: 'midtrans',
+      merchantName: 'SMP Pusponegoro Brebes',
+      merchantId: '',
+      midtransClientKey: '',
+      midtransServerKey: '',
+      productionMode: false,
+      callbackUrl: '',
+    }));
+    setModal({ mode: 'create' });
+  };
+  const openEdit = (m) => {
+    setTestQrPreview('');
+    setForm({ ...m, callbackUrl: m.callbackUrl || '', midtransClientKey: m.midtransClientKey || '', midtransServerKey: m.midtransServerKey || '', accountNo: m.accountNo || '6513009817', accountName: m.accountName || 'PAPK SMP PUSPONEGORO BREBES' });
+    setModal({ mode: 'edit', data: m });
+  };
+  const save = async () => {
+    setSaving(true);
+    try {
+      if (modal.mode === 'create') await api.post('/masterdata/payment-methods', form);
+      else await api.patch(`/masterdata/payment-methods/${modal.data.id}`, form);
+      toast.success('Tersimpan — key Midtrans aktif untuk QRIS scannable');
+      setModal(null);
+      setTestQrPreview('');
+      load();
+    } catch (e) {
+      toast.error(apiError(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+  const del = async () => {
+    if (!confirm?.id || saving) return;
+    setSaving(true);
+    try {
+      await deleteOnce(`payment-method:${confirm.id}`, async () => {
+        await api.delete(`/masterdata/payment-methods/${confirm.id}`);
+      });
+      setConfirm(null);
+      load();
+      toast.success('Metode pembayaran dihapus permanen');
+    } catch (e) {
+      toast.error(apiError(e));
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <div className="card overflow-hidden">
       <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3 dark:border-slate-800"><span className="font-semibold">Metode Pembayaran</span><button className="btn-primary" onClick={openCreate}><Icon.Plus width={16} height={16} /> Tambah</button></div>
+      <div className="flex flex-wrap gap-2 border-b border-slate-100 px-4 py-3 dark:border-slate-800">
+        <span className="w-full text-xs font-medium text-slate-500 dark:text-slate-400">Tambah cepat e-wallet QRIS:</span>
+        {['GoPay', 'DANA', 'ShopeePay'].map((name) => (
+          <button
+            key={name}
+            type="button"
+            onClick={() => openCreateQrisPreset(name)}
+            className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700 hover:bg-blue-100 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-950/60"
+          >
+            + {name}
+          </button>
+        ))}
+      </div>
       {loading ? <div className="flex h-40 items-center justify-center"><Spinner size={28} /></div> : items.length === 0 ? <EmptyState title="Belum ada metode" icon={Icon.Payment} /> : (
         <table className="table-base">
           <thead><tr><th>Nama</th><th>Channel</th><th>Gateway</th><th>Atas Nama</th><th>Status</th><th className="text-right">Aksi</th></tr></thead>
@@ -532,16 +616,63 @@ function PaymentMethods() {
       <Modal open={!!modal} onClose={() => setModal(null)} title="Metode Pembayaran" footer={<><button className="btn-secondary" onClick={() => setModal(null)}>Batal</button><button className="btn-primary" onClick={save} disabled={saving}>{saving ? <Spinner size={16} className="text-white" /> : 'Simpan'}</button></>}>
         <div className="space-y-3">
           <Field label="Nama" required><input className="input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>
-          <Field label="Channel"><select className="input" value={form.channel} onChange={(e) => setForm((f) => applyChannelDefaults(e.target.value, f))}><option value="CASH">Tunai (Cash)</option><option value="QRIS">QRIS Midtrans</option><option value="TRANSFER">Transfer</option><option value="VIRTUAL_ACCOUNT">Virtual Account</option><option value="OTHER">Lainnya</option></select></Field>
+          <Field label="Channel"><select className="input" value={form.channel} onChange={(e) => setForm((f) => applyChannelDefaults(e.target.value, f))}><option value="CASH">Tunai (Cash)</option><option value="QRIS">E-Wallet / QRIS Midtrans</option><option value="TRANSFER">Transfer Bank Midtrans (VA)</option><option value="OTHER">Transfer Manual (upload bukti)</option><option value="VIRTUAL_ACCOUNT">Virtual Account</option></select></Field>
           {form.channel === 'QRIS' && (
             <div className="space-y-3 rounded-lg border border-blue-100 bg-blue-50/50 p-3 dark:border-blue-900/50 dark:bg-blue-950/30">
-              <p className="text-xs font-semibold text-blue-800 dark:text-blue-300">Konfigurasi Midtrans QRIS</p>
+              <p className="text-xs font-semibold text-blue-800 dark:text-blue-300">Konfigurasi Midtrans QRIS (Sandbox)</p>
+              <p className="text-[11px] leading-relaxed text-blue-900/80 dark:text-blue-200/80">
+                Isi Server Key &amp; Client Key dari{' '}
+                <a className="font-semibold underline" href="https://dashboard.sandbox.midtrans.com/settings/config_info" target="_blank" rel="noreferrer">
+                  Midtrans Sandbox → Settings → Access Keys
+                </a>
+                . Setelah tersimpan, QR siswa menjadi EMV QRIS yang bisa di-scan GoPay, Dana, ShopeePay, SeaBank, BRImo, Livin, BNI Mobile, BCA, Mandiri, dll.
+                Dana settlement ke rekening sekolah <strong>BNI 6513009817 – PAPK SMP PUSPONEGORO BREBES</strong> (atur di dashboard Midtrans merchant).
+              </p>
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Atas Nama Rekening Sekolah"><input className="input" value={form.accountName || ''} onChange={(e) => setForm({ ...form, accountName: e.target.value })} placeholder="PAPK SMP PUSPONEGORO BREBES" /></Field>
+                <Field label="No. Rekening (BNI)"><input className="input" value={form.accountNo || ''} onChange={(e) => setForm({ ...form, accountNo: e.target.value })} placeholder="6513009817" /></Field>
+              </div>
               <Field label="Merchant Name"><input className="input" value={form.merchantName || ''} onChange={(e) => setForm({ ...form, merchantName: e.target.value })} /></Field>
               <Field label="Merchant ID"><input className="input" value={form.merchantId || ''} onChange={(e) => setForm({ ...form, merchantId: e.target.value })} /></Field>
-              <Field label="Client Key"><input className="input" value={form.midtransClientKey || ''} onChange={(e) => setForm({ ...form, midtransClientKey: e.target.value })} /></Field>
-              <Field label="Server Key"><input type="password" className="input" value={form.midtransServerKey || ''} onChange={(e) => setForm({ ...form, midtransServerKey: e.target.value })} /></Field>
+              <Field label="Client Key"><input className="input" value={form.midtransClientKey || ''} onChange={(e) => setForm({ ...form, midtransClientKey: e.target.value })} placeholder="SB-Mid-client-..." /></Field>
+              <Field label="Server Key"><input type="password" className="input" value={form.midtransServerKey || ''} onChange={(e) => setForm({ ...form, midtransServerKey: e.target.value })} placeholder="Mid-server-... atau SB-Mid-server-..." /></Field>
               <Field label="Callback URL"><input className="input" placeholder="https://domain.com/api/payment/webhook" value={form.callbackUrl || ''} onChange={(e) => setForm({ ...form, callbackUrl: e.target.value })} /></Field>
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.productionMode} onChange={(e) => setForm({ ...form, productionMode: e.target.checked })} /> Production Mode</label>
+              {modal?.mode === 'edit' && (
+                <button
+                  type="button"
+                  className="btn-secondary w-full text-xs"
+                  disabled={testingQris || saving}
+                  onClick={async () => {
+                    setTestingQris(true);
+                    try {
+                      const { data } = await api.post('/payment/midtrans/test-qris', {
+                        paymentMethodId: modal.data.id,
+                        amount: 10000,
+                      });
+                      const r = data.data;
+                      if (r?.scannable) toast.success(r.message || 'QRIS EMV scannable OK');
+                      else toast.info(r?.message || 'Charge OK tetapi belum scannable');
+                      if (r?.qr_url) setTestQrPreview(r.qr_url);
+                    } catch (e) {
+                      toast.error(apiError(e));
+                      setTestQrPreview('');
+                    } finally {
+                      setTestingQris(false);
+                    }
+                  }}
+                >
+                  {testingQris ? 'Menguji Midtrans…' : 'Uji QRIS Midtrans (generate QR scannable)'}
+                </button>
+              )}
+              {testQrPreview && (
+                <div className="flex flex-col items-center gap-2 rounded-lg border border-slate-200 bg-white p-3 dark:border-slate-700 dark:bg-slate-900">
+                  <img src={testQrPreview} alt="Preview QRIS Midtrans" className="h-40 w-40" />
+                  <a className="text-[11px] font-semibold text-[#0056D2] underline dark:text-blue-400" href="https://simulator.sandbox.midtrans.com/openapi/qris/index" target="_blank" rel="noreferrer">
+                    Buka Simulator QRIS Sandbox
+                  </a>
+                </div>
+              )}
             </div>
           )}
           {form.channel !== 'QRIS' && form.channel !== 'TRANSFER' && (

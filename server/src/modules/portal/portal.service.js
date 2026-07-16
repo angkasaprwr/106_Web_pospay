@@ -154,7 +154,7 @@ async function listDispensations(user, query) {
 }
 
 async function paymentMethods() {
-  const { sanitizeMethodForPortal } = require('../payment-flow/payment-flow.service');
+  const { sanitizeMethodForPortal } = require('../payment/payment.service');
   const methods = await prisma.paymentMethod.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } });
   return methods.map(sanitizeMethodForPortal);
 }

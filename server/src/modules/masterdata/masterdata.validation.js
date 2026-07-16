@@ -16,7 +16,7 @@ const paymentMethodSchema = z.object({
   accountNo: z.string().optional(),
   instruction: z.string().optional(),
   isActive: z.boolean().optional().default(true),
-  paymentType: z.enum(['CASH', 'QRIS_MIDTRANS', 'TRANSFER', 'OTHER']).optional(),
+  paymentType: z.enum(['CASH', 'QRIS_MIDTRANS', 'TRANSFER', 'TRANSFER_MIDTRANS', 'OTHER']).optional(),
   gateway: z.enum(['midtrans', 'manual']).optional(),
   merchantName: z.string().optional(),
   merchantId: z.string().optional(),

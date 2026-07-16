@@ -6,6 +6,7 @@ const { generatePaymentRef } = require('../../utils/identifiers');
 const { toNumber } = require('../../utils/money');
 const { recordAudit } = require('../audit/audit.service');
 const { notifyUser } = require('../notifications/notification.service');
+const { emitPaymentUpdated } = require('../../services/socket.service');
 const { resolveStudent } = require('../portal/portal.service');
 const { isCashlessPayment, isCashMethod, requiresProofUpload, isMidtransQrisMethod, generateQrDataUrl } = require('./payment.util');
 
@@ -119,6 +120,21 @@ async function create(input, { actor, asTreasurer = false, req }) {
     }
   }
 
+  // Bendahara Terima Tunai: pastikan metode CASH tersedia bila belum dikonfigurasi
+  if (asTreasurer && (input.channel === 'CASH' || !paymentMethod)) {
+    const wantsCash = input.channel === 'CASH'
+      || paymentMethod?.channel === 'CASH'
+      || /tunai|cash|loket/i.test(paymentMethod?.name || '');
+    if (wantsCash || (!paymentMethod && input.channel === 'CASH')) {
+      const { ensureCashLoketMethod } = require('../masterdata/masterdata.service');
+      const cashMethod = await ensureCashLoketMethod();
+      if (!paymentMethod || paymentMethod.channel !== 'CASH') {
+        paymentMethod = cashMethod;
+        input.paymentMethodId = cashMethod.id;
+      }
+    }
+  }
+
   if (!asTreasurer && isMidtransQrisMethod(paymentMethod)) {
     throw ApiError.badRequest('Gunakan endpoint /payment/create untuk pembayaran QRIS Midtrans');
   }
@@ -159,6 +175,7 @@ async function create(input, { actor, asTreasurer = false, req }) {
 
   if (cashless && !hasProof && !isMidtransQrisMethod(paymentMethod)) {
     scheduleCashlessSettlement(payment.id, actor, req);
+    emitPaymentUpdated(payment, { paymentType: 'QRIS', cashlessPending: true });
     return { ...payment, cashlessPending: true };
   }
 
@@ -176,6 +193,7 @@ async function create(input, { actor, asTreasurer = false, req }) {
     data: { paymentId: payment.id, billId: bill.id },
   });
 
+  emitPaymentUpdated(payment, { paymentType: cash ? 'CASH' : channel });
   return payment;
 }
 
@@ -271,7 +289,9 @@ async function verify(id, input, actor, req) {
     });
   }
 
-  return getById(result.id);
+  const verified = await getById(result.id);
+  emitPaymentUpdated({ ...verified, bill: payment.bill }, { settled: true });
+  return verified;
 }
 
 async function reject(id, input, actor, req) {
@@ -314,7 +334,9 @@ async function reject(id, input, actor, req) {
     });
   }
 
-  return getById(id);
+  const rejected = await getById(id);
+  emitPaymentUpdated({ ...rejected, bill: payment.bill }, { failed: true });
+  return rejected;
 }
 
 async function notifyTreasurers(payload) {

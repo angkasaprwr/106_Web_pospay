@@ -14,7 +14,10 @@
     "prisma:seed": "node prisma/seed.js",
     "prisma:reset": "prisma migrate reset",
     "test:smtp": "node scripts/test-smtp.js",
-    "gmail:oauth": "node scripts/gmail-oauth-setup.js"
+    "gmail:oauth": "node scripts/gmail-oauth-setup.js",
+    "db:delete-bendahara": "node scripts/delete-bendahara-accounts.js",
+    "db:delete-siswa": "node scripts/delete-siswa-accounts.js",
+    "verify:postgres": "node scripts/verify-postgres-integration.js"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
@@ -41,6 +44,7 @@
     "nodemailer": "^6.10.1",
     "pdfkit": "^0.15.1",
     "qrcode": "^1.5.4",
+    "socket.io": "^4.8.3",
     "zod": "^3.23.8"
   },
   "devDependencies": {

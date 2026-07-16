@@ -103,7 +103,7 @@ export default function StudentCreateModal({ open, onClose, classes, onSaved }) 
         password: form.password.trim(),
         createAccount: true,
       });
-      toast.success('Akun siswa berhasil dibuat');
+      toast.success(`Akun siswa tersimpan. Username login: ${nis} (portal siswa)`);
       onSaved?.();
       onClose?.();
     } catch (err) {

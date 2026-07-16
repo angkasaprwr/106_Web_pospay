@@ -17,6 +17,7 @@ router.delete('/fee-types/:id', asyncHandler(async (req, res) => { await service
 
 // Payment methods
 router.get('/payment-methods', asyncHandler(async (req, res) => ok(res, await service.paymentMethods.list())));
+router.post('/payment-methods/ensure-cash', asyncHandler(async (req, res) => ok(res, await service.paymentMethods.ensureCash(), 'Metode tunai siap')));
 router.post('/payment-methods', validate({ body: paymentMethodSchema }), asyncHandler(async (req, res) => created(res, await service.paymentMethods.create(req.body, req.user.id, req))));
 router.patch('/payment-methods/:id', validate({ body: paymentMethodSchema.partial() }), asyncHandler(async (req, res) => ok(res, await service.paymentMethods.update(req.params.id, req.body, req.user.id, req))));
 router.delete('/payment-methods/:id', asyncHandler(async (req, res) => { await service.paymentMethods.remove(req.params.id, req.user.id, req); return ok(res, null, 'Dihapus'); }));

@@ -46,7 +46,8 @@ class BaseRepository {
 
   async paginate({ where = {}, page = 1, limit = 10, orderBy, include, select } = {}) {
     const safePage = Math.max(1, parseInt(page, 10) || 1);
-    const safeLimit = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
+    // Izinkan hingga 1000 agar Status Tagihan / daftar tidak "menghilangkan" baris Bill di PostgreSQL
+    const safeLimit = Math.min(1000, Math.max(1, parseInt(limit, 10) || 10));
     const [items, total] = await Promise.all([
       this.delegate.findMany({
         where,

@@ -1,7 +1,17 @@
 const dotenv = require('dotenv');
 const path = require('path');
+const fs = require('fs');
 
-dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+// Prioritas: server/.env (folder backend), fallback root /.env
+const serverEnvPath = path.resolve(__dirname, '../../.env'); // server/src/config → server/.env
+const rootEnvPath = path.resolve(__dirname, '../../../.env');
+if (fs.existsSync(serverEnvPath)) {
+  dotenv.config({ path: serverEnvPath });
+} else if (fs.existsSync(rootEnvPath)) {
+  dotenv.config({ path: rootEnvPath });
+} else {
+  dotenv.config();
+}
 
 function bool(value, fallback = false) {
   if (value === undefined) return fallback;
@@ -20,6 +30,8 @@ const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   isProd: process.env.NODE_ENV === 'production',
   port: parseInt(process.env.PORT || '4000', 10),
+  /** Bind semua interface agar IPv4/IPv6 & port-forward Cloud bisa menjangkau API */
+  host: process.env.HOST || '0.0.0.0',
   corsOrigins: (process.env.CORS_ORIGINS
     || 'http://127.0.0.1:5173,http://127.0.0.1:5174,http://localhost:5173,http://localhost:5174')
     .split(',')
@@ -75,7 +87,7 @@ const env = {
     user: (process.env.SMTP_USER || process.env.SCHOOL_GMAIL_ADDRESS || 'smppusponegorobrebess@gmail.com')
       .toLowerCase()
       .trim(),
-    pass: normalizeSmtpPass(process.env.SMTP_PASS),
+    pass: normalizeSmtpPass(process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD),
     authType: (process.env.SMTP_AUTH_TYPE || 'app_password').toLowerCase(),
     oauth: {
       clientId: process.env.GMAIL_CLIENT_ID || '',
@@ -95,6 +107,7 @@ const env = {
     merchantId: process.env.MIDTRANS_MERCHANT_ID || '',
     isProduction: bool(process.env.MIDTRANS_IS_PRODUCTION, false),
     callbackUrl: process.env.MIDTRANS_CALLBACK_URL || '',
+    sandboxFallback: bool(process.env.MIDTRANS_SANDBOX_FALLBACK, true),
   },
 };
 

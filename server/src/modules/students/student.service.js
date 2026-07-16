@@ -4,6 +4,7 @@ const { ApiError } = require('../../core/ApiError');
 const { env } = require('../../config/env');
 const { studentRepository } = require('./student.repository');
 const { recordAudit } = require('../audit/audit.service');
+const { emitStudentChanged } = require('../../services/socket.service');
 
 function cleanData(input) {
   const data = { ...input };
@@ -96,6 +97,7 @@ async function create(input, actorId, req) {
   });
 
   await recordAudit({ userId: actorId, action: 'CREATE', entity: 'Student', entityId: result.id, req });
+  emitStudentChanged('created', result);
   return result;
 }
 
@@ -118,13 +120,43 @@ async function update(id, input, actorId, req) {
     });
   }
   await recordAudit({ userId: actorId, action: 'UPDATE', entity: 'Student', entityId: id, req });
+  emitStudentChanged('updated', student);
   return student;
 }
 
 async function remove(id, actorId, req) {
-  await getById(id);
-  await prisma.student.delete({ where: { id } });
-  await recordAudit({ userId: actorId, action: 'DELETE', entity: 'Student', entityId: id, req });
+  const existing = await getById(id);
+  const userIdToDelete = existing.userId || existing.user?.id || null;
+  const nis = existing.nis;
+
+  // Hapus permanen siswa + akun login (User) sekali di transaksi — tidak meninggalkan orphan username.
+  await prisma.$transaction(async (tx) => {
+    await tx.student.delete({ where: { id } });
+    if (userIdToDelete) {
+      await tx.refreshToken.deleteMany({ where: { userId: userIdToDelete } }).catch(() => {});
+      await tx.deviceToken.deleteMany({ where: { userId: userIdToDelete } }).catch(() => {});
+      await tx.notification.deleteMany({ where: { userId: userIdToDelete } }).catch(() => {});
+      await tx.user.delete({ where: { id: userIdToDelete } }).catch(() => {});
+    } else if (nis) {
+      const orphan = await tx.user.findFirst({ where: { username: nis, role: 'SISWA' }, select: { id: true } });
+      if (orphan) {
+        await tx.refreshToken.deleteMany({ where: { userId: orphan.id } }).catch(() => {});
+        await tx.deviceToken.deleteMany({ where: { userId: orphan.id } }).catch(() => {});
+        await tx.notification.deleteMany({ where: { userId: orphan.id } }).catch(() => {});
+        await tx.user.delete({ where: { id: orphan.id } }).catch(() => {});
+      }
+    }
+  });
+
+  await recordAudit({
+    userId: actorId,
+    action: 'DELETE',
+    entity: 'Student',
+    entityId: id,
+    metadata: { nis, userIdDeleted: userIdToDelete || null },
+    req,
+  });
+  emitStudentChanged('deleted', existing);
 }
 
 async function resetPassword(id, newPassword, actorId, req) {

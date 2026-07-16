@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, apiError } from '../lib/api';
 import { useToast } from '../context/ToastContext';
+import { usePortalCatalogSync } from '../hooks/usePortalCatalogSync';
 import { Icon } from '../components/Icons';
 import { Spinner } from '../components/ui';
 import { formatIDR, formatDateTime, PAYMENT_STATUS } from '../lib/format';
@@ -56,8 +57,8 @@ export default function History() {
   const [loading, setLoading] = useState(true);
   const limit = 10;
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const params = new URLSearchParams({ page: String(page), limit: String(limit), year });
       if (status) params.set('status', status);
@@ -65,16 +66,30 @@ export default function History() {
       setItems(data.data || []);
       setTotal(data.meta?.total ?? data.total ?? 0);
     } catch (e) {
-      const msg = apiError(e);
-      if (msg) toast.error(msg);
+      if (!silent) {
+        const msg = apiError(e);
+        if (msg) toast.error(msg);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [page, status, toast, year]);
 
+  usePortalCatalogSync(load);
+
   useEffect(() => {
-    load();
+    load({ silent: false });
   }, [load]);
+
+  const downloadInvoice = async (paymentId) => {
+    try {
+      const res = await api.get(`/payment/invoice/${paymentId}/pdf`, { responseType: 'blob' });
+      const url = URL.createObjectURL(res.data);
+      window.open(url, '_blank');
+    } catch (e) {
+      toast.error(apiError(e));
+    }
+  };
 
   const resetFilters = () => {
     setYear(String(currentYear));
@@ -184,7 +199,19 @@ export default function History() {
                         </span>
                       </td>
                       <td className="px-5 py-3.5">
-                        <span className="text-xs text-slate-500 dark:text-slate-400">{p.reference}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-slate-500 dark:text-slate-400">{p.reference}</span>
+                          {p.status === 'VERIFIED' && (
+                            <button
+                              type="button"
+                              onClick={() => downloadInvoice(p.id)}
+                              title="Cetak invoice"
+                              className="inline-flex items-center justify-center rounded-lg border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                            >
+                              <Icon.Printer width={14} height={14} />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );

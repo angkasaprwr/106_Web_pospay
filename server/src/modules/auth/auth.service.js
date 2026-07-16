@@ -236,16 +236,18 @@ async function requestPasswordReset(identifier, req) {
 
   if (mailResult.sent) {
     return {
-      message: 'Tautan reset kata sandi telah dikirim ke Gmail sekolah Anda.',
+      message: `Tautan reset kata sandi telah dikirim ke ${deliveryEmail}.`,
       emailSent: true,
+      deliveryEmail,
     };
   }
 
   return {
     message: mailResult.smtpError
-      ? 'Tautan reset dibuat, tetapi email belum terkirim karena konfigurasi Gmail SMTP. Gunakan tautan di bawah atau perbarui App Password di server/.env.'
-      : 'SMTP belum dikonfigurasi. Gunakan tautan reset yang ditampilkan untuk pengujian developer.',
+      ? `Tautan reset dibuat untuk ${deliveryEmail}, tetapi pengiriman Gmail gagal (SMTP App Password tidak valid). Perbarui SMTP_PASS atau pasang GMAIL_WEBHOOK_URL (lihat server/scripts/gmail-apps-script/Code.gs), lalu restart backend.`
+      : 'Saluran email belum dikonfigurasi. Gunakan tautan reset yang ditampilkan untuk pengujian developer.',
     emailSent: false,
+    deliveryEmail,
     devResetUrl: mailResult.devResetUrl || resetUrl,
     smtpError: mailResult.smtpError || null,
   };
@@ -306,19 +308,19 @@ async function resolveBendaharaForPasswordReset(raw) {
   });
 }
 
-function resolvePasswordResetDeliveryEmail(raw, user) {
+function resolvePasswordResetDeliveryEmail(_raw, user) {
   if (!user) return null;
-  const normalized = raw.toLowerCase();
+  const schoolGmail = String(env.school.gmailAddress || '').toLowerCase().trim();
 
-  if (raw.includes('@') && emailService.isSchoolEmail(normalized)) {
-    return normalized;
-  }
+  // Selalu kirim notifikasi reset ke Gmail resmi sekolah agar muncul di Inbox Gmail.
+  // Akun bendahara sering memakai email @…sch.id yang tidak punya kotak masuk Gmail.
+  if (schoolGmail) return schoolGmail;
 
   if (user.email && emailService.isSchoolEmail(user.email)) {
     return user.email.toLowerCase();
   }
 
-  return env.school.gmailAddress;
+  return user.email || null;
 }
 
 async function validatePasswordResetToken(token) {

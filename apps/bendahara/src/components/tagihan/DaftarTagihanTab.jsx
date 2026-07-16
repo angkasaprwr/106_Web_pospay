@@ -13,6 +13,7 @@ import {
   exportBillsCsv,
 } from './shared';
 import FeeTypeManagementSection from '../../pages/FeeTypeManagementSection';
+import { deleteOnce } from '../../lib/deleteOnce';
 
 export default function DaftarTagihanTab({ onStatsChange }) {
   const toast = useToast();
@@ -131,10 +132,13 @@ export default function DaftarTagihanTab({ onStatsChange }) {
   };
 
   const del = async () => {
+    if (!confirm?.id || saving) return;
     setSaving(true);
     try {
-      await api.delete(`/bills/${confirm.id}`);
-      toast.success('Tagihan dihapus');
+      await deleteOnce(`bill:${confirm.id}`, async () => {
+        await api.delete(`/bills/${confirm.id}`);
+      });
+      toast.success('Tagihan dihapus permanen');
       setConfirm(null);
       load();
       onStatsChange?.();

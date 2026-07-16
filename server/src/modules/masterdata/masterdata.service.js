@@ -1,6 +1,26 @@
 const { prisma } = require('../../config/prisma');
 const { ApiError } = require('../../core/ApiError');
 const { recordAudit } = require('../audit/audit.service');
+const { emitCatalogChanged } = require('../../services/socket.service');
+const { applyMidtransKeysFromMethod } = require('../../services/midtrans-setup.service');
+
+function notifyCatalog(reason, extra = {}) {
+  emitCatalogChanged({ reason, ...extra });
+}
+
+function withSchoolAccountDefaults(data = {}) {
+  const next = { ...data };
+  if (next.channel === 'QRIS' || next.paymentType === 'QRIS_MIDTRANS' || next.channel === 'TRANSFER' || next.paymentType === 'TRANSFER_MIDTRANS') {
+    next.accountNo = next.accountNo || '6513009817';
+    next.accountName = next.accountName || 'PAPK SMP PUSPONEGORO BREBES';
+    next.gateway = next.gateway || 'midtrans';
+  }
+  if (next.channel === 'QRIS') next.paymentType = next.paymentType || 'QRIS_MIDTRANS';
+  if (next.channel === 'TRANSFER' && next.gateway === 'midtrans') {
+    next.paymentType = next.paymentType || 'TRANSFER_MIDTRANS';
+  }
+  return next;
+}
 
 // ---------------- Fee Types ----------------
 const feeTypes = {
@@ -8,11 +28,13 @@ const feeTypes = {
   create: async (data, actorId, req) => {
     const item = await prisma.feeType.create({ data });
     await recordAudit({ userId: actorId, action: 'CREATE', entity: 'FeeType', entityId: item.id, req });
+    notifyCatalog('fee_type_created', { feeTypeId: item.id });
     return item;
   },
   update: async (id, data, actorId, req) => {
     const item = await prisma.feeType.update({ where: { id }, data });
     await recordAudit({ userId: actorId, action: 'UPDATE', entity: 'FeeType', entityId: id, req });
+    notifyCatalog('fee_type_updated', { feeTypeId: id });
     return item;
   },
   remove: async (id, actorId, req) => {
@@ -20,25 +42,79 @@ const feeTypes = {
     if (count > 0) throw ApiError.badRequest('Jenis tagihan dipakai oleh tagihan, nonaktifkan saja');
     await prisma.feeType.delete({ where: { id } });
     await recordAudit({ userId: actorId, action: 'DELETE', entity: 'FeeType', entityId: id, req });
+    notifyCatalog('fee_type_deleted', { feeTypeId: id });
   },
 };
 
+/** Pastikan metode Tunai di Loket ada (untuk tombol Terima Tunai bendahara). */
+async function ensureCashLoketMethod() {
+  let item = await prisma.paymentMethod.findFirst({
+    where: {
+      OR: [
+        { channel: 'CASH' },
+        { paymentType: 'CASH' },
+        { name: { contains: 'Tunai', mode: 'insensitive' } },
+        { name: { contains: 'Cash', mode: 'insensitive' } },
+        { name: { contains: 'Loket', mode: 'insensitive' } },
+      ],
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (!item) {
+    item = await prisma.paymentMethod.create({
+      data: {
+        name: 'Tunai di Loket',
+        channel: 'CASH',
+        paymentType: 'CASH',
+        gateway: 'manual',
+        instruction: 'Bayar langsung ke loket bendahara.',
+        isActive: true,
+      },
+    });
+    notifyCatalog('payment_method_created', { paymentMethodId: item.id, channel: 'CASH' });
+    return item;
+  }
+  if (!item.isActive || item.channel !== 'CASH') {
+    item = await prisma.paymentMethod.update({
+      where: { id: item.id },
+      data: {
+        isActive: true,
+        channel: 'CASH',
+        paymentType: item.paymentType || 'CASH',
+        gateway: item.gateway || 'manual',
+      },
+    });
+  }
+  return item;
+}
+
 // ---------------- Payment Methods ----------------
 const paymentMethods = {
-  list: () => prisma.paymentMethod.findMany({ orderBy: { name: 'asc' } }),
+  list: async () => {
+    await ensureCashLoketMethod().catch(() => {});
+    return prisma.paymentMethod.findMany({ orderBy: { name: 'asc' } });
+  },
+  ensureCash: ensureCashLoketMethod,
   create: async (data, actorId, req) => {
-    const item = await prisma.paymentMethod.create({ data });
+    const payload = withSchoolAccountDefaults(data);
+    const item = await prisma.paymentMethod.create({ data: payload });
+    await applyMidtransKeysFromMethod(payload).catch(() => {});
     await recordAudit({ userId: actorId, action: 'CREATE', entity: 'PaymentMethod', entityId: item.id, req });
+    notifyCatalog('payment_method_created', { paymentMethodId: item.id });
     return item;
   },
   update: async (id, data, actorId, req) => {
-    const item = await prisma.paymentMethod.update({ where: { id }, data });
+    const payload = withSchoolAccountDefaults(data);
+    const item = await prisma.paymentMethod.update({ where: { id }, data: payload });
+    await applyMidtransKeysFromMethod(payload).catch(() => {});
     await recordAudit({ userId: actorId, action: 'UPDATE', entity: 'PaymentMethod', entityId: id, req });
+    notifyCatalog('payment_method_updated', { paymentMethodId: id });
     return item;
   },
   remove: async (id, actorId, req) => {
     await prisma.paymentMethod.delete({ where: { id } });
     await recordAudit({ userId: actorId, action: 'DELETE', entity: 'PaymentMethod', entityId: id, req });
+    notifyCatalog('payment_method_deleted', { paymentMethodId: id });
   },
 };
 
@@ -80,17 +156,24 @@ const classes = {
   create: async (data, actorId, req) => {
     const item = await prisma.schoolClass.create({ data });
     await recordAudit({ userId: actorId, action: 'CREATE', entity: 'SchoolClass', entityId: item.id, req });
+    notifyCatalog('class_created', { classId: item.id });
     return item;
   },
   update: async (id, data, actorId, req) => {
     const item = await prisma.schoolClass.update({ where: { id }, data });
     await recordAudit({ userId: actorId, action: 'UPDATE', entity: 'SchoolClass', entityId: id, req });
+    notifyCatalog('class_updated', { classId: id });
     return item;
   },
   remove: async (id, actorId, req) => {
+    const linked = await prisma.student.count({ where: { classId: id } });
+    if (linked > 0) {
+      throw ApiError.badRequest(`Kelas masih memiliki ${linked} siswa. Pindahkan siswa terlebih dahulu.`);
+    }
     await prisma.schoolClass.delete({ where: { id } });
     await recordAudit({ userId: actorId, action: 'DELETE', entity: 'SchoolClass', entityId: id, req });
+    notifyCatalog('class_deleted', { classId: id });
   },
 };
 
-module.exports = { feeTypes, paymentMethods, academicYears, classes };
+module.exports = { feeTypes, paymentMethods, academicYears, classes, ensureCashLoketMethod };

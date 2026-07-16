@@ -151,6 +151,7 @@ model RefreshToken {
   @@index([expiresAt])
 }
 
+/// FCM device token registry (FCMToken)
 model DeviceToken {
   id        String   @id @default(cuid())
   token     String   @unique
@@ -438,6 +439,7 @@ model PaymentNotification {
   @@index([status])
 }
 
+/// Midtrans transaction / webhook audit log (alias: MidtransTransaction)
 model MidtransLog {
   id        String   @id @default(cuid())
   paymentId String?
