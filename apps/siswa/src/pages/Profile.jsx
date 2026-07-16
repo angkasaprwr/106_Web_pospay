@@ -200,7 +200,7 @@ export default function Profile() {
             <input
               ref={fileRef}
               type="file"
-              className="sr-only"
+              className="hidden"
               accept="image/jpeg,image/jpg,image/png"
               onChange={(e) => handlePhotoChange(e.target.files?.[0])}
             />
