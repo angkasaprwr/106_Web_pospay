@@ -55,14 +55,24 @@ router.get('/sessions/:id/messages', authenticate, asyncHandler(async (req, res)
 
 router.get('/status', authenticate, asyncHandler(async (req, res) => {
   const open = await workingHours.isWithinWorkingHours();
-  return ok(res, { workingHoursOpen: open, aiEnabled: gemini.isEnabled() });
+  const summary = await workingHours.getSummary();
+  const aiConfigured = gemini.isEnabled();
+  return ok(res, {
+    workingHoursOpen: open,
+    aiEnabled: aiConfigured,
+    assistantActive: !open && aiConfigured,
+    adminActive: open,
+    answerSource: open ? 'Admin (Bendahara)' : (aiConfigured ? 'Assistant (AI)' : 'FAQ'),
+    workingHours: summary,
+  });
 }));
 
 // ---- Treasurer-only management ----
 router.use(authenticate, authorize('BENDAHARA'));
 
 // Live chat sessions / human handover
-router.get('/sessions', asyncHandler(async (req, res) => ok(res, await chatbot.listSessions(req.query))));
+router.get('/sessions', asyncHandler(async (req, res) => ok(res, await chatbot.listSessions(req.query), 'Daftar percakapan')));
+router.get('/sessions/:id', asyncHandler(async (req, res) => ok(res, await chatbot.getSessionDetail(req.params.id), 'Detail percakapan')));
 router.post('/sessions/:id/reply', asyncHandler(async (req, res) => ok(res, await chatbot.agentReply({ sessionId: req.params.id, message: req.body.message, agent: req.user }), 'Balasan terkirim')));
 router.post('/sessions/:id/close', asyncHandler(async (req, res) => ok(res, await chatbot.closeSession(req.params.id), 'Sesi ditutup')));
 
