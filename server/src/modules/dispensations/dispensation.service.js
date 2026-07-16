@@ -116,4 +116,11 @@ async function review(id, input, actor, req) {
   return getById(id);
 }
 
-module.exports = { list, getById, create, review };
+async function remove(id, actorId, req) {
+  const item = await prisma.dispensation.findUnique({ where: { id } });
+  if (!item) throw ApiError.notFound('Pengajuan dispensasi tidak ditemukan');
+  await prisma.dispensation.delete({ where: { id } });
+  await recordAudit({ userId: actorId, action: 'DELETE', entity: 'Dispensation', entityId: id, req });
+}
+
+module.exports = { list, getById, create, review, remove };
