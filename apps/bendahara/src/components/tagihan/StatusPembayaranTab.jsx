@@ -89,7 +89,7 @@ export default function StatusPembayaranTab() {
   const [paymentsByBill, setPaymentsByBill] = useState({});
   const [paymentDates, setPaymentDates] = useState({});
   const [filters, setFilters] = useState({
-    tagihanKey: '',
+    tagihanKey: '', // kosong = tampilkan SEMUA tagihan dari PostgreSQL
     classId: '',
     statusFilter: '',
     search: '',
@@ -105,76 +105,99 @@ export default function StatusPembayaranTab() {
   const [acting, setActing] = useState(false);
   const [cashMethodId, setCashMethodId] = useState(null);
 
-  const selectedGroup = tagihanGroups.find((g) => g.key === filters.tagihanKey);
+  const selectedGroup = filters.tagihanKey
+    ? tagihanGroups.find((g) => g.key === filters.tagihanKey) || null
+    : null;
 
   const loadAux = useCallback(async () => {
     try {
       const [pendingRes, verifiedRes, groupsRes, classRes, methodsRes] = await Promise.all([
-        api.get('/payments?status=PENDING&limit=500'),
-        api.get('/payments?status=VERIFIED&limit=500'),
-        api.get('/bills?limit=500'),
+        api.get('/payments?status=PENDING&limit=1000'),
+        api.get('/payments?status=VERIFIED&limit=1000'),
+        api.get('/bills?limit=1000'),
         api.get('/masterdata/classes'),
         api.get('/masterdata/payment-methods').catch(() => ({ data: { data: [] } })),
       ]);
-      setPendingBillIds(new Set(pendingRes.data.data.map((p) => p.billId)));
+      const pendingList = pendingRes.data?.data || [];
+      const verifiedList = verifiedRes.data?.data || [];
+      const allBills = groupsRes.data?.data || [];
+      setPendingBillIds(new Set(pendingList.map((p) => p.billId).filter(Boolean)));
       const pendingMap = {};
-      pendingRes.data.data.forEach((p) => {
-        if (!pendingMap[p.billId]) pendingMap[p.billId] = p;
+      pendingList.forEach((p) => {
+        if (p.billId && !pendingMap[p.billId]) pendingMap[p.billId] = p;
       });
       setPendingPaymentsByBill(pendingMap);
       const allPaymentsMap = { ...pendingMap };
-      verifiedRes.data.data.forEach((p) => {
-        if (!allPaymentsMap[p.billId]) allPaymentsMap[p.billId] = p;
+      verifiedList.forEach((p) => {
+        if (p.billId && !allPaymentsMap[p.billId]) allPaymentsMap[p.billId] = p;
       });
       setPaymentsByBill(allPaymentsMap);
       const dates = {};
-      verifiedRes.data.data.forEach((p) => {
+      verifiedList.forEach((p) => {
         const t = p.verifiedAt || p.paidAt;
-        if (t && (!dates[p.billId] || new Date(t) > new Date(dates[p.billId]))) dates[p.billId] = t;
+        if (p.billId && t && (!dates[p.billId] || new Date(t) > new Date(dates[p.billId]))) {
+          dates[p.billId] = t;
+        }
       });
       setPaymentDates(dates);
-      setTagihanGroups(buildTagihanGroups(groupsRes.data.data));
-      setClasses(classRes.data.data);
+      setTagihanGroups(buildTagihanGroups(allBills));
+      setClasses(classRes.data?.data || []);
+      // Isi cache dari PostgreSQL — jangan biarkan tabel Status Tagihan kosong
+      if (allBills.length) {
+        setSummaryItems(allBills);
+        // Seed baris tabel segera bila belum ada data tampil (load utama menyusul)
+        setAllItems((prev) => (prev.length > 0 ? prev : allBills));
+      }
       const methods = methodsRes?.data?.data || [];
-      setCashMethodId(
-        methods.find((m) => m.channel === 'CASH' || /tunai|cash|loket/i.test(m.name || ''))?.id || null,
-      );
+      let cashId = methods.find((m) => m.channel === 'CASH' || /tunai|cash|loket/i.test(m.name || ''))?.id || null;
+      if (!cashId) {
+        try {
+          const ensured = await api.post('/masterdata/payment-methods/ensure-cash');
+          cashId = ensured?.data?.data?.id || null;
+        } catch {
+          /* ignore */
+        }
+      }
+      setCashMethodId(cashId);
     } catch {
-      /* ignore */
+      /* jangan kosongkan tabel bila aux gagal */
     }
   }, []);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true);
     try {
       const params = new URLSearchParams();
-      params.set('limit', '500');
+      params.set('limit', '1000');
       if (filters.classId) params.set('classId', filters.classId);
-      // Jangan masukkan period sebagai search (API search hanya NIS/nama/invoice)
       if (filters.search?.trim()) params.set('search', filters.search.trim());
+      // Hanya filter feeType bila user memilih jenis tagihan spesifik
       if (selectedGroup) params.set('feeTypeId', selectedGroup.feeTypeId);
 
       const { data } = await api.get(`/bills?${params}`);
-      let rows = data.data;
+      let rows = Array.isArray(data.data) ? data.data : (data.data?.items || []);
       if (selectedGroup) {
         rows = rows.filter((b) => tagihanGroupKey(b) === selectedGroup.key);
       }
       setAllItems(rows);
 
+      // Ringkasan selalu dari seluruh tagihan (opsional filter kelas), agar data tidak "hilang"
+      const sumParams = new URLSearchParams({ limit: '1000' });
+      if (filters.classId) sumParams.set('classId', filters.classId);
       if (selectedGroup) {
         setSummaryItems(rows);
       } else {
-        const sumParams = new URLSearchParams({ limit: '500' });
-        if (filters.classId) sumParams.set('classId', filters.classId);
         const { data: sumData } = await api.get(`/bills?${sumParams}`);
-        setSummaryItems(sumData.data);
+        const sumRows = Array.isArray(sumData.data) ? sumData.data : (sumData.data?.items || []);
+        setSummaryItems(sumRows);
       }
     } catch (e) {
       toast.error(apiError(e));
+      // Pertahankan baris yang sudah tampil — jangan hapus data tabel
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
-  }, [filters.classId, filters.search, selectedGroup]); // eslint-disable-line
+  }, [filters.classId, filters.search, selectedGroup, toast]);
 
   useEffect(() => {
     loadAux();
@@ -184,21 +207,31 @@ export default function StatusPembayaranTab() {
     load();
   }, [load]);
 
-  // Satu refresh debounced saat CRUD bendahara↔siswa (hindari load berkali-kali)
+  // Satu refresh debounced saat CRUD bendahara↔siswa
   usePortalCatalogSync(useCallback(async () => {
-    await Promise.all([loadAux(), load()]);
+    await Promise.all([loadAux(), load({ silent: true })]);
   }, [loadAux, load]));
 
+  // Jika filter jenis tagihan yang dipilih sudah tidak ada (setelah CRUD), kembali ke Semua Tagihan
   useEffect(() => {
-    if (tagihanGroups.length > 0 && !filters.tagihanKey) {
-      setFilters((f) => ({ ...f, tagihanKey: tagihanGroups[0].key, page: 1 }));
+    if (filters.tagihanKey && tagihanGroups.length > 0) {
+      const stillExists = tagihanGroups.some((g) => g.key === filters.tagihanKey);
+      if (!stillExists) {
+        setFilters((f) => ({ ...f, tagihanKey: '', page: 1 }));
+      }
     }
-  }, [tagihanGroups]); // eslint-disable-line
-
-  const filteredItems = useMemo(
-    () => filterByStatus(allItems, filters.statusFilter, pendingBillIds),
-    [allItems, filters.statusFilter, pendingBillIds],
-  );
+  }, [tagihanGroups, filters.tagihanKey]);
+  const filteredItems = useMemo(() => {
+    // Fallback: jika filter "Semua" dan allItems kosong tapi summary sudah terisi dari DB
+    const source = (
+      allItems.length === 0
+      && !filters.tagihanKey
+      && !filters.classId
+      && !filters.search?.trim()
+      && summaryItems.length > 0
+    ) ? summaryItems : allItems;
+    return filterByStatus(source, filters.statusFilter, pendingBillIds);
+  }, [allItems, summaryItems, filters.statusFilter, filters.tagihanKey, filters.classId, filters.search, pendingBillIds]);
 
   useEffect(() => {
     const { items, meta: m } = paginateRows(filteredItems, filters.page, filters.limit);
@@ -303,10 +336,6 @@ export default function StatusPembayaranTab() {
 
   /** Terima tunai di loket tanpa siswa memilih metode di portal (langsung lunas). */
   const receiveCashAtLoket = async (bill) => {
-    if (!cashMethodId) {
-      toast.error('Metode pembayaran Tunai belum dikonfigurasi.');
-      return;
-    }
     const remaining = Math.max(
       0,
       Number(bill.amount) - Number(bill.discount || 0) - Number(bill.paidAmount || 0),
@@ -317,9 +346,15 @@ export default function StatusPembayaranTab() {
     }
     setActing(true);
     try {
+      let methodId = cashMethodId;
+      if (!methodId) {
+        const ensured = await api.post('/masterdata/payment-methods/ensure-cash');
+        methodId = ensured?.data?.data?.id || null;
+        if (methodId) setCashMethodId(methodId);
+      }
       await api.post('/payments', {
         billId: bill.id,
-        paymentMethodId: cashMethodId,
+        paymentMethodId: methodId || undefined,
         amount: remaining,
         channel: 'CASH',
         note: 'Diterima tunai di loket bendahara',
@@ -354,7 +389,9 @@ export default function StatusPembayaranTab() {
           <div className="flex flex-col gap-3 border-b border-slate-100 p-5 sm:flex-row sm:items-center sm:justify-between dark:border-slate-700">
             <div>
               <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">B. Status Tagihan</h2>
-              <p className="text-sm text-slate-500 dark:text-slate-400">Ringkasan status tagihan siswa per periode.</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400">
+                Menampilkan semua data tagihan dari database (belum bayar, menunggu verifikasi, lunas).
+              </p>
             </div>
             <button
               type="button"
@@ -373,7 +410,7 @@ export default function StatusPembayaranTab() {
               value={filters.tagihanKey}
               onChange={(e) => setFilters({ ...filters, tagihanKey: e.target.value, page: 1 })}
             >
-              <option value="">Pilih Tagihan</option>
+              <option value="">Semua Tagihan</option>
               {tagihanGroups.map((g) => (
                 <option key={g.key} value={g.key}>{g.label}</option>
               ))}
@@ -417,12 +454,21 @@ export default function StatusPembayaranTab() {
             </button>
           </div>
 
-          {loading ? (
+          {loading && pageItems.length === 0 ? (
             <div className="flex h-56 items-center justify-center"><Spinner size={32} /></div>
           ) : pageItems.length === 0 ? (
-            <EmptyState title="Belum ada data pembayaran" description="Data muncul setelah tagihan dibuat dan siswa melakukan pembayaran." icon={Icon.Payment} />
+            <EmptyState
+              title="Belum ada data tagihan"
+              description="Semua tagihan yang tersimpan di database akan tampil di sini setelah bendahara membuat tagihan baru."
+              icon={Icon.Bills}
+            />
           ) : (
             <div className="overflow-x-auto">
+              {loading && (
+                <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-2 text-xs text-slate-500 dark:border-slate-800 dark:bg-slate-800/40 dark:text-slate-400">
+                  Memperbarui data tagihan…
+                </div>
+              )}
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-100 bg-slate-50/80 text-left text-slate-500 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-400">
@@ -497,9 +543,9 @@ export default function StatusPembayaranTab() {
                                 <button
                                   type="button"
                                   onClick={() => receiveCashAtLoket(b)}
-                                  disabled={acting || !cashMethodId}
-                                  title="Catat pembayaran tunai di loket tanpa siswa memilih metode di portal"
-                                  className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                                  disabled={acting}
+                                  title="Catat pembayaran tunai di loket — tagihan langsung lunas di database"
+                                  className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50 dark:border-emerald-900/50 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-950/70"
                                 >
                                   <Icon.Money width={14} height={14} />
                                   Terima Tunai

@@ -46,9 +46,55 @@ const feeTypes = {
   },
 };
 
+/** Pastikan metode Tunai di Loket ada (untuk tombol Terima Tunai bendahara). */
+async function ensureCashLoketMethod() {
+  let item = await prisma.paymentMethod.findFirst({
+    where: {
+      OR: [
+        { channel: 'CASH' },
+        { paymentType: 'CASH' },
+        { name: { contains: 'Tunai', mode: 'insensitive' } },
+        { name: { contains: 'Cash', mode: 'insensitive' } },
+        { name: { contains: 'Loket', mode: 'insensitive' } },
+      ],
+    },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (!item) {
+    item = await prisma.paymentMethod.create({
+      data: {
+        name: 'Tunai di Loket',
+        channel: 'CASH',
+        paymentType: 'CASH',
+        gateway: 'manual',
+        instruction: 'Bayar langsung ke loket bendahara.',
+        isActive: true,
+      },
+    });
+    notifyCatalog('payment_method_created', { paymentMethodId: item.id, channel: 'CASH' });
+    return item;
+  }
+  if (!item.isActive || item.channel !== 'CASH') {
+    item = await prisma.paymentMethod.update({
+      where: { id: item.id },
+      data: {
+        isActive: true,
+        channel: 'CASH',
+        paymentType: item.paymentType || 'CASH',
+        gateway: item.gateway || 'manual',
+      },
+    });
+  }
+  return item;
+}
+
 // ---------------- Payment Methods ----------------
 const paymentMethods = {
-  list: () => prisma.paymentMethod.findMany({ orderBy: { name: 'asc' } }),
+  list: async () => {
+    await ensureCashLoketMethod().catch(() => {});
+    return prisma.paymentMethod.findMany({ orderBy: { name: 'asc' } });
+  },
+  ensureCash: ensureCashLoketMethod,
   create: async (data, actorId, req) => {
     const payload = withSchoolAccountDefaults(data);
     const item = await prisma.paymentMethod.create({ data: payload });
@@ -130,4 +176,4 @@ const classes = {
   },
 };
 
-module.exports = { feeTypes, paymentMethods, academicYears, classes };
+module.exports = { feeTypes, paymentMethods, academicYears, classes, ensureCashLoketMethod };
