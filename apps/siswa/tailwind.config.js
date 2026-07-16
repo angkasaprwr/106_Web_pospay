@@ -17,6 +17,15 @@ export default {
           800: '#065f46',
           900: '#064e3b',
         },
+        pospay: {
+          DEFAULT: '#1a48a0',
+          50: '#E8F0FE',
+          100: '#C5D9F7',
+          600: '#1a48a0',
+          700: '#164080',
+          800: '#123670',
+          900: '#0e2c60',
+        },
       },
       fontFamily: {
         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
