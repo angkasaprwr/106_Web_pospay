@@ -24,17 +24,18 @@ export default function ForgotPassword() {
     try {
       const { data } = await api.post('/auth/forgot-password', { email });
       setSent(true);
+      const target = data.data.deliveryEmail || 'Gmail sekolah';
       if (data.data.devResetUrl) {
         setDevResetUrl(data.data.devResetUrl);
         if (data.data.smtpError) {
-          toast.error('Email belum terkirim — gunakan tautan reset di bawah atau perbarui App Password Gmail di server/.env');
+          toast.error(`Email ke ${target} belum terkirim — perbarui SMTP_PASS (App Password Gmail) di server/.env, atau gunakan tautan di bawah`);
         } else {
           toast.info('Mode developer: tautan reset ditampilkan di bawah');
         }
       } else if (data.data.emailSent === false) {
         toast.info(data.message || 'Permintaan diproses');
       } else {
-        toast.success(data.message || 'Tautan reset dikirim ke Gmail sekolah');
+        toast.success(data.message || `Tautan reset dikirim ke ${target}`);
       }
     } catch (err) {
       toast.error(apiError(err, 'Gagal mengirim tautan reset'));
