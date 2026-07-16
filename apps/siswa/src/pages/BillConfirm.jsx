@@ -136,6 +136,9 @@ export default function BillConfirm() {
   const [midtransIsProduction, setMidtransIsProduction] = useState(false);
   const [openingSnap, setOpeningSnap] = useState(false);
   const [snapEmbedded, setSnapEmbedded] = useState(false);
+  const [snapEmbedFailed, setSnapEmbedFailed] = useState(false);
+  const [midtransHint, setMidtransHint] = useState('');
+  const [channelInactive, setChannelInactive] = useState(false);
   const snapEmbedTokenRef = useRef('');
   const snapEmbedAttemptRef = useRef('');
 
@@ -277,8 +280,11 @@ export default function BillConfirm() {
       setSnapRedirectUrl(paymentData.snap_redirect_url || (paymentData.qr_url?.includes?.('midtrans.com/snap') ? paymentData.qr_url : ''));
       setMidtransClientKey(paymentData.midtrans_client_key || '');
       setMidtransIsProduction(Boolean(paymentData.midtrans_is_production));
+      setChannelInactive(Boolean(paymentData.midtrans_channel_inactive));
+      setMidtransHint(paymentData.midtrans_hint || '');
       if (nextSnapToken) {
         setSnapEmbedded(false);
+        setSnapEmbedFailed(false);
         snapEmbedTokenRef.current = '';
         snapEmbedAttemptRef.current = '';
       }
@@ -522,6 +528,7 @@ export default function BillConfirm() {
     }
 
     if (!silent) setOpeningSnap(true);
+    setSnapEmbedFailed(false);
     try {
       await loadSnapScript(clientKey);
       if (!window.snap?.embed) {
@@ -537,10 +544,42 @@ export default function BillConfirm() {
         ...snapCallbacks(),
       });
       snapEmbedTokenRef.current = snapToken;
+
+      // Pastikan embed benar-benar merender konten (iframe/QR). Jika kanal Midtrans kosong, container tetap kosong.
+      const hasContent = await new Promise((resolve) => {
+        let tries = 0;
+        const tick = () => {
+          const el = document.getElementById(SNAP_EMBED_ID);
+          const filled = Boolean(el && el.childElementCount > 0);
+          if (filled) {
+            resolve(true);
+            return;
+          }
+          tries += 1;
+          if (tries >= 20) {
+            resolve(false);
+            return;
+          }
+          setTimeout(tick, 250);
+        };
+        setTimeout(tick, 300);
+      });
+
+      if (!hasContent) {
+        setSnapEmbedded(false);
+        setSnapEmbedFailed(true);
+        if (!silent) {
+          toast.error('QRIS Midtrans belum tampil. Kanal pembayaran mungkin belum aktif di dashboard Midtrans.');
+        }
+        return false;
+      }
+
       setSnapEmbedded(true);
+      setSnapEmbedFailed(false);
       return true;
     } catch {
       setSnapEmbedded(false);
+      setSnapEmbedFailed(true);
       if (!silent) {
         if (snapRedirectUrl) window.open(snapRedirectUrl, '_blank', 'noopener,noreferrer');
         else toast.error('Gagal menampilkan QRIS Midtrans di halaman.');
@@ -799,12 +838,17 @@ export default function BillConfirm() {
                       </p>
                       <div
                         id={SNAP_EMBED_ID}
-                        className="mx-auto mt-4 flex min-h-[560px] w-full max-w-[420px] items-start justify-center overflow-hidden rounded-xl bg-white dark:bg-slate-900"
+                        className={`mx-auto mt-4 flex w-full max-w-[420px] items-start justify-center overflow-hidden rounded-xl bg-white dark:bg-slate-900 ${snapEmbedded ? 'min-h-[560px]' : 'min-h-[120px]'}`}
                       />
-                      {!snapEmbedded && (
+                      {!snapEmbedded && !snapEmbedFailed && (
                         <div className="mt-3 flex items-center justify-center gap-2 text-[11px] text-sky-800 dark:text-sky-200">
                           <Spinner size={14} />
                           Menampilkan kode QR Midtrans…
+                        </div>
+                      )}
+                      {(snapEmbedFailed || channelInactive) && (
+                        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
+                          {midtransHint || 'Kanal QRIS/GoPay belum aktif di Midtrans MAP, sehingga kode QR scannable belum bisa ditampilkan. Aktifkan Payment Channels (QRIS + GoPay) di dashboard Midtrans dan pastikan settlement ke BNI 6513009817 – PAPK SMP PUSPONEGORO BREBES. Setelah kanal aktif, buat QR ulang.'}
                         </div>
                       )}
                       <button
