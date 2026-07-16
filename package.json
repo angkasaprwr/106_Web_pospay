@@ -20,6 +20,7 @@
     "prisma:generate": "npm --workspace server run prisma:generate",
     "prisma:migrate": "npm --workspace server run prisma:migrate",
     "prisma:seed": "npm --workspace server run prisma:seed",
+    "audit:midtrans": "npm --workspace server run audit:midtrans",
     "start": "npm --workspace server run start"
   },
   "engines": {

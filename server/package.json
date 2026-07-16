@@ -16,7 +16,8 @@
     "test:smtp": "node scripts/test-smtp.js",
     "gmail:oauth": "node scripts/gmail-oauth-setup.js",
     "db:delete-bendahara": "node scripts/delete-bendahara-accounts.js",
-    "db:delete-siswa": "node scripts/delete-siswa-accounts.js"
+    "db:delete-siswa": "node scripts/delete-siswa-accounts.js",
+    "audit:midtrans": "node scripts/audit-midtrans.js"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

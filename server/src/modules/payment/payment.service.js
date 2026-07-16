@@ -305,7 +305,7 @@ async function createMidtransPayment(input, actor, req) {
       qrString: `SNAP:${snapPayload.snapToken}`,
       qrUrl: snapPayload.redirectUrl,
       expiryTime: new Date(Date.now() + 30 * 60 * 1000),
-      midtransStatus: 'pending',
+      midtransStatus: snapPayload.transactionStatus || 'pending',
       statusCode: '201',
       scannable: !channelInactive,
       channelInactive,
@@ -319,6 +319,7 @@ async function createMidtransPayment(input, actor, req) {
         core_error: coreErr?.message || null,
         channel_inactive: channelInactive,
         enabled_payments: snapPayload.enabledPayments || [],
+        probe_raw: snapPayload.probeRaw || null,
       },
     });
 
@@ -331,17 +332,19 @@ async function createMidtransPayment(input, actor, req) {
         itemDetails,
       });
     } catch (coreErr) {
-      // Core API QRIS sering 402 jika kanal belum diaktifkan — fallback Snap (QRIS Tap via UI Midtrans)
+      // Core API QRIS sering 402 jika kanal belum diaktifkan — fallback Snap
       const channelInactiveCore = /not activated|402|channel is not|pop id is not found/i.test(
         String(coreErr.message || ''),
       );
       try {
+        const snapEnabled = midtransGateway.DEFAULT_SNAP_ENABLED_PAYMENTS;
         snapPayload = await midtransGateway.createSnapTransaction({
           orderId,
-          grossAmount: amount,
+          grossAmount: Number(amount),
           method,
           customerDetails,
-          enabledPayments: channelInactiveCore ? undefined : ['qris', 'gopay', 'other_qris'],
+          itemDetails,
+          enabledPayments: snapEnabled,
         });
         let channelInactive = Boolean(snapPayload.channelInactive) || channelInactiveCore;
 
@@ -354,7 +357,7 @@ async function createMidtransPayment(input, actor, req) {
               try {
                 charge = await midtransGateway.chargeQris({
                   orderId: sandboxOrderId,
-                  grossAmount: amount,
+                  grossAmount: Number(amount),
                   method: sandboxMethod,
                   customerDetails,
                   itemDetails,
@@ -364,10 +367,11 @@ async function createMidtransPayment(input, actor, req) {
               } catch (sandboxCoreErr) {
                 snapPayload = await midtransGateway.createSnapTransaction({
                   orderId: sandboxOrderId,
-                  grossAmount: amount,
+                  grossAmount: Number(amount),
                   method: sandboxMethod,
                   customerDetails,
-                  enabledPayments: undefined,
+                  itemDetails,
+                  enabledPayments: snapEnabled,
                 });
                 channelInactive = Boolean(snapPayload.channelInactive);
                 if (!channelInactive) {
@@ -387,7 +391,7 @@ async function createMidtransPayment(input, actor, req) {
         if (!env.midtrans.sandboxFallback) {
           await prisma.payment.delete({ where: { id: payment.id } }).catch(() => {});
           throw ApiError.badRequest(
-            `Gagal membuat QRIS Midtrans: ${coreErr.message || snapErr.message}. Aktifkan kanal QRIS/GoPay di dashboard Midtrans Sandbox/Production, atau isi MIDTRANS_SANDBOX_SERVER_KEY.`,
+            `Gagal membuat QRIS Midtrans: ${coreErr.message || snapErr.message}. Aktifkan kanal QRIS/GoPay di dashboard Midtrans Sandbox, atau isi MIDTRANS_SANDBOX_SERVER_KEY (SB-Mid-…).`,
           );
         }
         sandboxLocal = true;
@@ -474,9 +478,14 @@ async function createMidtransPayment(input, actor, req) {
       ? 'Kanal QRIS/GoPay belum aktif di Midtrans (enabled_payments kosong). Isi Server/Client Key Sandbox (SB-Mid-…) di server/.env atau Pengaturan → Metode Pembayaran, lalu aktifkan QRIS di dashboard.sandbox.midtrans.com. Settlement ke BNI 6513009817 – PAPK SMP PUSPONEGORO BREBES.'
       : null,
     snap_token: snapPayload?.snapToken || null,
+    token: snapPayload?.snapToken || null,
     snap_redirect_url: snapPayload?.redirectUrl || null,
+    redirect_url: snapPayload?.redirectUrl || null,
+    transaction_status: charge.midtransStatus || 'pending',
     midtrans_client_key: snapPayload?.clientKey || keys.clientKey || null,
     midtrans_is_production: snapPayload?.isProduction ?? keys.isProduction,
+    enabled_payments: snapPayload?.enabledPayments || charge.raw?.enabled_payments || null,
+    midtrans_probe: channelInactive ? (snapPayload?.probeRaw || charge.raw?.probe_raw || null) : null,
     display_mode: snapPayload ? 'snap_embed' : (sandboxLocal ? 'demo' : 'qris_image'),
     midtrans_simulator_url: !keys.isProduction && scannable && !snapPayload
       ? 'https://simulator.sandbox.midtrans.com/openapi/qris/index'
