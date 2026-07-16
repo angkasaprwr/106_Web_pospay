@@ -90,7 +90,8 @@ function createSnapApi(method) {
 }
 
 /**
- * Snap Sandbox transaction token (Midtrans Snap API).
+ * Snap Sandbox/Production transaction token (Midtrans Snap API).
+ * Setelah create, probe enabled_payments — array kosong = kanal MAP belum aktif.
  */
 async function createSnapTransaction({ orderId, grossAmount, method, customerDetails, enabledPayments }) {
   const keys = resolveKeys(method);
@@ -107,15 +108,53 @@ async function createSnapTransaction({ orderId, grossAmount, method, customerDet
       gross_amount: Math.round(grossAmount),
     },
     customer_details: customerDetails,
-    enabled_payments: enabledPayments || ['qris', 'gopay', 'other_qris'],
   };
+  if (Array.isArray(enabledPayments) && enabledPayments.length) {
+    parameter.enabled_payments = enabledPayments;
+  }
 
   const result = await snap.createTransaction(parameter);
+  const probed = await probeSnapEnabledPayments(result.token, keys.isProduction);
   return {
     snapToken: result.token,
     redirectUrl: result.redirect_url,
     clientKey: keys.clientKey,
     isProduction: keys.isProduction,
+    enabledPayments: probed.enabledPayments,
+    channelInactive: probed.enabledPayments.length === 0,
+  };
+}
+
+/**
+ * Cek kanal Snap yang aktif untuk token (enabled_payments kosong = QRIS tidak bisa tampil).
+ */
+async function probeSnapEnabledPayments(snapToken, isProduction) {
+  const host = isProduction ? 'https://app.midtrans.com' : 'https://app.sandbox.midtrans.com';
+  try {
+    const res = await fetch(`${host}/snap/v1/transactions/${snapToken}`, {
+      headers: { Accept: 'application/json' },
+    });
+    if (!res.ok) return { enabledPayments: [], raw: null };
+    const data = await res.json();
+    const enabled = Array.isArray(data.enabled_payments) ? data.enabled_payments : [];
+    return { enabledPayments: enabled, raw: data };
+  } catch {
+    return { enabledPayments: [], raw: null };
+  }
+}
+
+/**
+ * Buat method proxy dengan key Sandbox eksplisit (fallback jika Production tanpa kanal).
+ */
+function withSandboxKeys(method) {
+  const sk = String(env.midtrans.sandboxServerKey || '').trim();
+  const ck = String(env.midtrans.sandboxClientKey || '').trim();
+  if (!hasValidMidtransKeys({ serverKey: sk, clientKey: ck })) return null;
+  return {
+    ...method,
+    midtransServerKey: sk,
+    midtransClientKey: ck,
+    productionMode: false,
   };
 }
 
@@ -222,6 +261,8 @@ module.exports = {
   chargeQris,
   chargeBankTransfer,
   createSnapTransaction,
+  probeSnapEnabledPayments,
+  withSandboxKeys,
   verifySignature,
   resolveKeys,
   hasValidMidtransKeys,

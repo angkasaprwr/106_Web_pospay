@@ -167,6 +167,8 @@ export default function BillConfirm() {
       if (payment.snap_redirect_url) setSnapRedirectUrl(payment.snap_redirect_url);
       if (payment.midtrans_client_key) setMidtransClientKey(payment.midtrans_client_key);
       if (payment.midtrans_is_production !== undefined) setMidtransIsProduction(Boolean(payment.midtrans_is_production));
+      if (payment.midtrans_channel_inactive !== undefined) setChannelInactive(Boolean(payment.midtrans_channel_inactive));
+      if (payment.midtrans_hint) setMidtransHint(payment.midtrans_hint);
       setTransferInfo({
         vaNumber: payment.qr_string || payment.va_number || null,
         bank: payment.payment_method?.merchantName || payment.payment_method?.name || payment.paymentMethod?.name || null,
@@ -828,7 +830,19 @@ export default function BillConfirm() {
             <section className={`${CARD} p-5`}>
               <h2 className="mb-4 font-bold text-slate-800 dark:text-slate-100">{midtransTransfer ? 'Transfer Bank Midtrans' : `Scan QR ${midtrans ? 'Midtrans' : method.name}`}</h2>
               <div className="flex flex-col items-center">
-                {midtrans && snapToken ? (
+                {midtrans && qrDataUrl && qrScannable && !sandboxLocal ? (
+                  <div className="w-full space-y-3 text-center">
+                    <img
+                      src={qrDataUrl}
+                      alt="QRIS Midtrans scannable"
+                      className="mx-auto h-64 w-64 rounded-xl border border-slate-200 bg-white p-2 dark:border-slate-600"
+                    />
+                    <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-left text-[11px] leading-relaxed text-sky-900 dark:border-sky-900/50 dark:bg-sky-950/40 dark:text-sky-200">
+                      Scan kode QR ini dengan <strong>GoPay, Dana, ShopeePay, SeaBank, OVO, Livin, BRImo, BNI Mobile, BCA, Mandiri</strong> atau bank lain yang mendukung QRIS Tap.
+                      Dana masuk <strong>BNI 6513009817 – PAPK SMP PUSPONEGORO BREBES</strong>.
+                    </div>
+                  </div>
+                ) : midtrans && snapToken ? (
                   <div className="w-full space-y-3 text-center">
                     <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-4 dark:border-sky-900/50 dark:bg-sky-950/40">
                       <p className="text-sm font-semibold text-sky-900 dark:text-sky-100">Scan QRIS Midtrans</p>
@@ -836,11 +850,20 @@ export default function BillConfirm() {
                         Scan kode QR di bawah dengan <strong>GoPay, Dana, ShopeePay, SeaBank, OVO, Livin, BRImo, BNI Mobile, BCA, Mandiri</strong>, atau bank lain yang mendukung QRIS Tap.
                         Dana masuk rekening sekolah <strong>BNI 6513009817 – PAPK SMP PUSPONEGORO BREBES</strong>.
                       </p>
+                      {/* Iframe Snap lebih andal di localhost HTTP daripada snap.embed (postMessage cross-origin) */}
+                      {snapRedirectUrl && !channelInactive ? (
+                        <iframe
+                          title="Midtrans QRIS"
+                          src={`${snapRedirectUrl}${snapRedirectUrl.includes('?') ? '&' : '?'}gopayMode=qr`}
+                          className="mx-auto mt-4 h-[560px] w-full max-w-[420px] rounded-xl border border-slate-200 bg-white dark:border-slate-700"
+                          allow="payment *"
+                        />
+                      ) : null}
                       <div
                         id={SNAP_EMBED_ID}
-                        className={`mx-auto mt-4 flex w-full max-w-[420px] items-start justify-center overflow-hidden rounded-xl bg-white dark:bg-slate-900 ${snapEmbedded ? 'min-h-[560px]' : 'min-h-[120px]'}`}
+                        className={`mx-auto mt-4 flex w-full max-w-[420px] items-start justify-center overflow-hidden rounded-xl bg-white dark:bg-slate-900 ${snapEmbedded && !snapRedirectUrl ? 'min-h-[560px]' : 'min-h-0'}`}
                       />
-                      {!snapEmbedded && !snapEmbedFailed && (
+                      {!snapEmbedded && !snapEmbedFailed && !snapRedirectUrl && (
                         <div className="mt-3 flex items-center justify-center gap-2 text-[11px] text-sky-800 dark:text-sky-200">
                           <Spinner size={14} />
                           Menampilkan kode QR Midtrans…
@@ -848,7 +871,7 @@ export default function BillConfirm() {
                       )}
                       {(snapEmbedFailed || channelInactive) && (
                         <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-left text-[11px] leading-relaxed text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
-                          {midtransHint || 'Kanal QRIS/GoPay belum aktif di Midtrans MAP, sehingga kode QR scannable belum bisa ditampilkan. Aktifkan Payment Channels (QRIS + GoPay) di dashboard Midtrans dan pastikan settlement ke BNI 6513009817 – PAPK SMP PUSPONEGORO BREBES. Setelah kanal aktif, buat QR ulang.'}
+                          {midtransHint || 'Kanal QRIS/GoPay belum aktif di Midtrans MAP, sehingga kode QR scannable belum bisa ditampilkan. Isi key Sandbox (SB-Mid-…) di Pengaturan / server/.env, aktifkan QRIS di dashboard.sandbox.midtrans.com, pastikan settlement ke BNI 6513009817, lalu buat QR ulang.'}
                         </div>
                       )}
                       <button
@@ -872,7 +895,7 @@ export default function BillConfirm() {
                       </button>
                       {snapRedirectUrl && (
                         <a
-                          href={snapRedirectUrl}
+                          href={`${snapRedirectUrl}${snapRedirectUrl.includes('?') ? '&' : '?'}gopayMode=qr`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="mt-2 block text-[11px] font-semibold text-[#0056D2] underline dark:text-blue-400"

@@ -108,6 +108,9 @@ const env = {
     isProduction: bool(process.env.MIDTRANS_IS_PRODUCTION, false),
     callbackUrl: process.env.MIDTRANS_CALLBACK_URL || '',
     sandboxFallback: bool(process.env.MIDTRANS_SANDBOX_FALLBACK, true),
+    /** Opsional: jika Production tanpa kanal QRIS, charge ulang pakai Sandbox */
+    sandboxServerKey: process.env.MIDTRANS_SANDBOX_SERVER_KEY || '',
+    sandboxClientKey: process.env.MIDTRANS_SANDBOX_CLIENT_KEY || '',
   },
 };
 
