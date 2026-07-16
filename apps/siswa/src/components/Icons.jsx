@@ -32,4 +32,15 @@ export const Icon = {
   HelpCircle: (p) => (<svg {...base} {...p}><circle cx="12" cy="12" r="10" /><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01" /></svg>),
   Wrench: (p) => (<svg {...base} {...p}><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" /></svg>),
   Printer: (p) => (<svg {...base} {...p}><path d="M6 9V2h12v7" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><path d="M6 14h12v8H6z" /></svg>),
+### cursor/midtrans-sandbox-keys-image-31d0
+=======
+  Edit: (p) => (<svg {...base} {...p}><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z" /></svg>),
+  Mail: (p) => (<svg {...base} {...p}><path d="M4 4h16v16H4z" /><path d="M22 6l-10 7L2 6" /></svg>),
+  AtSign: (p) => (<svg {...base} {...p}><circle cx="12" cy="12" r="4" /><path d="M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-3.92 7.94" /></svg>),
+  Phone: (p) => (<svg {...base} {...p}><rect x="7" y="2" width="10" height="20" rx="2" /><path d="M11 18h2" /></svg>),
+  ArrowLeft: (p) => (<svg {...base} {...p}><path d="M19 12H5M12 19l-7-7 7-7" /></svg>),
+  Camera: (p) => (<svg {...base} {...p}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>),
+  Hash: (p) => (<svg {...base} {...p}><path d="M4 9h16M4 15h16M10 3L8 21M16 3l-2 18" /></svg>),
+  Calendar: (p) => (<svg {...base} {...p}><rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" /></svg>),
+### main
 };

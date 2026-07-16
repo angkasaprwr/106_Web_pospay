@@ -27,8 +27,12 @@ async function main() {
     });
   }
 
+#### cursor/midtrans-sandbox-keys-image-31d0
   // ---- Default treasurer (bendahara) — hanya jika SEED_DEFAULT_BENDAHARA=true ----
   // Default: false agar akun masuk bendahara harus dibuat lewat /register (bukan seed otomatis).
+
+  // ---- Default treasurer (bendahara) + sinkron Gmail sekolah untuk reset password ----
+#### main
   const schoolGmail = (process.env.SCHOOL_GMAIL_ADDRESS || 'smppusponegorobrebess@gmail.com').toLowerCase();
 
   if (SEED_BENDAHARA) {
@@ -47,6 +51,7 @@ async function main() {
       });
       console.log(`  -> Akun bendahara: username "bendahara", email ${schoolGmail}, password "bendahara123"`);
     }
+### cursor/midtrans-sandbox-keys-image-31d0
 
     // Sinkron Gmail sekolah hanya saat seed bendahara diizinkan.
     const gmailOwner = await prisma.user.findFirst({
@@ -68,6 +73,29 @@ async function main() {
           });
           console.log(`  -> Email bendahara "${primary.username}" diset ke ${schoolGmail} (notifikasi Gmail)`);
         }
+
+  }
+
+  // Pastikan minimal satu bendahara memakai Gmail resmi sekolah (inbox notifikasi reset).
+  const gmailOwner = await prisma.user.findFirst({
+    where: { role: 'BENDAHARA', email: { equals: schoolGmail, mode: 'insensitive' } },
+  });
+  if (!gmailOwner) {
+    const conflict = await prisma.user.findFirst({
+      where: { email: { equals: schoolGmail, mode: 'insensitive' } },
+    });
+    if (!conflict) {
+      const primary = await prisma.user.findFirst({
+        where: { role: 'BENDAHARA', isActive: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (primary) {
+        await prisma.user.update({
+          where: { id: primary.id },
+          data: { email: schoolGmail, emailVerified: true },
+        });
+        console.log(`  -> Email bendahara "${primary.username}" diset ke ${schoolGmail} (notifikasi Gmail)`);
+#### main
       }
     }
   } else {

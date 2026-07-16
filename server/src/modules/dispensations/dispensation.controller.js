@@ -24,4 +24,9 @@ const review = asyncHandler(async (req, res) => {
   return ok(res, item, 'Pengajuan dispensasi diproses');
 });
 
-module.exports = { list, detail, create, review };
+const remove = asyncHandler(async (req, res) => {
+  await service.remove(req.params.id, req.user.id, req);
+  return ok(res, null, 'Pengajuan dispensasi dihapus permanen');
+});
+
+module.exports = { list, detail, create, review, remove };

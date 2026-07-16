@@ -115,10 +115,34 @@ export default function Bills() {
       <div className="flex flex-wrap gap-3">
         {tab === 'tunggakan' ? (
           <>
-            <StatCard label="Total Tunggakan" value={String(tunggakanStats.totalStudents)} icon={Icon.Students} iconBg="bg-blue-50" iconColor="text-blue-600" />
-            <StatCard label="Total Nominal Tunggakan" value={formatIDR(tunggakanStats.totalNominal)} icon={Icon.Money} iconBg="bg-amber-50" iconColor="text-amber-500" />
-            <StatCard label="Pengajuan Dispensasi" value={String(tunggakanStats.pendingDisp)} icon={Icon.Dispensation} iconBg="bg-purple-50" iconColor="text-purple-600" />
-            <StatCard label="Dispensasi Disetujui" value={String(tunggakanStats.approvedStudents)} icon={Icon.Check} iconBg="bg-emerald-50" iconColor="text-emerald-600" />
+            <StatCard
+              label="Total Tunggakan"
+              value={`${tunggakanStats.totalStudents} Siswa`}
+              icon={Icon.Bills}
+              iconBg="bg-blue-50"
+              iconColor="text-blue-600"
+            />
+            <StatCard
+              label="Total Nominal Tunggakan"
+              value={`${formatIDR(tunggakanStats.totalNominal)} Nominal`}
+              icon={Icon.Money}
+              iconBg="bg-amber-50"
+              iconColor="text-amber-500"
+            />
+            <StatCard
+              label="Pengajuan Dispensasi"
+              value={`${tunggakanStats.pendingDisp} Menunggu`}
+              icon={Icon.Students}
+              iconBg="bg-purple-50"
+              iconColor="text-purple-600"
+            />
+            <StatCard
+              label="Dispensasi Disetujui"
+              value={`${tunggakanStats.approvedStudents} Siswa`}
+              icon={Icon.Check}
+              iconBg="bg-emerald-50"
+              iconColor="text-emerald-600"
+            />
           </>
         ) : (
           <>

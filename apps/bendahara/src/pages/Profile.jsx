@@ -32,14 +32,21 @@ function RowIcon({ children }) {
   );
 }
 
+/** Mockup row: icon + Label : Value (+ optional badge) */
 function ProfileRow({ icon, label, value, badge }) {
+  const showValue = value != null && value !== '';
   return (
-    <div className="flex items-start gap-3 border-b border-slate-100 py-3.5 last:border-0 dark:border-slate-800">
+    <div className="flex items-center gap-3 border-b border-slate-100 py-3.5 last:border-0 dark:border-slate-800">
       <RowIcon>{icon}</RowIcon>
       <div className="min-w-0 flex-1">
-        <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
-        <div className="mt-0.5 flex flex-wrap items-center gap-2">
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{value || '-'}</p>
+        <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1 text-sm">
+          <span className="shrink-0 font-medium text-slate-500 dark:text-slate-400">{label}</span>
+          <span className="text-slate-400 dark:text-slate-500">:</span>
+          {showValue ? (
+            <span className="min-w-0 break-words font-semibold text-slate-800 dark:text-slate-100">{value}</span>
+          ) : !badge ? (
+            <span className="font-semibold text-slate-800 dark:text-slate-100">-</span>
+          ) : null}
           {badge}
         </div>
       </div>
@@ -131,11 +138,13 @@ export default function Profile() {
       toast.error(apiError(e));
     } finally {
       setUploadingPhoto(false);
+      if (fileRef.current) fileRef.current.value = '';
     }
   };
 
   const display = profile || user;
   const initial = (display?.fullName || 'B').charAt(0).toUpperCase();
+  const isActive = display?.isActive !== false;
 
   if (loading && !display) {
     return (
@@ -148,7 +157,7 @@ export default function Profile() {
   return (
     <div className="space-y-6 pb-24">
       <div>
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Profil Saya</h1>
+        <h1 className="text-2xl font-bold text-[#0056D2] dark:text-blue-400">Profil Saya</h1>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Kelola informasi akun Anda yang digunakan untuk login ke POSPAY.
         </p>
@@ -156,11 +165,11 @@ export default function Profile() {
 
       <section className={`${CARD} overflow-hidden`}>
         <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-center sm:justify-between dark:border-slate-800">
-          <h2 className="text-base font-bold text-slate-800 dark:text-slate-100">Informasi Akun</h2>
+          <h2 className="text-base font-bold text-[#0056D2] dark:text-blue-400">Informasi Akun</h2>
           <button
             type="button"
             onClick={openEdit}
-            className="inline-flex items-center justify-center gap-2 rounded-lg border-2 border-[#0056D2] px-4 py-2 text-sm font-semibold text-[#0056D2] transition hover:bg-blue-50 dark:border-blue-500 dark:text-blue-400 dark:hover:bg-blue-950/40"
+            className="inline-flex items-center justify-center gap-2 rounded-lg border-2 border-[#0056D2] bg-white px-4 py-2 text-sm font-semibold text-[#0056D2] transition hover:bg-blue-50 dark:border-blue-500 dark:bg-transparent dark:text-blue-400 dark:hover:bg-blue-950/40"
           >
             <Icon.Edit width={16} height={16} />
             Edit
@@ -174,10 +183,10 @@ export default function Profile() {
                 <img
                   src={display.avatarUrl}
                   alt={display.fullName || 'Foto profil'}
-                  className="h-36 w-36 rounded-full border-4 border-blue-100 object-cover shadow-md dark:border-blue-900/50"
+                  className="h-40 w-40 rounded-full border-4 border-blue-100 object-cover shadow-md dark:border-blue-900/50"
                 />
               ) : (
-                <div className="flex h-36 w-36 items-center justify-center rounded-full border-4 border-blue-100 bg-gradient-to-br from-[#0056D2] to-[#003d99] text-4xl font-bold text-white shadow-md dark:border-blue-900/50">
+                <div className="flex h-40 w-40 items-center justify-center rounded-full border-4 border-blue-100 bg-gradient-to-br from-[#0056D2] to-[#003d99] text-4xl font-bold text-white shadow-md dark:border-blue-900/50">
                   {initial}
                 </div>
               )}
@@ -185,7 +194,7 @@ export default function Profile() {
             <input
               ref={fileRef}
               type="file"
-              className="sr-only"
+              className="hidden"
               accept="image/jpeg,image/jpg,image/png"
               onChange={(e) => handlePhotoChange(e.target.files?.[0])}
             />
@@ -193,17 +202,25 @@ export default function Profile() {
               type="button"
               onClick={() => fileRef.current?.click()}
               disabled={uploadingPhoto}
-              className="mt-4 inline-flex items-center gap-2 rounded-lg border-2 border-[#0056D2] px-4 py-2 text-sm font-semibold text-[#0056D2] transition hover:bg-blue-50 disabled:opacity-60 dark:border-blue-500 dark:text-blue-400 dark:hover:bg-blue-950/40"
+              className="mt-4 inline-flex items-center gap-2 rounded-lg border-2 border-[#0056D2] bg-white px-4 py-2 text-sm font-semibold text-[#0056D2] transition hover:bg-blue-50 disabled:opacity-60 dark:border-blue-500 dark:bg-transparent dark:text-blue-400 dark:hover:bg-blue-950/40"
             >
-              {uploadingPhoto ? <Spinner size={16} /> : <Icon.Upload width={16} height={16} />}
+              {uploadingPhoto ? <Spinner size={16} /> : <Icon.Camera width={16} height={16} />}
               Edit Foto
             </button>
             <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">Format: JPG, PNG. Maks. 2MB</p>
           </div>
 
           <div className="min-w-0">
-            <ProfileRow icon={<Icon.User width={18} height={18} />} label="Nama Lengkap" value={display?.fullName} />
-            <ProfileRow icon={<Icon.Shield width={18} height={18} />} label="NIP / NIK" value={display?.username} />
+            <ProfileRow
+              icon={<Icon.User width={18} height={18} />}
+              label="Nama Lengkap"
+              value={display?.fullName}
+            />
+            <ProfileRow
+              icon={<Icon.IdCard width={18} height={18} />}
+              label="NIP / NIK"
+              value={display?.username}
+            />
             <ProfileRow
               icon={<Icon.AtSign width={18} height={18} />}
               label="Username"
@@ -214,21 +231,47 @@ export default function Profile() {
                 </span>
               )}
             />
-            <ProfileRow icon={<Icon.Mail width={18} height={18} />} label="Email" value={display?.email} />
-            <ProfileRow icon={<Icon.Phone width={18} height={18} />} label="Nomor HP" value={formatPhone(display?.phone)} />
-            <ProfileRow icon={<Icon.Briefcase width={18} height={18} />} label="Jabatan" value="Bendahara" />
-            <ProfileRow icon={<Icon.Shield width={18} height={18} />} label="Role" value="Bendahara" />
             <ProfileRow
-              icon={<Icon.Check width={18} height={18} />}
+              icon={<Icon.Mail width={18} height={18} />}
+              label="Email"
+              value={display?.email || '-'}
+            />
+            <ProfileRow
+              icon={<Icon.Phone width={18} height={18} />}
+              label="Nomor HP"
+              value={formatPhone(display?.phone)}
+            />
+            <ProfileRow
+              icon={<Icon.Briefcase width={18} height={18} />}
+              label="Jabatan"
+              value="Bendahara"
+            />
+            <ProfileRow
+              icon={<Icon.Shield width={18} height={18} />}
+              label="Role"
+              value="Bendahara"
+            />
+            <ProfileRow
+              icon={<Icon.CheckCircle width={18} height={18} />}
               label="Status Akun"
-              value={display?.isActive ? 'Aktif' : 'Nonaktif'}
+              value={null}
               badge={(
-                <span className={`rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${display?.isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
-                  {display?.isActive ? 'Aktif' : 'Nonaktif'}
+                <span
+                  className={`rounded-md px-2.5 py-0.5 text-xs font-semibold ${
+                    isActive
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                      : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                  }`}
+                >
+                  {isActive ? 'Aktif' : 'Nonaktif'}
                 </span>
               )}
             />
-            <ProfileRow icon={<Icon.Clock width={18} height={18} />} label="Tanggal Bergabung" value={formatJoinDate(display?.createdAt)} />
+            <ProfileRow
+              icon={<Icon.Calendar width={18} height={18} />}
+              label="Tanggal Bergabung"
+              value={formatJoinDate(display?.createdAt)}
+            />
           </div>
         </div>
       </section>
