@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { api, apiError } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../context/ToastContext';
@@ -8,48 +8,36 @@ import { Modal, Spinner, Field } from '../components/ui';
 
 const CARD = 'rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900';
 
-function formatClassLabel(name) {
-  if (!name) return '—';
-  const roman = { 7: 'VII', 8: 'VIII', 9: 'IX' };
-  const m = String(name).match(/^(\d)\s*(.*)$/);
-  if (!m) return name;
-  const grade = roman[Number(m[1])] || m[1];
-  const section = m[2] || '';
-  return section ? `${grade} ${section}`.trim() : grade;
-}
-
-function formatAcademicYear(student) {
-  const yearName = student?.schoolClass?.academicYear?.name;
-  if (yearName) return yearName;
-  const enrolledAt = student?.enrolledAt;
-  if (!enrolledAt) return '—';
-  const y = new Date(enrolledAt).getFullYear();
-  return `${y}/${y + 1}`;
-}
-
 function formatPhone(value) {
-  if (!value) return '—';
+  if (!value) return '-';
   const digits = String(value).replace(/\D/g, '');
   if (digits.length < 10) return value;
-  return digits.replace(/(\d{4})(\d{4})(\d+)/, '$1-$2-$3');
+  return digits.replace(/(\d{4})(\d{4})(\d+)/, '$1$2$3');
 }
 
 function RowIcon({ children }) {
   return (
-    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[#0056D2] dark:bg-blue-950/50 dark:text-blue-400">
+    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-[#0056D2] dark:bg-blue-950/50 dark:text-blue-400">
       {children}
     </span>
   );
 }
 
+/** Mockup row: icon + Label : Value */
 function ProfileRow({ icon, label, value, badge }) {
+  const showValue = value != null && value !== '';
   return (
-    <div className="flex items-start gap-3 border-b border-slate-100 py-3.5 last:border-0 dark:border-slate-800">
+    <div className="flex items-center gap-3 border-b border-slate-100 py-3.5 last:border-0 dark:border-slate-800">
       <RowIcon>{icon}</RowIcon>
       <div className="min-w-0 flex-1">
-        <p className="text-xs text-slate-500 dark:text-slate-400">{label}</p>
-        <div className="mt-0.5 flex flex-wrap items-center gap-2">
-          <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{value || '—'}</p>
+        <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-1 text-sm">
+          <span className="shrink-0 font-medium text-[#0056D2] dark:text-blue-400">{label}</span>
+          <span className="text-slate-400 dark:text-slate-500">:</span>
+          {showValue ? (
+            <span className="min-w-0 break-words font-semibold text-slate-800 dark:text-slate-100">{value}</span>
+          ) : !badge ? (
+            <span className="font-semibold text-slate-800 dark:text-slate-100">-</span>
+          ) : null}
           {badge}
         </div>
       </div>
@@ -77,7 +65,7 @@ export default function Profile() {
       setForm({
         fullName: data.data.fullName || '',
         email: data.data.email || '',
-        phone: data.data.phone || data.data.student?.phone || '',
+        phone: data.data.phone || '',
       });
     } catch (e) {
       toast.error(apiError(e));
@@ -91,11 +79,10 @@ export default function Profile() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openEdit = () => {
-    const display = profile || user;
     setForm({
-      fullName: display?.fullName || '',
-      email: display?.email || '',
-      phone: display?.phone || display?.student?.phone || '',
+      fullName: profile?.fullName || user?.fullName || '',
+      email: profile?.email || user?.email || '',
+      phone: profile?.phone || user?.phone || '',
     });
     setEditOpen(true);
   };
@@ -118,7 +105,7 @@ export default function Profile() {
   const handlePhotoChange = async (file) => {
     if (!file) return;
     if (!['image/jpeg', 'image/jpg', 'image/png'].includes(file.type)) {
-      toast.error('Format foto harus JPG atau PNG');
+      toast.error('Format foto harus JPG, JPEG, atau PNG');
       return;
     }
     if (file.size > 2 * 1024 * 1024) {
@@ -143,6 +130,7 @@ export default function Profile() {
       toast.error(apiError(e));
     } finally {
       setUploadingPhoto(false);
+      if (fileRef.current) fileRef.current.value = '';
     }
   };
 
@@ -150,6 +138,10 @@ export default function Profile() {
   const student = display?.student;
   const photoUrl = display?.avatarUrl || student?.photoUrl;
   const initial = (display?.fullName || 'S').charAt(0).toUpperCase();
+  const nis = student?.nis || display?.username || '-';
+  const className = student?.schoolClass?.name || '-';
+  const academicYear = student?.schoolClass?.academicYear?.name || '-';
+  const isActive = display?.isActive !== false;
 
   if (loading && !display) {
     return (
@@ -160,36 +152,38 @@ export default function Profile() {
   }
 
   return (
-    <div className="space-y-6 pb-24">
+    <div className="space-y-5 pb-8">
+      {/* Page header — back + title (mockup) */}
       <div className="flex items-start gap-3">
         <button
           type="button"
           onClick={() => navigate(-1)}
-          className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+          className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-white text-[#0056D2] shadow-sm transition hover:bg-blue-50 dark:border-slate-600 dark:bg-slate-900 dark:text-blue-400 dark:hover:bg-slate-800"
           aria-label="Kembali"
         >
           <Icon.ArrowLeft width={18} height={18} />
         </button>
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Profil Saya</h1>
-          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          <h1 className="text-2xl font-bold text-[#0056D2] dark:text-blue-400">Profil Saya</h1>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
             Kelola informasi profil akun Anda.
           </p>
         </div>
       </div>
 
       <section className={`${CARD} overflow-hidden`}>
-        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr]">
-          <div className="flex flex-col items-center bg-slate-50 px-6 py-8 text-center dark:bg-slate-800/40 lg:min-h-[420px] lg:justify-center">
+        <div className="grid grid-cols-1 gap-8 p-5 sm:p-6 lg:grid-cols-[220px_1fr] lg:gap-10 lg:p-8">
+          {/* Left: avatar + change photo */}
+          <div className="flex flex-col items-center text-center">
             <div className="relative">
               {photoUrl ? (
                 <img
                   src={photoUrl}
                   alt={display?.fullName || 'Foto profil'}
-                  className="h-36 w-36 rounded-full border-4 border-white object-cover shadow-md dark:border-slate-700"
+                  className="h-40 w-40 rounded-full border-4 border-blue-100 object-cover shadow-md dark:border-blue-900/50"
                 />
               ) : (
-                <div className="flex h-36 w-36 items-center justify-center rounded-full border-4 border-white bg-gradient-to-br from-[#0056D2] to-[#003d99] text-4xl font-bold text-white shadow-md dark:border-slate-700">
+                <div className="flex h-40 w-40 items-center justify-center rounded-full border-4 border-blue-100 bg-gradient-to-br from-[#0056D2] to-[#003d99] text-4xl font-bold text-white shadow-md dark:border-blue-900/50">
                   {initial}
                 </div>
               )}
@@ -197,16 +191,16 @@ export default function Profile() {
                 type="button"
                 onClick={() => fileRef.current?.click()}
                 disabled={uploadingPhoto}
-                className="absolute bottom-1 right-1 flex h-9 w-9 items-center justify-center rounded-full border-2 border-white bg-[#0056D2] text-white shadow-md transition hover:bg-[#004BB8] disabled:opacity-60 dark:border-slate-700"
+                className="absolute bottom-1 right-1 flex h-10 w-10 items-center justify-center rounded-full border-2 border-white bg-[#0056D2] text-white shadow-md transition hover:bg-[#004BB8] disabled:opacity-60 dark:border-slate-900 dark:bg-blue-600 dark:hover:bg-blue-500"
                 aria-label="Ganti foto profil"
               >
-                {uploadingPhoto ? <Spinner size={14} className="text-white" /> : <Icon.Camera width={16} height={16} />}
+                {uploadingPhoto ? <Spinner size={16} className="text-white" /> : <Icon.Camera width={18} height={18} />}
               </button>
             </div>
             <input
               ref={fileRef}
               type="file"
-              className="sr-only"
+              className="hidden"
               accept="image/jpeg,image/jpg,image/png"
               onChange={(e) => handlePhotoChange(e.target.files?.[0])}
             />
@@ -218,26 +212,62 @@ export default function Profile() {
             >
               Ganti Foto Profil
             </button>
-            <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Format: JPG, JPEG, PNG</p>
-            <p className="text-xs text-slate-500 dark:text-slate-400">Maks. 2MB</p>
+            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">Format: JPG, JPEG, PNG</p>
+            <p className="text-xs text-slate-400 dark:text-slate-500">Maks. 2MB</p>
           </div>
 
-          <div className="border-t border-slate-100 p-5 dark:border-slate-800 lg:border-l lg:border-t-0 lg:p-6">
-            <h2 className="mb-4 text-base font-bold text-slate-800 dark:text-slate-100">Informasi Siswa</h2>
-            <ProfileRow icon={<Icon.User width={18} height={18} />} label="Nama Lengkap" value={display?.fullName} />
-            <ProfileRow icon={<Icon.IdCard width={18} height={18} />} label="NIS" value={student?.nis || display?.username} />
-            <ProfileRow icon={<Icon.User width={18} height={18} />} label="Username" value={display?.username} />
-            <ProfileRow icon={<Icon.Mail width={18} height={18} />} label="Email" value={display?.email} />
-            <ProfileRow icon={<Icon.Phone width={18} height={18} />} label="Nomor HP" value={formatPhone(display?.phone || student?.phone)} />
-            <ProfileRow icon={<Icon.Students width={18} height={18} />} label="Kelas" value={formatClassLabel(student?.schoolClass?.name)} />
-            <ProfileRow icon={<Icon.Calendar width={18} height={18} />} label="Tahun Masuk Ajaran" value={formatAcademicYear(student)} />
+          {/* Right: Informasi Siswa */}
+          <div className="min-w-0">
+            <h2 className="mb-1 text-lg font-bold text-[#0056D2] dark:text-blue-400">Informasi Siswa</h2>
+
             <ProfileRow
-              icon={<Icon.Shield width={18} height={18} />}
+              icon={<Icon.User width={16} height={16} />}
+              label="Nama Lengkap"
+              value={display?.fullName}
+            />
+            <ProfileRow
+              icon={<Icon.Hash width={16} height={16} />}
+              label="NIS"
+              value={nis}
+            />
+            <ProfileRow
+              icon={<Icon.AtSign width={16} height={16} />}
+              label="Username"
+              value={display?.username}
+            />
+            <ProfileRow
+              icon={<Icon.Mail width={16} height={16} />}
+              label="Email"
+              value={display?.email || '-'}
+            />
+            <ProfileRow
+              icon={<Icon.Phone width={16} height={16} />}
+              label="Nomor HP"
+              value={formatPhone(display?.phone)}
+            />
+            <ProfileRow
+              icon={<Icon.School width={16} height={16} />}
+              label="Kelas"
+              value={className}
+            />
+            <ProfileRow
+              icon={<Icon.Calendar width={16} height={16} />}
+              label="Tahun Masuk Ajaran"
+              value={academicYear}
+            />
+            <ProfileRow
+              icon={<Icon.CheckCircle width={16} height={16} />}
               label="Status Akun"
-              value=""
+              value={null}
               badge={(
-                <span className={`rounded-full px-3 py-1 text-xs font-semibold ${display?.isActive ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300' : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'}`}>
-                  {display?.isActive ? 'Aktif' : 'Nonaktif'}
+                <span
+                  className={`rounded-md px-2.5 py-0.5 text-xs font-semibold ${
+                    isActive
+                      ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300'
+                      : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                  }`}
+                >
+                  {isActive ? 'Aktif' : 'Nonaktif'}
                 </span>
               )}
             />
@@ -245,42 +275,14 @@ export default function Profile() {
             <button
               type="button"
               onClick={openEdit}
-              className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border-2 border-[#0056D2] py-3 text-sm font-bold text-[#0056D2] transition hover:bg-blue-50 dark:border-blue-500 dark:text-blue-400 dark:hover:bg-blue-950/40"
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-[#0056D2] px-4 py-2.5 text-sm font-semibold text-[#0056D2] transition hover:bg-blue-50 dark:border-blue-500 dark:text-blue-400 dark:hover:bg-blue-950/40"
             >
-              <Icon.Edit width={18} height={18} />
+              <Icon.Edit width={16} height={16} />
               Edit Profil
             </button>
           </div>
         </div>
       </section>
-
-      <footer className="border-t border-slate-200 pt-6 dark:border-slate-700">
-        <div className="flex flex-col items-center justify-between gap-4 sm:flex-row">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-pospay-50 text-pospay ring-1 ring-pospay/20 dark:bg-blue-950/50 dark:text-blue-400 dark:ring-blue-800">
-              <Icon.School width={20} height={20} />
-            </div>
-            <div>
-              <p className="font-semibold text-slate-700 dark:text-slate-200">SMP Pusponegoro Brebes</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Jl. Pusponegoro No. 1, Brebes</p>
-            </div>
-          </div>
-          <p className="text-xs text-slate-400 dark:text-slate-500">© 2026 POSPAY. Semua hak dilindungi.</p>
-        </div>
-      </footer>
-
-      <Link
-        to="/bantuan"
-        className="fixed bottom-6 right-6 z-20 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-lg transition hover:shadow-xl dark:border-slate-700 dark:bg-slate-900"
-      >
-        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#0056D2] text-white dark:bg-blue-600">
-          <Icon.Chat width={20} height={20} />
-        </span>
-        <span className="hidden text-left sm:block">
-          <span className="block text-sm font-bold text-slate-800 dark:text-slate-100">Butuh bantuan?</span>
-          <span className="text-xs text-slate-500 dark:text-slate-400">Tanya lewat Chatbot</span>
-        </span>
-      </Link>
 
       <Modal
         open={editOpen}
@@ -297,16 +299,30 @@ export default function Profile() {
       >
         <div className="space-y-3">
           <Field label="Nama Lengkap" required>
-            <input className="input" value={form.fullName} onChange={(e) => setForm({ ...form, fullName: e.target.value })} />
+            <input
+              className="input"
+              value={form.fullName}
+              onChange={(e) => setForm({ ...form, fullName: e.target.value })}
+            />
           </Field>
           <Field label="Email">
-            <input type="email" className="input" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+            <input
+              type="email"
+              className="input"
+              value={form.email}
+              onChange={(e) => setForm({ ...form, email: e.target.value })}
+            />
           </Field>
           <Field label="Nomor HP">
-            <input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="081234567890" />
+            <input
+              className="input"
+              value={form.phone}
+              onChange={(e) => setForm({ ...form, phone: e.target.value })}
+              placeholder="081234567890"
+            />
           </Field>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            NIS, kelas, dan username tidak dapat diubah dari halaman ini.
+            NIS dan Username tidak dapat diubah karena terhubung dengan akun login.
           </p>
         </div>
       </Modal>
