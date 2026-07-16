@@ -5,6 +5,7 @@ import { useToast } from '../../context/ToastContext';
 import { Spinner, Modal, EmptyState, Field } from '../ui';
 import { Icon } from '../Icons';
 import { formatIDR, formatDateTime } from '../../lib/format';
+import { useSocket } from '../../hooks/useSocket';
 import {
   TagihanPagination,
   billDisplayName,
@@ -176,6 +177,14 @@ export default function StatusPembayaranTab() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useSocket({
+    'payment:updated': () => { loadAux(); load(); },
+    'payment:verified': () => { loadAux(); load(); },
+    'payment:pending': () => { loadAux(); load(); },
+    'catalog:changed': () => { loadAux(); load(); },
+    'bill:created': () => { loadAux(); load(); },
+  });
 
   useEffect(() => {
     if (tagihanGroups.length > 0 && !filters.tagihanKey) {
@@ -381,7 +390,7 @@ export default function StatusPembayaranTab() {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/80 text-left text-slate-500">
+                  <tr className="border-b border-slate-100 bg-slate-50/80 text-left text-slate-500 dark:border-slate-800 dark:bg-slate-800/60 dark:text-slate-400">
                     <th className="px-4 py-3 font-medium">No</th>
                     <th className="px-4 py-3 font-medium">Nama Siswa</th>
                     <th className="px-4 py-3 font-medium">Kelas</th>
@@ -398,30 +407,31 @@ export default function StatusPembayaranTab() {
                     const rowNo = (filters.page - 1) * filters.limit + idx + 1;
                     const paidAt = paymentDates[b.id];
                     return (
-                      <tr key={b.id} className="border-b border-slate-50 hover:bg-slate-50/50">
-                        <td className="px-4 py-3 text-slate-500">{rowNo}</td>
-                        <td className="px-4 py-3 font-medium text-slate-900">{b.student?.fullName}</td>
-                        <td className="px-4 py-3">{formatClassLabel(b.student?.schoolClass?.name)}</td>
-                        <td className="px-4 py-3">{billDisplayName(b)}</td>
-                        <td className="px-4 py-3 text-right font-medium">{formatIDR(b.amount)}</td>
+                      <tr key={b.id} className="border-b border-slate-50 hover:bg-slate-50/50 dark:border-slate-800 dark:hover:bg-slate-800/40">
+                        <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{rowNo}</td>
+                        <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">{b.student?.fullName}</td>
+                        <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{formatClassLabel(b.student?.schoolClass?.name)}</td>
+                        <td className="px-4 py-3 text-slate-700 dark:text-slate-300">{billDisplayName(b)}</td>
+                        <td className="px-4 py-3 text-right font-medium text-slate-800 dark:text-slate-200">{formatIDR(b.amount)}</td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-medium ${st.cls}`}>{st.label}</span>
                         </td>
-                        <td className="px-4 py-3 text-slate-600">{paidAt ? formatDateTime(paidAt) : '-'}</td>
+                        <td className="px-4 py-3 text-slate-600 dark:text-slate-400">{paidAt ? formatDateTime(paidAt) : '-'}</td>
                         <td className="px-4 py-3 text-center">
                           <div className="flex items-center justify-center gap-1.5">
                             <button
                               type="button"
                               onClick={() => handlePrint(b)}
-                              title="Cetak status tagihan"
-                              className="inline-flex items-center justify-center rounded-lg border border-slate-200 p-1.5 text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                              title="Cetak status tagihan (PDF)"
+                              aria-label="Cetak status tagihan"
+                              className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white p-1.5 text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                             >
-                              <Icon.Printer width={14} height={14} />
+                              <Icon.Printer width={16} height={16} />
                             </button>
                             <button
                               type="button"
                               onClick={() => openDetail(b)}
-                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-pospay hover:bg-pospay-50"
+                              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-pospay hover:bg-pospay-50 dark:border-slate-600 dark:text-blue-400 dark:hover:bg-blue-950/40"
                             >
                               <Icon.Eye width={14} height={14} />
                               Lihat Detail

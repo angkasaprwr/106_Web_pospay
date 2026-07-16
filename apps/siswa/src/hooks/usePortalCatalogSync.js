@@ -1,66 +1,32 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { api } from '../lib/api';
-
-function versionKey(v) {
-  return `${v?.billsVersion || ''}|${v?.methodsVersion || ''}|${v?.paymentsVersion || ''}`;
-}
+import { useCallback, useRef } from 'react';
+import { useSocket } from './useSocket';
 
 /**
- * Pantau perubahan tagihan / metode pembayaran dari bendahara.
- * Hanya memanggil onDataChange saat versi server berubah (tanpa loading berulang).
+ * Realtime catalog sync via Socket.IO (tanpa polling).
+ * Memanggil onDataChange sekali saat server emit catalog:changed / bill:created / payment:updated.
  */
-export function usePortalCatalogSync(onDataChange, { intervalMs = 60000 } = {}) {
-  const versionRef = useRef(null);
+export function usePortalCatalogSync(onDataChange) {
   const syncingRef = useRef(false);
 
-  const fetchVersion = useCallback(async () => {
-    const { data } = await api.get('/portal/catalog-sync-version');
-    return data.data;
-  }, []);
-
-  const setVersionSnapshot = useCallback(async () => {
-    try {
-      const v = await fetchVersion();
-      versionRef.current = versionKey(v);
-    } catch {
-      /* ignore */
-    }
-  }, [fetchVersion]);
-
-  const checkForUpdates = useCallback(async () => {
+  const refreshOnce = useCallback(async () => {
     if (syncingRef.current) return;
+    syncingRef.current = true;
     try {
-      const v = await fetchVersion();
-      const key = versionKey(v);
-      if (versionRef.current === null) {
-        versionRef.current = key;
-        return;
-      }
-      if (versionRef.current !== key) {
-        syncingRef.current = true;
-        versionRef.current = key;
-        await onDataChange({ silent: true });
-      }
-    } catch {
-      /* ignore background check errors */
+      await onDataChange({ silent: true });
     } finally {
       syncingRef.current = false;
     }
-  }, [fetchVersion, onDataChange]);
+  }, [onDataChange]);
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      if (document.visibilityState === 'visible') checkForUpdates();
-    }, intervalMs);
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') checkForUpdates();
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener('visibilitychange', onVisible);
-    };
-  }, [checkForUpdates, intervalMs]);
+  useSocket({
+    'catalog:changed': () => { refreshOnce(); },
+    'bill:created': () => { refreshOnce(); },
+    'payment:updated': () => { refreshOnce(); },
+    'payment:verified': () => { refreshOnce(); },
+  });
 
-  return { setVersionSnapshot, checkForUpdates };
+  return {
+    setVersionSnapshot: async () => {},
+    checkForUpdates: refreshOnce,
+  };
 }

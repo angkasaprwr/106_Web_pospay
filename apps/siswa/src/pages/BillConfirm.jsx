@@ -15,6 +15,7 @@ import {
 } from '../lib/billPaymentSession';
 import { Spinner } from '../components/ui';
 import { Icon } from '../components/Icons';
+import { useSocket } from '../hooks/useSocket';
 
 const CARD = 'rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900';
 
@@ -136,23 +137,39 @@ export default function BillConfirm() {
     navigate('/pembayaran-berhasil');
   }, [navigate, toast]);
 
-  const pollPaymentStatus = useCallback(async (id) => {
+  const checkPaymentStatus = useCallback(async (id) => {
     try {
       const { data } = await api.get(`/payment/status/${id}`);
       const payment = data.data;
       setPaymentStatus(payment.status);
+      setQrDataUrl(payment.qr_url || payment.qrDataUrl || '');
       setTransferInfo({
-        vaNumber: payment.qr_string || null,
-        bank: payment.payment_method?.merchantName || payment.payment_method?.name || null,
+        vaNumber: payment.qr_string || payment.va_number || null,
+        bank: payment.payment_method?.merchantName || payment.payment_method?.name || payment.paymentMethod?.name || null,
       });
       if (payment.status === 'VERIFIED') {
-        if (pollRef.current) clearInterval(pollRef.current);
         finishSuccess(payment);
       }
+      return payment;
     } catch {
-      /* ignore polling errors */
+      return null;
     }
   }, [finishSuccess]);
+
+  // Socket.IO realtime (sekali, tanpa polling interval)
+  useSocket({
+    'payment:updated': (payload) => {
+      if (!payload?.id || !paymentId || payload.id !== paymentId) return;
+      setPaymentStatus(payload.status || '');
+      if (payload.status === 'VERIFIED') {
+        checkPaymentStatus(payload.id);
+      }
+    },
+    'payment:verified': (payload) => {
+      if (!payload?.id || !paymentId || payload.id !== paymentId) return;
+      checkPaymentStatus(payload.id);
+    },
+  });
 
   const initCashPayment = useCallback(async (saved, billData, methodData, amount) => {
     let pid = saved.paymentId;
@@ -171,12 +188,18 @@ export default function BillConfirm() {
       setDraft(nextDraft);
       toast.success('Pengajuan pembayaran tunai terkirim. Silakan bayar di loket bendahara.');
     } else {
-      const statusRes = await api.get(`/payment/status/${pid}`);
-      paymentData = statusRes.data.data;
+      paymentData = await checkPaymentStatus(pid);
     }
     setPaymentId(pid);
     setPaymentStatus(paymentData?.status || 'PENDING');
-  }, [note, toast]);
+
+    if (paymentData?.status === 'VERIFIED') {
+      finishSuccess(paymentData);
+      return;
+    }
+
+    await checkPaymentStatus(pid);
+  }, [note, toast, finishSuccess, checkPaymentStatus]);
 
   const initMidtransPayment = useCallback(async (saved, billData, methodData, amount) => {
     let pid = saved.paymentId;
@@ -194,8 +217,7 @@ export default function BillConfirm() {
       saveBillPaymentDraft(nextDraft);
       setDraft(nextDraft);
     } else {
-      const statusRes = await api.get(`/payment/status/${pid}`);
-      paymentData = statusRes.data.data;
+      paymentData = await checkPaymentStatus(pid);
     }
 
     setPaymentId(pid);
@@ -208,11 +230,8 @@ export default function BillConfirm() {
     setExpiryTime(paymentData.expiry_time || paymentData.expiryTime || null);
     setSchoolName(paymentData.school_name || 'SMP Pusponegoro Brebes');
     setAwaitingCashless(true);
-
-    if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = setInterval(() => pollPaymentStatus(pid), 5000);
-    pollPaymentStatus(pid);
-  }, [note, pollPaymentStatus]);
+    await checkPaymentStatus(pid);
+  }, [note, checkPaymentStatus]);
 
   const initLegacyCashlessPayment = useCallback(async (saved, billData, methodData, amount) => {
     let pid = saved.paymentId;
@@ -238,11 +257,8 @@ export default function BillConfirm() {
     setQrDataUrl(qrRes.data.data.qrDataUrl);
     setAwaitingCashless(true);
     setPaymentStatus(qrRes.data.data.status || 'PENDING');
-
-    if (pollRef.current) clearInterval(pollRef.current);
-    pollRef.current = setInterval(() => pollPaymentStatus(pid), 5000);
-    pollPaymentStatus(pid);
-  }, [pollPaymentStatus]);
+    await checkPaymentStatus(pid);
+  }, [checkPaymentStatus]);
 
   const load = useCallback(async () => {
     const saved = loadBillPaymentDraft();

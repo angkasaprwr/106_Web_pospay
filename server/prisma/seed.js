@@ -26,7 +26,9 @@ async function main() {
     });
   }
 
-  // ---- Default treasurer (bendahara) ----
+  // ---- Default treasurer (bendahara) + sinkron Gmail sekolah untuk reset password ----
+  const schoolGmail = (process.env.SCHOOL_GMAIL_ADDRESS || 'smppusponegorobrebess@gmail.com').toLowerCase();
+
   if (SEED_BENDAHARA) {
     const exists = await prisma.user.findFirst({ where: { role: 'BENDAHARA' } });
     if (!exists) {
@@ -37,11 +39,34 @@ async function main() {
           password,
           fullName: 'Bendahara Sekolah',
           role: 'BENDAHARA',
-          email: 'bendahara@smppusponegoro.sch.id',
+          email: schoolGmail,
           emailVerified: true,
         },
       });
-      console.log('  -> Akun bendahara: username "bendahara", password "bendahara123"');
+      console.log(`  -> Akun bendahara: username "bendahara", email ${schoolGmail}, password "bendahara123"`);
+    }
+  }
+
+  // Pastikan minimal satu bendahara memakai Gmail resmi sekolah (inbox notifikasi reset).
+  const gmailOwner = await prisma.user.findFirst({
+    where: { role: 'BENDAHARA', email: { equals: schoolGmail, mode: 'insensitive' } },
+  });
+  if (!gmailOwner) {
+    const conflict = await prisma.user.findFirst({
+      where: { email: { equals: schoolGmail, mode: 'insensitive' } },
+    });
+    if (!conflict) {
+      const primary = await prisma.user.findFirst({
+        where: { role: 'BENDAHARA', isActive: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      if (primary) {
+        await prisma.user.update({
+          where: { id: primary.id },
+          data: { email: schoolGmail, emailVerified: true },
+        });
+        console.log(`  -> Email bendahara "${primary.username}" diset ke ${schoolGmail} (notifikasi Gmail)`);
+      }
     }
   }
 
@@ -81,7 +106,7 @@ async function main() {
   // ---- Payment methods ----
   const methods = [
     { name: 'Transfer Bank BRI', channel: 'TRANSFER', accountName: 'SMP Pusponegoro', accountNo: '0123-01-000000-50-1', instruction: 'Transfer ke rekening lalu unggah bukti.' },
-    { name: 'QRIS Sekolah', channel: 'QRIS', accountName: 'SMP Pusponegoro', instruction: 'Scan QRIS pada aplikasi e-wallet/m-banking.' },
+    { name: 'QRIS Sekolah', channel: 'QRIS', accountName: 'PAPK SMP PUSPONEGORO', accountNo: '6513009817', paymentType: 'QRIS_MIDTRANS', gateway: 'midtrans', merchantName: 'SMP Pusponegoro Brebes', instruction: 'Scan QRIS via GoPay/Dana/ShopeePay/Livin/BRImo. Dana masuk rekening BNI 6513009817 a.n. PAPK SMP PUSPONEGORO (Midtrans Sandbox).' },
     { name: 'Tunai di Loket', channel: 'CASH', instruction: 'Bayar langsung ke loket bendahara.' },
   ];
   for (const m of methods) {

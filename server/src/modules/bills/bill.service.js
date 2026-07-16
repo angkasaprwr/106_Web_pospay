@@ -6,6 +6,7 @@ const { generateInvoiceNo } = require('../../utils/identifiers');
 const { recordAudit } = require('../audit/audit.service');
 const { notifyUser } = require('../notifications/notification.service');
 const { formatIDR } = require('../../utils/money');
+const { emitBillCreated } = require('../../services/socket.service');
 
 async function list(query) {
   return billRepository.list(query);
@@ -32,6 +33,26 @@ async function create(input, actorId, req) {
   data.status = computeStatus({ ...data, paidAmount: 0 });
   const bill = await prisma.bill.create({ data, include: { feeType: true, student: true } });
   await recordAudit({ userId: actorId, action: 'CREATE', entity: 'Bill', entityId: bill.id, req });
+
+  let userId = bill.student?.userId;
+  if (!userId && bill.student?.nis) {
+    const linked = await prisma.user.findFirst({
+      where: { username: bill.student.nis, role: 'SISWA', isActive: true },
+      select: { id: true },
+    });
+    userId = linked?.id || null;
+  }
+  if (userId) {
+    const billName = bill.description || `${bill.feeType?.name || 'Tagihan'}${bill.period ? ` ${bill.period}` : ''}`;
+    await notifyUser(userId, {
+      title: 'Tagihan Baru',
+      body: `Tagihan ${billName} sebesar ${formatIDR(bill.amount)} telah ditambahkan. Segera cek menu Tagihan.`,
+      type: 'BILL_CREATED',
+      data: { billId: bill.id, studentId: bill.studentId },
+    });
+  }
+
+  emitBillCreated({ ...bill, student: { ...(bill.student || {}), userId: userId || bill.student?.userId } });
   return bill;
 }
 

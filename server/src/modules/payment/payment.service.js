@@ -1,0 +1,617 @@
+const PDFDocument = require('pdfkit');
+const QRCode = require('qrcode');
+const path = require('path');
+const { prisma } = require('../../config/prisma');
+const { ApiError } = require('../../core/ApiError');
+const { env } = require('../../config/env');
+const { outstanding, computeStatus } = require('../bills/bill.helper');
+const { generatePaymentRef, generateMidtransOrderId } = require('../../utils/identifiers');
+const { toNumber } = require('../../utils/money');
+const { recordAudit } = require('../audit/audit.service');
+const { notifyUser } = require('../notifications/notification.service');
+const { resolveStudent } = require('../portal/portal.service');
+const legacyPaymentService = require('../payments/payment.service');
+const { paymentRepository } = require('./repository/payment.repository');
+const midtransGateway = require('./gateway/midtrans.gateway');
+const {
+  FCM_SUCCESS_TITLE,
+  FCM_SUCCESS_BODY,
+  isMidtransQrisMethod,
+  isMidtransTransferMethod,
+  isCashPaymentMethod,
+} = require('./domain/payment.domain');
+const {
+  sanitizeMethodForPortal,
+  resolveQrDisplayUrl,
+  formatPaymentStatusResponse,
+} = require('./dto/payment.dto');
+const { emitPaymentUpdated } = require('../../services/socket.service');
+
+function drawPospayLogo(doc, x, y, size = 40) {
+  doc.save();
+  doc.roundedRect(x, y, size, size, 8).fill('#0056D2');
+  doc.fillColor('#ffffff').fontSize(size * 0.28).text('P', x + size * 0.34, y + size * 0.28);
+  doc.restore();
+  doc.fillColor('#000000');
+}
+
+async function validateBillForStudent(billId, actor) {
+  const bill = await prisma.bill.findUnique({
+    where: { id: billId },
+    include: { student: true, feeType: true },
+  });
+  if (!bill) throw ApiError.notFound('Tagihan tidak ditemukan');
+
+  const student = await resolveStudent(actor);
+  if (bill.studentId !== student.id) {
+    throw ApiError.forbidden('Anda hanya dapat membayar tagihan milik sendiri');
+  }
+  if (bill.status === 'PAID' || bill.status === 'WAIVED') {
+    throw ApiError.badRequest('Tagihan ini sudah lunas atau dibebaskan');
+  }
+
+  const pending = await paymentRepository.findPendingByBillId(bill.id);
+  if (pending) {
+    throw ApiError.badRequest('Tagihan ini masih memiliki pembayaran yang menunggu proses');
+  }
+
+  return { bill, student };
+}
+
+async function loadPaymentMethod(paymentMethodId) {
+  const method = await prisma.paymentMethod.findUnique({ where: { id: paymentMethodId } });
+  if (!method || !method.isActive) throw ApiError.badRequest('Metode pembayaran tidak valid');
+  return method;
+}
+
+async function notifyTreasurers(payload) {
+  const treasurers = await prisma.user.findMany({
+    where: { role: 'BENDAHARA', isActive: true },
+    select: { id: true },
+  });
+  await Promise.all(treasurers.map((t) => notifyUser(t.id, payload)));
+}
+
+async function recordPaymentNotification(paymentId, userId, type, title, body) {
+  await paymentRepository.createPaymentNotification({ paymentId, userId, type, title, body });
+  if (userId) {
+    await notifyUser(userId, { title, body, type, data: { paymentId } });
+  }
+}
+
+async function createCashPayment(input, actor, req) {
+  const method = await loadPaymentMethod(input.paymentMethodId);
+  if (!isCashPaymentMethod(method)) {
+    throw ApiError.badRequest('Metode pembayaran bukan tunai');
+  }
+
+  const { bill } = await validateBillForStudent(input.billId, actor);
+  const amount = input.amount ?? outstanding(bill);
+  if (amount > outstanding(bill) + 0.001) {
+    throw ApiError.badRequest(`Nominal melebihi sisa tagihan (${outstanding(bill)})`);
+  }
+
+  const payment = await paymentRepository.createPaymentWithHistory(
+    {
+      reference: generatePaymentRef(),
+      billId: bill.id,
+      paymentMethodId: method.id,
+      amount,
+      channel: 'CASH',
+      paymentType: 'CASH',
+      gateway: method.gateway || 'manual',
+      note: input.note || null,
+      status: 'PENDING',
+    },
+    'Pembayaran tunai diajukan — menunggu verifikasi bendahara',
+  );
+
+  await recordAudit({ userId: actor.id, action: 'CREATE', entity: 'Payment', entityId: payment.id, req });
+  await notifyTreasurers({
+    title: 'Pembayaran Tunai Menunggu Verifikasi',
+    body: `${bill.student.fullName} mengajukan pembayaran tunai ${bill.feeType.name}.`,
+    type: 'PAYMENT_SUBMITTED',
+    data: { paymentId: payment.id, billId: bill.id },
+  });
+
+  emitPaymentUpdated({ ...payment, bill: { student: bill.student } }, { paymentType: 'CASH' });
+  return payment;
+}
+
+async function createMidtransPayment(input, actor, req) {
+  const method = await loadPaymentMethod(input.paymentMethodId);
+  if (!isMidtransQrisMethod(method)) {
+    throw ApiError.badRequest('Metode pembayaran bukan QRIS Midtrans');
+  }
+
+  const { bill, student } = await validateBillForStudent(input.billId, actor);
+  const amount = input.amount ?? outstanding(bill);
+  if (amount > outstanding(bill) + 0.001) {
+    throw ApiError.badRequest(`Nominal melebihi sisa tagihan (${outstanding(bill)})`);
+  }
+
+  const orderId = generateMidtransOrderId();
+  const payment = await paymentRepository.createPaymentWithHistory(
+    {
+      reference: generatePaymentRef(),
+      billId: bill.id,
+      paymentMethodId: method.id,
+      amount,
+      channel: 'QRIS',
+      paymentType: 'QRIS_MIDTRANS',
+      gateway: 'midtrans',
+      orderId,
+      note: input.note || null,
+      status: 'PENDING',
+    },
+    'Transaksi QRIS Midtrans dibuat',
+  );
+
+  let charge;
+  try {
+    charge = await midtransGateway.chargeQris({
+      orderId,
+      grossAmount: amount,
+      method,
+      customerDetails: {
+        first_name: student.fullName,
+        email: actor.email || `${student.nis}@siswa.local`,
+        phone: student.parentPhone || actor.phone || '08123456789',
+      },
+    });
+  } catch (err) {
+    await prisma.payment.delete({ where: { id: payment.id } });
+    throw ApiError.badRequest(`Gagal membuat transaksi Midtrans: ${err.message}`);
+  }
+
+  const updated = await paymentRepository.updatePaymentWithHistory(
+    payment.id,
+    {
+      transactionId: charge.transactionId,
+      qrString: charge.qrString,
+      qrUrl: charge.qrUrl,
+      expiryTime: charge.expiryTime,
+      midtransStatus: charge.midtransStatus,
+    },
+    { note: 'QRIS Midtrans di-generate', metadata: { statusCode: charge.statusCode } },
+  );
+
+  await paymentRepository.createMidtransLog({
+    paymentId: payment.id,
+    orderId,
+    eventType: 'charge',
+    payload: { orderId, amount },
+    response: charge.raw,
+  });
+
+  await recordAudit({ userId: actor.id, action: 'CREATE', entity: 'Payment', entityId: payment.id, req });
+
+  const qr_url = await resolveQrDisplayUrl(charge.qrUrl, charge.qrString);
+
+  return {
+    ...updated,
+    qr_string: charge.qrString,
+    qr_url,
+    qrDataUrl: qr_url,
+    expiry_time: charge.expiryTime,
+    transaction_id: charge.transactionId,
+    order_id: orderId,
+    gross_amount: toNumber(amount),
+    school_name: env.school.name,
+    invoice_no: bill.invoiceNo,
+  };
+}
+
+async function createMidtransTransferPayment(input, actor, req) {
+  const method = await loadPaymentMethod(input.paymentMethodId);
+  if (!isMidtransTransferMethod(method)) {
+    throw ApiError.badRequest('Metode pembayaran bukan transfer Midtrans');
+  }
+
+  const { bill, student } = await validateBillForStudent(input.billId, actor);
+  const amount = input.amount ?? outstanding(bill);
+  if (amount > outstanding(bill) + 0.001) {
+    throw ApiError.badRequest(`Nominal melebihi sisa tagihan (${outstanding(bill)})`);
+  }
+
+  const orderId = generateMidtransOrderId();
+  const payment = await paymentRepository.createPaymentWithHistory(
+    {
+      reference: generatePaymentRef(),
+      billId: bill.id,
+      paymentMethodId: method.id,
+      amount,
+      channel: 'TRANSFER',
+      paymentType: 'TRANSFER_MIDTRANS',
+      gateway: 'midtrans',
+      orderId,
+      note: input.note || null,
+      status: 'PENDING',
+    },
+    'Transaksi transfer Midtrans dibuat',
+  );
+
+  let charge;
+  try {
+    charge = await midtransGateway.chargeBankTransfer({
+      orderId,
+      grossAmount: amount,
+      method,
+      customerDetails: {
+        first_name: student.fullName,
+        email: actor.email || `${student.nis}@siswa.local`,
+        phone: student.parentPhone || actor.phone || '08123456789',
+      },
+    });
+  } catch (err) {
+    await prisma.payment.delete({ where: { id: payment.id } });
+    throw ApiError.badRequest(`Gagal membuat transaksi transfer Midtrans: ${err.message}`);
+  }
+
+  const updated = await paymentRepository.updatePaymentWithHistory(
+    payment.id,
+    {
+      transactionId: charge.transactionId,
+      qrString: charge.vaNumber || null,
+      qrUrl: charge.paymentUrl || null,
+      expiryTime: charge.expiryTime,
+      midtransStatus: charge.midtransStatus,
+    },
+    { note: 'Transfer Midtrans di-generate', metadata: { statusCode: charge.statusCode, bank: charge.bank } },
+  );
+
+  await paymentRepository.createMidtransLog({
+    paymentId: payment.id,
+    orderId,
+    eventType: 'charge',
+    payload: { orderId, amount, bank: charge.bank, channel: 'TRANSFER' },
+    response: charge.raw,
+  });
+
+  await recordAudit({ userId: actor.id, action: 'CREATE', entity: 'Payment', entityId: payment.id, req });
+
+  return {
+    ...updated,
+    order_id: orderId,
+    transaction_id: charge.transactionId,
+    gross_amount: toNumber(amount),
+    payment_type: charge.paymentType,
+    payment_url: charge.paymentUrl || null,
+    va_number: charge.vaNumber || null,
+    bank: charge.bank || null,
+    expiry_time: charge.expiryTime,
+    school_name: env.school.name,
+    invoice_no: bill.invoiceNo,
+  };
+}
+
+async function createPayment(input, actor, req) {
+  const method = await loadPaymentMethod(input.paymentMethodId);
+  if (isMidtransQrisMethod(method)) return createMidtransPayment(input, actor, req);
+  if (isMidtransTransferMethod(method)) return createMidtransTransferPayment(input, actor, req);
+  if (isCashPaymentMethod(method)) return createCashPayment(input, actor, req);
+  throw ApiError.badRequest('Gunakan portal pembayaran untuk metode transfer dengan bukti');
+}
+
+async function getStatus(invoiceRef, actor) {
+  const payment = await paymentRepository.findPaymentByInvoiceRef(invoiceRef);
+  if (!payment) throw ApiError.notFound('Pembayaran tidak ditemukan');
+
+  if (actor.role === 'SISWA') {
+    const student = await resolveStudent(actor);
+    if (payment.bill.studentId !== student.id) throw ApiError.forbidden('Akses ditolak');
+  }
+
+  return formatPaymentStatusResponse(payment);
+}
+
+async function getPaymentMethods() {
+  const methods = await paymentRepository.listActivePaymentMethods();
+  return methods.map(sanitizeMethodForPortal);
+}
+
+async function getHistory(actor, query) {
+  const student = await resolveStudent(actor);
+  const page = Math.max(1, parseInt(query.page || '1', 10));
+  const limit = Math.min(100, parseInt(query.limit || '20', 10));
+  const [items, total] = await paymentRepository.listHistoryForStudent(student.id, {
+    status: query.status,
+    year: query.year,
+    page,
+    limit,
+  });
+  return { items, total, page, limit };
+}
+
+async function applyPaymentToBill(tx, billId) {
+  const bill = await tx.bill.findUnique({
+    where: { id: billId },
+    include: { payments: { where: { status: 'VERIFIED' } } },
+  });
+  const paidAmount = bill.payments.reduce((sum, p) => sum + toNumber(p.amount), 0);
+  const status = computeStatus({ ...bill, paidAmount });
+  await tx.bill.update({ where: { id: billId }, data: { paidAmount, status } });
+  return { paidAmount, status };
+}
+
+async function finalizeVerifiedPayment(payment, actor, req, meta = {}) {
+  const result = await prisma.$transaction(async (tx) => {
+    const updated = await tx.payment.update({
+      where: { id: payment.id },
+      data: {
+        status: 'VERIFIED',
+        verifiedById: actor?.id || null,
+        verifiedAt: new Date(),
+        paidAt: meta.paidAt || new Date(),
+        settlementTime: meta.settlementTime || null,
+        fraudStatus: meta.fraudStatus || null,
+        signatureKey: meta.signatureKey || null,
+        midtransStatus: meta.midtransStatus || payment.midtransStatus,
+        transactionId: meta.transactionId || payment.transactionId,
+        note: meta.note || payment.note,
+        rejectionReason: null,
+      },
+      include: {
+        bill: { include: { student: true, feeType: true } },
+        paymentMethod: true,
+      },
+    });
+    await applyPaymentToBill(tx, payment.billId);
+    await tx.paymentHistory.create({
+      data: {
+        paymentId: payment.id,
+        status: 'VERIFIED',
+        amount: payment.amount,
+        note: meta.note || 'Pembayaran diverifikasi',
+        metadata: meta.metadata || null,
+      },
+    });
+    await tx.invoice.upsert({
+      where: { paymentId: payment.id },
+      create: {
+        billId: payment.billId,
+        paymentId: payment.id,
+        invoiceNo: updated.bill.invoiceNo,
+        grossAmount: payment.amount,
+        status: 'PAID',
+        paidAt: meta.paidAt || new Date(),
+      },
+      update: {
+        status: 'PAID',
+        paidAt: meta.paidAt || new Date(),
+        grossAmount: payment.amount,
+      },
+    });
+    return updated;
+  });
+
+  if (actor?.id) {
+    await recordAudit({ userId: actor.id, action: 'VERIFY', entity: 'Payment', entityId: payment.id, req });
+  }
+
+  if (result.bill.student.userId) {
+    await recordPaymentNotification(
+      payment.id,
+      result.bill.student.userId,
+      'PAYMENT_VERIFIED',
+      FCM_SUCCESS_TITLE,
+      FCM_SUCCESS_BODY,
+    );
+  }
+
+  await notifyTreasurers({
+    title: 'Pembayaran Masuk',
+    body: `${result.bill.student.fullName} — ${result.bill.feeType.name} ${toNumber(result.amount)} lunas.`,
+    type: 'PAYMENT_VERIFIED',
+    data: { paymentId: payment.id, billId: payment.billId },
+  });
+
+  emitPaymentUpdated(result, { settled: true });
+  return result;
+}
+
+async function handleMidtransWebhook(payload) {
+  const orderId = payload.order_id;
+  if (!orderId) throw ApiError.badRequest('order_id tidak valid');
+
+  const payment = await paymentRepository.findPaymentByOrderId(orderId);
+  if (!payment) throw ApiError.notFound('Pembayaran tidak ditemukan');
+
+  const keys = midtransGateway.resolveKeys(payment.paymentMethod);
+  let signatureValid = false;
+  if (midtransGateway.hasValidMidtransKeys(keys) && payload.signature_key) {
+    signatureValid = midtransGateway.verifySignature(payload, keys.serverKey);
+    if (!signatureValid) throw ApiError.forbidden('Signature Midtrans tidak valid');
+  }
+
+  await paymentRepository.createMidtransLog({
+    paymentId: payment.id,
+    orderId,
+    eventType: 'webhook',
+    payload,
+    response: { receivedAt: new Date().toISOString() },
+  });
+
+  await paymentRepository.createPaymentWebhook({
+    paymentId: payment.id,
+    provider: 'midtrans',
+    orderId,
+    eventType: String(payload.transaction_status || 'notification'),
+    payload,
+    signatureValid,
+    processedAt: new Date(),
+  });
+
+  if (payment.status === 'VERIFIED') {
+    return { payment, alreadyVerified: true };
+  }
+
+  const transactionStatus = String(payload.transaction_status || '').toLowerCase();
+  const fraudStatus = payload.fraud_status || null;
+
+  if (midtransGateway.isSettlementStatus(transactionStatus) || transactionStatus === 'success') {
+    await paymentRepository.createPaymentTransaction({
+      paymentId: payment.id,
+      transactionId: payload.transaction_id || payment.transactionId,
+      orderId,
+      paymentType: payload.payment_type || payment.paymentType || 'qris',
+      grossAmount: payment.amount,
+      transactionTime: payload.transaction_time ? new Date(payload.transaction_time) : new Date(),
+      settlementTime: payload.settlement_time ? new Date(payload.settlement_time) : new Date(),
+      fraudStatus,
+      status: transactionStatus,
+    });
+
+    const verified = await finalizeVerifiedPayment(payment, null, null, {
+      paidAt: payload.settlement_time ? new Date(payload.settlement_time) : new Date(),
+      settlementTime: payload.settlement_time ? new Date(payload.settlement_time) : new Date(),
+      fraudStatus,
+      signatureKey: payload.signature_key || null,
+      midtransStatus: transactionStatus,
+      transactionId: payload.transaction_id || payment.transactionId,
+      note: 'Pembayaran Midtrans terverifikasi otomatis',
+      metadata: payload,
+    });
+    return { payment: verified, settled: true };
+  }
+
+  if (['deny', 'cancel', 'expire', 'failure'].includes(transactionStatus)) {
+    const rejected = await paymentRepository.updatePaymentWithHistory(
+      payment.id,
+      {
+        status: 'REJECTED',
+        midtransStatus: transactionStatus,
+        fraudStatus,
+        rejectionReason: `Midtrans: ${transactionStatus}`,
+      },
+      { note: `Pembayaran gagal: ${transactionStatus}`, metadata: payload },
+    );
+
+    if (payment.bill?.student?.userId) {
+      await recordPaymentNotification(
+        payment.id,
+        payment.bill.student.userId,
+        'PAYMENT_REJECTED',
+        'Pembayaran Ditolak',
+        `Pembayaran tagihan gagal: ${transactionStatus}.`,
+      );
+    }
+
+    emitPaymentUpdated({ ...rejected, bill: payment.bill }, { failed: true });
+    return { payment: rejected, failed: true };
+  }
+
+  if (transactionStatus === 'challenge') {
+    const challenged = await paymentRepository.updatePaymentWithHistory(
+      payment.id,
+      { midtransStatus: transactionStatus, fraudStatus },
+      { note: 'Pembayaran menunggu challenge 3DS / fraud review Midtrans', metadata: payload },
+    );
+    emitPaymentUpdated({ ...challenged, bill: payment.bill }, { challenge: true });
+    return { payment: challenged, challenge: true };
+  }
+
+  const pending = await paymentRepository.updatePaymentWithHistory(
+    payment.id,
+    { midtransStatus: transactionStatus, fraudStatus },
+    { note: `Status Midtrans: ${transactionStatus}`, metadata: payload },
+  );
+  emitPaymentUpdated({ ...pending, bill: payment.bill }, { pending: true });
+  return { payment: pending, pending: true };
+}
+
+async function approvePayment(paymentId, input, actor, req) {
+  return legacyPaymentService.verify(paymentId, input, actor, req);
+}
+
+async function rejectPayment(paymentId, input, actor, req) {
+  return legacyPaymentService.reject(paymentId, input, actor, req);
+}
+
+async function streamInvoicePdf(paymentId, actor, res) {
+  const payment = await paymentRepository.findPaymentById(paymentId);
+  if (!payment) throw ApiError.notFound('Pembayaran tidak ditemukan');
+
+  if (actor.role === 'SISWA') {
+    const student = await resolveStudent(actor);
+    if (payment.bill.studentId !== student.id) throw ApiError.forbidden('Akses ditolak');
+  }
+
+  const doc = new PDFDocument({ margin: 50, size: 'A4' });
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `inline; filename="bukti-${payment.reference}.pdf"`);
+  doc.pipe(res);
+
+  const logoPath = path.resolve(__dirname, '../../assets/pospay-logo.png');
+  try {
+    doc.image(logoPath, 50, 45, { width: 48, height: 48 });
+  } catch {
+    drawPospayLogo(doc, 50, 45, 48);
+  }
+
+  doc.fontSize(16).fillColor('#0056D2').text(env.school.name, 110, 50);
+  doc.fontSize(11).fillColor('#333333').text('Bukti Pembayaran POSPAY', 110, 72);
+  doc.moveDown(2);
+
+  const className = payment.bill.student?.schoolClass?.name || '-';
+  const paidDate = payment.verifiedAt || payment.paidAt || payment.createdAt;
+  const statusLabel = payment.status === 'VERIFIED' ? 'LUNAS' : payment.status;
+
+  const rows = [
+    ['Nomor Invoice', payment.bill.invoiceNo],
+    ['Referensi', payment.reference],
+    ['Nama Siswa', payment.bill.student.fullName],
+    ['NIS', payment.bill.student.nis],
+    ['Kelas', className],
+    ['Jenis Tagihan', payment.bill.feeType?.name || '-'],
+    ['Nominal', `Rp ${toNumber(payment.amount).toLocaleString('id-ID')}`],
+    ['Metode Pembayaran', payment.paymentMethod?.name || payment.channel],
+    ['Tanggal Bayar', paidDate.toLocaleString('id-ID')],
+    ['Status', statusLabel],
+  ];
+
+  if (payment.orderId) rows.push(['Order ID', payment.orderId]);
+  if (payment.transactionId) rows.push(['Transaction ID', payment.transactionId]);
+
+  doc.fontSize(10).fillColor('#000000');
+  rows.forEach(([label, value]) => {
+    doc.font('Helvetica-Bold').text(`${label}:`, { continued: true });
+    doc.font('Helvetica').text(` ${value}`);
+  });
+
+  const qrPayload = payment.transactionId || payment.orderId || payment.reference;
+  if (qrPayload && payment.status === 'VERIFIED') {
+    try {
+      const qrBuffer = await QRCode.toBuffer(qrPayload, { width: 120, margin: 1 });
+      doc.moveDown();
+      doc.font('Helvetica-Bold').fontSize(9).text('QR Transaksi:');
+      doc.image(qrBuffer, 50, doc.y, { width: 100 });
+      doc.moveDown(6);
+    } catch {
+      /* skip */
+    }
+  }
+
+  doc.moveDown();
+  doc.fontSize(8).fillColor('#666666').text(`Dicetak ${new Date().toLocaleString('id-ID')} — POSPAY`, { align: 'center' });
+  doc.end();
+}
+
+module.exports = {
+  isMidtransQrisMethod,
+  isMidtransTransferMethod,
+  isCashPaymentMethod,
+  sanitizeMethodForPortal,
+  createPayment,
+  createCashPayment,
+  createMidtransPayment,
+  createMidtransTransferPayment,
+  getStatus,
+  getPaymentMethods,
+  getHistory,
+  handleMidtransWebhook,
+  approvePayment,
+  rejectPayment,
+  streamInvoicePdf,
+  finalizeVerifiedPayment,
+};

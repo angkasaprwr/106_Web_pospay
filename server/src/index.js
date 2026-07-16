@@ -4,6 +4,7 @@ const { prisma } = require('./config/prisma');
 const { logger } = require('./utils/logger');
 const fcm = require('./services/fcm.service');
 const emailService = require('./services/email.service');
+const { initSocket } = require('./services/socket.service');
 const { startReminderJob, stopReminderJob } = require('./jobs/reminder.job');
 
 async function bootstrap() {
@@ -20,10 +21,18 @@ async function bootstrap() {
   fcm.init();
 
   const app = createApp();
-  const server = app.listen(env.port, () => {
-    logger.info(`POSPAY API berjalan di port ${env.port} (${env.nodeEnv})`);
+  const host = env.host || '0.0.0.0';
+  const server = app.listen(env.port, host, () => {
+    logger.info(`POSPAY API berjalan di http://${host}:${env.port} (${env.nodeEnv}) [IPv4+all interfaces]`);
+    logger.info(`Health: http://127.0.0.1:${env.port}/api/health`);
   });
 
+  server.on('error', (err) => {
+    logger.error('Gagal bind HTTP server', err.message);
+    process.exit(1);
+  });
+
+  initSocket(server);
   startReminderJob();
 
   const shutdown = async (signal) => {
