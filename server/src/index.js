@@ -22,9 +22,17 @@ async function bootstrap() {
 
   // Audit Midtrans dari dotenv (server/.env) — log prefix saja, tanpa full key
   const midtransAudit = validateMidtransStartup();
-  if (!midtransAudit.readyForQris && midtransAudit.mode === 'Sandbox') {
+  if (midtransAudit.readyForQris) {
+    logger.info('Midtrans Connected', {
+      mode: midtransAudit.mode,
+      serverKeyPrefix: midtransAudit.serverKeyPrefix,
+      clientKeyPrefix: midtransAudit.clientKeyPrefix,
+    });
+    // eslint-disable-next-line no-console
+    console.log('[Midtrans] Midtrans Connected — QRIS Sandbox ready');
+  } else if (midtransAudit.mode === 'Sandbox') {
     logger.warn(
-      'Backend belum siap menampilkan QRIS Sandbox. Isi SB-Mid-server-/SB-Mid-client- di server/.env lalu restart.',
+      'Backend belum siap menampilkan QRIS Sandbox. Isi MIDTRANS_SERVER_KEY / MIDTRANS_CLIENT_KEY di server/.env lalu restart.',
     );
   }
 

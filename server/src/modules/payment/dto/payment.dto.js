@@ -118,9 +118,11 @@ async function formatPaymentStatusResponse(payment, options = {}) {
     || payment.paymentMethod?.midtransClientKey
     || null;
   const isProduction = options.isProduction;
-  const snapToken = String(payment.qrString || '').startsWith('SNAP:')
+  const storedSnapToken = payment.snapToken || null;
+  const legacySnapFromQr = String(payment.qrString || '').startsWith('SNAP:')
     ? String(payment.qrString).slice(5)
     : null;
+  const snapToken = storedSnapToken || legacySnapFromQr;
   const sandboxLocal = String(payment.transactionId || '').startsWith('sandbox-local-')
     || isInvalidQrisSource(payment.qrString);
   const emv = isEmvQrisString(payment.qrString);
@@ -145,7 +147,7 @@ async function formatPaymentStatusResponse(payment, options = {}) {
     ? new Date(payment.expiryTime).getTime() <= Date.now()
     : false;
   if (expired) {
-    logger.info('QRIS Expiry reached', { orderId: payment.orderId, expiryTime: payment.expiryTime });
+    logger.info('Payment Expired', { orderId: payment.orderId, expiryTime: payment.expiryTime });
   }
 
   const scannable = emv && !sandboxLocal && !expired;
@@ -155,6 +157,10 @@ async function formatPaymentStatusResponse(payment, options = {}) {
   const displayStatus = expired && payment.status === 'PENDING'
     ? 'EXPIRED'
     : (midStatus === 'EXPIRED' || midStatus === 'CANCELLED' ? midStatus : statusPaid);
+
+  if (emv && qr_url) {
+    logger.info('QRIS Loaded', { orderId: payment.orderId, scannable, expired });
+  }
 
   return {
     id: payment.id,
@@ -177,12 +183,14 @@ async function formatPaymentStatusResponse(payment, options = {}) {
     qrDataUrl: qr_url,
     scannable,
     expired,
-    snap_token: null, // jangan pakai Snap token sebagai sumber QR tampilan
-    token: null,
-    snap_redirect_url: null,
-    redirect_url: emv ? null : (payment.qrUrl && String(payment.qrUrl).includes('/snap/') ? payment.qrUrl : null),
+    // snap_token disimpan untuk opsional Snap UI — QR tampilan tetap dari EMV/qr_url Midtrans
+    snap_token: snapToken,
+    token: snapToken,
+    snap_redirect_url: payment.redirectUrl || null,
+    redirect_url: payment.redirectUrl || null,
     midtrans_client_key: clientKey,
     midtrans_is_production: isProduction,
+    enabled_payments: ['qris', 'gopay', 'shopeepay', 'bank_transfer'],
     display_mode: emv ? 'qris_image' : (sandboxLocal ? 'demo' : 'none'),
     midtrans_channel_inactive: channelInactive,
     midtrans_hint: !emv
