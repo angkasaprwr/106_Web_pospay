@@ -7,9 +7,10 @@ import { Icon } from '../components/Icons';
 import ResetPasswordIllustration from '../components/login/ResetPasswordIllustration';
 import SchoolEmblem from '../components/login/SchoolEmblem';
 import PospayLogo from '../components/login/PospayLogo';
+import ThemeToggleButton from '../components/ThemeToggleButton';
 
 const inputClass =
-  'w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-10 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-pospay focus:ring-2 focus:ring-pospay/20';
+  'w-full rounded-lg border border-slate-200 bg-white py-2.5 pl-10 pr-10 text-sm text-slate-800 placeholder-slate-400 outline-none transition focus:border-pospay focus:ring-2 focus:ring-pospay/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500';
 
 export default function ResetPassword() {
   const toast = useToast();
@@ -67,7 +68,7 @@ export default function ResetPassword() {
 
   if (validating) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-white">
+      <div className="flex min-h-screen items-center justify-center bg-white dark:bg-slate-950">
         <Spinner size={32} />
       </div>
     );
@@ -76,7 +77,8 @@ export default function ResetPassword() {
   if (!tokenValid) return null;
 
   return (
-    <div className="flex min-h-screen flex-col bg-white lg:flex-row">
+    <div className="flex min-h-screen flex-col bg-white dark:bg-slate-950 lg:flex-row">
+      <ThemeToggleButton />
       {/* Panel kiri — branding */}
       <div className="relative flex w-full flex-col justify-between overflow-hidden bg-pospay px-6 py-8 text-white sm:px-10 sm:py-10 lg:w-1/2 lg:px-12 lg:py-12">
         <div
@@ -109,22 +111,22 @@ export default function ResetPassword() {
       </div>
 
       {/* Panel kanan — form kata sandi baru */}
-      <div className="flex w-full flex-1 items-center justify-center bg-white px-4 py-10 sm:px-8 lg:w-1/2 lg:px-12">
+      <div className="flex w-full flex-1 items-center justify-center bg-white px-4 py-10 dark:bg-slate-950 sm:px-8 lg:w-1/2 lg:px-12">
         <div className="w-full max-w-[420px]">
-          <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-[0_8px_40px_rgba(0,71,171,0.08)] sm:p-8">
+          <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-[0_8px_40px_rgba(0,71,171,0.08)] dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20 sm:p-8">
             <div className="mb-8">
-              <h1 className="text-2xl font-extrabold text-pospay sm:text-[28px]">Lupa Kata Sandi</h1>
-              <p className="mt-1 text-sm text-slate-500">Atur kata sandi baru untuk akun bendahara Anda</p>
+              <h1 className="text-2xl font-extrabold text-pospay dark:text-blue-400 sm:text-[28px]">Lupa Kata Sandi</h1>
+              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">Atur kata sandi baru untuk akun bendahara Anda</p>
             </div>
 
             {email && (
-              <div className="mb-6 flex items-center gap-3 rounded-lg border border-pospay-100 bg-pospay-50 px-4 py-3">
+              <div className="mb-6 flex items-center gap-3 rounded-lg border border-pospay-100 bg-pospay-50 px-4 py-3 dark:border-blue-900 dark:bg-blue-950/40">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-pospay/10 text-pospay">
                   <Icon.Mail width={18} height={18} />
                 </div>
                 <div className="min-w-0">
                   <p className="text-xs text-slate-500">Email terverifikasi</p>
-                  <p className="truncate text-sm font-semibold text-slate-700">{email}</p>
+                  <p className="truncate text-sm font-semibold text-slate-700 dark:text-slate-200">{email}</p>
                 </div>
                 <Icon.Check width={18} height={18} className="shrink-0 text-emerald-500" />
               </div>
@@ -132,7 +134,7 @@ export default function ResetPassword() {
 
             <form onSubmit={submit} className="space-y-5">
               <div>
-                <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-slate-700">
+                <label htmlFor="password" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   Kata Sandi Baru
                 </label>
                 <div className="relative">
@@ -163,7 +165,7 @@ export default function ResetPassword() {
               </div>
 
               <div>
-                <label htmlFor="confirm" className="mb-1.5 block text-sm font-medium text-slate-700">
+                <label htmlFor="confirm" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
                   Konfirmasi Kata Sandi Baru
                 </label>
                 <div className="relative">
@@ -206,12 +208,12 @@ export default function ResetPassword() {
             </form>
 
             <div className="my-6 flex items-center gap-3">
-              <div className="h-px flex-1 bg-slate-200" />
+              <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
               <span className="text-xs text-slate-400">atau</span>
-              <div className="h-px flex-1 bg-slate-200" />
+              <div className="h-px flex-1 bg-slate-200 dark:bg-slate-700" />
             </div>
 
-            <p className="text-center text-sm text-slate-500">
+            <p className="text-center text-sm text-slate-500 dark:text-slate-400">
               Sudah ingat kata sandi?{' '}
               <Link to="/login" className="font-semibold text-pospay hover:underline">
                 masuk
@@ -219,7 +221,7 @@ export default function ResetPassword() {
             </p>
           </div>
 
-          <div className="mt-6 border-t border-slate-100 pt-5 text-center">
+          <div className="mt-6 border-t border-slate-100 pt-5 dark:border-slate-800 text-center">
             <div className="flex items-center justify-center gap-2 text-xs text-slate-400">
               <Icon.Shield width={14} height={14} className="text-pospay/70" />
               <span>Tautan reset diverifikasi melalui Gmail sekolah</span>

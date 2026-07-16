@@ -118,15 +118,15 @@ export default function LaporanTunggakanTab() {
 
   return (
     <div className="space-y-6">
-      <div className="rounded-xl border border-slate-100 bg-white p-5 shadow-sm">
+      <div className="rounded-xl border border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-900 p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div className="flex-1">
-            <h2 className="text-base font-semibold text-slate-900">Filter</h2>
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white dark:text-white">Filter</h2>
             <div className="mt-3 flex flex-wrap items-end gap-2">
               <div>
                 <label className="mb-1 block text-xs text-slate-500">Jenis Laporan</label>
                 <select
-                  className="min-w-[140px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-pospay"
+                  className="min-w-[140px] rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800 px-3 py-2 text-sm outline-none focus:border-pospay"
                   value={filters.reportType}
                   onChange={(e) => setFilters({ ...filters, reportType: e.target.value })}
                 >
@@ -137,7 +137,7 @@ export default function LaporanTunggakanTab() {
               <div>
                 <label className="mb-1 block text-xs text-slate-500">Periode</label>
                 <select
-                  className="min-w-[120px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-pospay"
+                  className="min-w-[120px] rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800 px-3 py-2 text-sm outline-none focus:border-pospay"
                   value={filters.period}
                   onChange={(e) => {
                     const period = e.target.value;
@@ -157,7 +157,7 @@ export default function LaporanTunggakanTab() {
                 <div>
                   <label className="mb-1 block text-xs text-slate-500">Bulan</label>
                   <select
-                    className="min-w-[120px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-pospay"
+                    className="min-w-[120px] rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800 px-3 py-2 text-sm outline-none focus:border-pospay"
                     value={filters.month}
                     onChange={(e) => setFilters({ ...filters, month: Number(e.target.value) })}
                   >
@@ -170,7 +170,7 @@ export default function LaporanTunggakanTab() {
               <div>
                 <label className="mb-1 block text-xs text-slate-500">Tahun</label>
                 <select
-                  className="min-w-[100px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-pospay"
+                  className="min-w-[100px] rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-800 px-3 py-2 text-sm outline-none focus:border-pospay"
                   value={filters.year}
                   onChange={(e) => setFilters({ ...filters, year: Number(e.target.value) })}
                 >
@@ -195,7 +195,7 @@ export default function LaporanTunggakanTab() {
             <button
               type="button"
               onClick={() => setExportOpen((v) => !v)}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
               Export
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -203,7 +203,7 @@ export default function LaporanTunggakanTab() {
               </svg>
             </button>
             {exportOpen && (
-              <div className="absolute right-0 z-10 mt-1 w-40 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+              <div className="absolute right-0 z-10 mt-1 w-40 overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-800 py-1 shadow-lg">
                 <button
                   type="button"
                   onClick={() => exportReport('pdf')}
@@ -300,9 +300,9 @@ export default function LaporanTunggakanTab() {
             </div>
           )}
 
-          <div className="rounded-xl border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-100 p-5">
-              <h3 className="font-semibold text-slate-900">
+          <div className="rounded-xl border border-slate-100 bg-white dark:border-slate-800 dark:bg-slate-900 shadow-sm">
+            <div className="border-b border-slate-100 dark:border-slate-800 p-5">
+              <h3 className="font-semibold text-slate-900 dark:text-white dark:text-white">
                 {isTunggakan ? 'Daftar Siswa Menunggak' : 'Daftar Dispensasi Siswa'}
               </h3>
             </div>
@@ -319,7 +319,7 @@ export default function LaporanTunggakanTab() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50/80 text-left text-slate-500">
+                    <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 text-left text-slate-500">
                       <th className="px-4 py-3 font-medium">No</th>
                       <th className="px-4 py-3 font-medium">NIS</th>
                       <th className="px-4 py-3 font-medium">Nama Siswa</th>
@@ -334,7 +334,7 @@ export default function LaporanTunggakanTab() {
                   </thead>
                   <tbody>
                     {paginatedRows.map((r, i) => (
-                      <tr key={r.studentId} className="border-b border-slate-50 hover:bg-slate-50/50">
+                      <tr key={r.studentId} className="border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50/50">
                         <td className="px-4 py-3 text-slate-500">{(page - 1) * limit + i + 1}</td>
                         <td className="px-4 py-3 font-medium text-slate-800">{r.nis}</td>
                         <td className="px-4 py-3">{r.fullName}</td>
@@ -363,7 +363,7 @@ export default function LaporanTunggakanTab() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-slate-100 bg-slate-50/80 text-left text-slate-500">
+                    <tr className="border-b border-slate-100 dark:border-slate-800 bg-slate-50/80 text-left text-slate-500">
                       <th className="px-4 py-3 font-medium">No</th>
                       <th className="px-4 py-3 font-medium">NIS</th>
                       <th className="px-4 py-3 font-medium">Nama Siswa</th>
@@ -380,7 +380,7 @@ export default function LaporanTunggakanTab() {
                     {paginatedRows.map((r, i) => {
                       const st = dispensationStatusBadge(r.status);
                       return (
-                        <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50/50">
+                        <tr key={r.id} className="border-b border-slate-50 dark:border-slate-800 hover:bg-slate-50/50">
                           <td className="px-4 py-3 text-slate-500">{(page - 1) * limit + i + 1}</td>
                           <td className="px-4 py-3 font-medium text-slate-800">{r.nis}</td>
                           <td className="px-4 py-3">{r.fullName}</td>
