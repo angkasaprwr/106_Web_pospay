@@ -14,5 +14,6 @@ router.get('/', validate({ query: listDispensationSchema }), controller.list);
 router.post('/', attachmentUpload.single('attachment'), validate({ body: createDispensationSchema }), controller.create);
 router.get('/:id', controller.detail);
 router.post('/:id/review', validate({ body: reviewSchema }), controller.review);
+router.delete('/:id', controller.remove);
 
 module.exports = router;

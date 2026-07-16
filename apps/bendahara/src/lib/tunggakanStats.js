@@ -17,9 +17,9 @@ function buildArrearsMap(bills) {
 
 export async function fetchTunggakanStats() {
   const [billsRes, pendingRes, approvedRes] = await Promise.all([
-    api.get('/bills?limit=100'),
+    api.get('/bills?limit=1000'),
     api.get('/dispensations?status=PENDING&limit=1&page=1'),
-    api.get('/dispensations?status=APPROVED&limit=100'),
+    api.get('/dispensations?status=APPROVED&limit=1000'),
   ]);
   const arrears = buildArrearsMap(billsRes.data.data);
   const studentIds = Object.keys(arrears);
