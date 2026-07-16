@@ -27,6 +27,7 @@ const {
   isEmvQrisString,
 } = require('./dto/payment.dto');
 const { emitPaymentUpdated, emitCatalogChanged } = require('../../services/socket.service');
+const { logger } = require('../../utils/logger');
 
 function drawPospayLogo(doc, x, y, size = 40) {
   doc.save();
@@ -160,6 +161,11 @@ async function createMidtransPayment(input, actor, req) {
 
   const keys = midtransGateway.resolveKeys(method);
 
+  // Sandbox wajib untuk QRIS scannable — key Production (Mid-server-) → "No payment channels"
+  if (env.midtrans.isProduction === false) {
+    midtransGateway.assertSandboxConfigured(method);
+  }
+
   // Jika sudah ada transaksi QRIS Midtrans pending, kembalikan QR yang sama
   // kecuali pending lama adalah demo lokal / Snap tanpa kanal — regenerate jika key Midtrans sudah valid.
   const existingPending = await paymentRepository.findPendingByBillId(bill.id);
@@ -171,7 +177,7 @@ async function createMidtransPayment(input, actor, req) {
       && (full.paymentMethodId === method.id || full.channel === 'QRIS')
     ) {
       const wasLocal = String(full.transactionId || '').startsWith('sandbox-local-')
-        || !isEmvQrisString(full.qrString);
+        || (!isEmvQrisString(full.qrString) && !String(full.qrString || '').startsWith('SNAP:'));
       const snapTokExisting = String(full.qrString || '').startsWith('SNAP:')
         ? String(full.qrString).slice(5)
         : null;
@@ -181,9 +187,12 @@ async function createMidtransPayment(input, actor, req) {
         const probed = await midtransGateway.probeSnapEnabledPayments(snapTokExisting, keysProbe.isProduction);
         snapChannelsEmpty = probed.enabledPayments.length === 0;
       }
-      const canUpgrade = (wasLocal || snapChannelsEmpty) && midtransGateway.hasValidMidtransKeys(keys);
+      const hasEmv = isEmvQrisString(full.qrString);
+      const canUpgrade = (wasLocal || snapChannelsEmpty || (!hasEmv && !snapTokExisting))
+        && midtransGateway.hasValidMidtransKeys(keys)
+        && midtransGateway.isSandboxKeyPair(keys);
 
-      if (!canUpgrade) {
+      if (!canUpgrade && (hasEmv || (snapTokExisting && !snapChannelsEmpty))) {
         const snapTok = snapTokExisting;
         const qr_url = snapTok
           ? null
@@ -203,12 +212,19 @@ async function createMidtransPayment(input, actor, req) {
             invoice_no: bill.invoiceNo,
             school_account: schoolAccount,
             sandbox_local: sandboxLocal,
-            scannable: Boolean(snapTok) || (isEmvQrisString(full.qrString) && !sandboxLocal),
-            snap_token: snapTok,
-            snap_redirect_url: snapTok ? full.qrUrl : null,
+            scannable: hasEmv || Boolean(snapTok && !snapChannelsEmpty),
+            snap_token: snapChannelsEmpty ? null : snapTok,
+            token: snapChannelsEmpty ? null : snapTok,
+            snap_redirect_url: snapTok && !snapChannelsEmpty ? full.qrUrl : null,
+            redirect_url: snapTok && !snapChannelsEmpty ? full.qrUrl : null,
             midtrans_client_key: keys.clientKey,
             midtrans_is_production: keys.isProduction,
-            display_mode: snapTok ? 'snap_embed' : (sandboxLocal ? 'demo' : 'qris_image'),
+            midtrans_channel_inactive: snapChannelsEmpty,
+            midtrans_hint: snapChannelsEmpty
+              ? 'Kanal Midtrans kosong. Gunakan key Sandbox SB-Mid-… dan aktifkan QRIS di MAP Sandbox.'
+              : null,
+            display_mode: snapTok && !snapChannelsEmpty ? 'snap_embed' : (sandboxLocal ? 'demo' : 'qris_image'),
+            transaction_status: full.midtransStatus || 'pending',
           };
         }
         throw ApiError.badRequest('Tagihan ini masih memiliki pembayaran yang menunggu proses');
@@ -385,13 +401,42 @@ async function createMidtransPayment(input, actor, req) {
         }
 
         if (!charge) {
+          // Jangan kirim Snap kosong ke frontend (tampil "No payment channels available")
+          if (channelInactive && snapPayload) {
+            await prisma.payment.delete({ where: { id: payment.id } }).catch(() => {});
+            const probeHint = snapPayload.probeRaw
+              ? ` Probe enabled_payments=${JSON.stringify(snapPayload.enabledPayments || [])}.`
+              : '';
+            const err = ApiError.badRequest(
+              `Midtrans tidak menyediakan kanal pembayaran (QRIS/GoPay kosong).${probeHint} `
+              + 'Gunakan key Sandbox SB-Mid-server-/SB-Mid-client- dari dashboard.sandbox.midtrans.com, '
+              + 'set MIDTRANS_IS_PRODUCTION=false di server/.env, aktifkan QRIS/GoPay di MAP Sandbox, '
+              + 'lalu restart API. Settlement ke BNI 6513009817 – PAPK SMP PUSPONEGORO BREBES.',
+            );
+            err.code = 'MIDTRANS_CHANNEL_INACTIVE';
+            throw err;
+          }
           charge = buildSnapCharge(snapPayload, coreErr, channelInactive);
         }
       } catch (snapErr) {
+        // Jangan fallback demo lokal untuk kanal kosong / error Midtrans yang jelas
+        if (snapErr?.code === 'MIDTRANS_CHANNEL_INACTIVE' || snapErr?.statusCode === 400) {
+          if (snapErr.code === 'MIDTRANS_CHANNEL_INACTIVE' || /kanal|channel|SB-Mid|Sandbox/i.test(String(snapErr.message || ''))) {
+            await prisma.payment.delete({ where: { id: payment.id } }).catch(() => {});
+            throw snapErr;
+          }
+        }
         if (!env.midtrans.sandboxFallback) {
           await prisma.payment.delete({ where: { id: payment.id } }).catch(() => {});
           throw ApiError.badRequest(
             `Gagal membuat QRIS Midtrans: ${coreErr.message || snapErr.message}. Aktifkan kanal QRIS/GoPay di dashboard Midtrans Sandbox, atau isi MIDTRANS_SANDBOX_SERVER_KEY (SB-Mid-…).`,
+          );
+        }
+        // Fallback demo hanya jika key benar-benar tidak valid / placeholder
+        if (midtransGateway.hasValidMidtransKeys(keys)) {
+          await prisma.payment.delete({ where: { id: payment.id } }).catch(() => {});
+          throw ApiError.badRequest(
+            `Gagal membuat QRIS Midtrans: ${coreErr.message || snapErr.message}. Pastikan QRIS aktif di MAP Sandbox dan key SB-Mid- benar.`,
           );
         }
         sandboxLocal = true;
@@ -632,7 +677,10 @@ async function createPayment(input, actor, req) {
 }
 
 async function getStatus(invoiceRef, actor) {
-  const payment = await paymentRepository.findPaymentByInvoiceRef(invoiceRef);
+  let payment = await paymentRepository.findPaymentByInvoiceRef(invoiceRef);
+  if (!payment) {
+    payment = await paymentRepository.findPaymentByOrderId(invoiceRef);
+  }
   if (!payment) throw ApiError.notFound('Pembayaran tidak ditemukan');
 
   if (actor.role === 'SISWA') {
@@ -820,15 +868,18 @@ async function handleMidtransWebhook(payload) {
   }
 
   if (['deny', 'cancel', 'expire', 'failure'].includes(transactionStatus)) {
+    const statusLabel = transactionStatus === 'expire'
+      ? 'EXPIRED'
+      : (transactionStatus === 'cancel' ? 'CANCELLED' : transactionStatus.toUpperCase());
     const rejected = await paymentRepository.updatePaymentWithHistory(
       payment.id,
       {
         status: 'REJECTED',
-        midtransStatus: transactionStatus,
+        midtransStatus: statusLabel,
         fraudStatus,
-        rejectionReason: `Midtrans: ${transactionStatus}`,
+        rejectionReason: `Midtrans: ${statusLabel}`,
       },
-      { note: `Pembayaran gagal: ${transactionStatus}`, metadata: payload },
+      { note: `Pembayaran gagal: ${statusLabel}`, metadata: payload },
     );
 
     if (payment.bill?.student?.userId) {

@@ -173,7 +173,7 @@ export default function BillConfirm() {
         vaNumber: payment.qr_string || payment.va_number || null,
         bank: payment.payment_method?.merchantName || payment.payment_method?.name || payment.paymentMethod?.name || null,
       });
-      if (payment.status === 'VERIFIED') {
+      if (payment.status === 'VERIFIED' || payment.payment_status === 'PAID' || payment.bill?.status === 'PAID') {
         finishSuccess(payment);
       }
       return payment;
@@ -182,7 +182,7 @@ export default function BillConfirm() {
     }
   }, [finishSuccess]);
 
-  // Socket.IO realtime (sekali, tanpa polling interval)
+  // Socket.IO realtime + polling status setiap 5 detik (PAID → redirect berhasil)
   useSocket({
     'payment:updated': (payload) => {
       if (!payload?.id || !paymentId || payload.id !== paymentId) return;
@@ -196,6 +196,17 @@ export default function BillConfirm() {
       checkPaymentStatus(payload.id);
     },
   });
+
+  useEffect(() => {
+    if (!paymentId || !awaitingCashless) return undefined;
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(() => {
+      checkPaymentStatus(paymentId);
+    }, 5000);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [paymentId, awaitingCashless, checkPaymentStatus]);
 
   const initCashPayment = useCallback(async (saved, billData, methodData, amount) => {
     let pid = saved.paymentId;
@@ -256,8 +267,14 @@ export default function BillConfirm() {
       } else {
         paymentData = await checkPaymentStatus(pid);
         const hasSnap = Boolean(paymentData?.snap_token) || String(paymentData?.qr_string || '').startsWith('SNAP:');
-        const hasQr = Boolean(paymentData?.qr_url || paymentData?.qrDataUrl || paymentData?.qr_string || hasSnap);
-        if (!paymentData || paymentData.status === 'REJECTED' || (!hasQr && isMidtransQrisMethod(methodData))) {
+        const hasEmv = String(paymentData?.qr_string || '').startsWith('000201');
+        const hasQr = Boolean(paymentData?.qr_url || paymentData?.qrDataUrl || hasEmv || (hasSnap && !paymentData?.midtrans_channel_inactive));
+        const needRegen = !paymentData
+          || paymentData.status === 'REJECTED'
+          || paymentData.midtrans_channel_inactive
+          || paymentData.sandbox_local
+          || (!hasQr && isMidtransQrisMethod(methodData));
+        if (needRegen) {
           paymentData = await createFresh();
           pid = paymentData.id;
           const nextDraft = { ...saved, paymentId: pid };
@@ -307,15 +324,27 @@ export default function BillConfirm() {
 
       if (isMidtransQrisMethod(methodData) && !qr && !nextSnapToken) {
         setQrError('Kode QR belum tersedia. Silakan buat QR ulang.');
+      } else if (paymentData.midtrans_channel_inactive) {
+        setQrError(paymentData.midtrans_hint || 'Kanal Midtrans kosong. Gunakan key Sandbox SB-Mid-…');
+        setChannelInactive(true);
       } else {
         setQrError('');
       }
 
       await checkPaymentStatus(pid);
+    } catch (e) {
+      const msg = apiError(e) || 'Gagal membuat transaksi QRIS Midtrans';
+      setQrError(msg);
+      setMidtransHint(msg);
+      setChannelInactive(true);
+      setSnapToken('');
+      setSnapRedirectUrl('');
+      setQrDataUrl('');
+      toast.error(msg);
     } finally {
       initMidtransInFlight.current = false;
     }
-  }, [note, checkPaymentStatus]);
+  }, [note, checkPaymentStatus, toast]);
 
   const initLegacyCashlessPayment = useCallback(async (saved, billData, methodData, amount) => {
     let pid = saved.paymentId;
@@ -837,12 +866,23 @@ export default function BillConfirm() {
                       alt="QRIS Midtrans scannable"
                       className="mx-auto h-64 w-64 rounded-xl border border-slate-200 bg-white p-2 dark:border-slate-600"
                     />
+                    <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{formatIDR(amount)}</p>
+                    {countdown && (
+                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">Berlaku: {countdown}</p>
+                    )}
                     <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-left text-[11px] leading-relaxed text-sky-900 dark:border-sky-900/50 dark:bg-sky-950/40 dark:text-sky-200">
                       Scan kode QR ini dengan <strong>GoPay, Dana, ShopeePay, SeaBank, OVO, Livin, BRImo, BNI Mobile, BCA, Mandiri</strong> atau bank lain yang mendukung QRIS Tap.
                       Dana masuk <strong>BNI 6513009817 – PAPK SMP PUSPONEGORO BREBES</strong>.
                     </div>
+                    <button
+                      type="button"
+                      className="text-xs font-semibold text-[#0056D2] underline dark:text-blue-400"
+                      onClick={() => paymentId && checkPaymentStatus(paymentId)}
+                    >
+                      Refresh status pembayaran
+                    </button>
                   </div>
-                ) : midtrans && snapToken ? (
+                ) : midtrans && snapToken && !channelInactive ? (
                   <div className="w-full space-y-3 text-center">
                     <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-4 dark:border-sky-900/50 dark:bg-sky-950/40">
                       <p className="text-sm font-semibold text-sky-900 dark:text-sky-100">Scan QRIS Midtrans</p>
@@ -925,6 +965,33 @@ export default function BillConfirm() {
                         </a>
                       )}
                     </div>
+                  </div>
+                ) : midtrans && (channelInactive || qrError) ? (
+                  <div className="mt-3 w-full rounded-xl border border-amber-200 bg-amber-50 px-4 py-4 text-left text-[11px] leading-relaxed text-amber-900 dark:border-amber-900/50 dark:bg-amber-950/40 dark:text-amber-200">
+                    <p className="text-sm font-semibold">QRIS belum bisa ditampilkan</p>
+                    <p className="mt-2">
+                      {qrError || midtransHint || 'Kanal Midtrans kosong (No payment channels). Isi key Sandbox SB-Mid-… di server/.env, set MIDTRANS_IS_PRODUCTION=false, aktifkan QRIS di dashboard.sandbox.midtrans.com, lalu buat QR ulang.'}
+                    </p>
+                    <button
+                      type="button"
+                      className="mt-3 rounded-lg bg-amber-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-amber-800"
+                      onClick={() => {
+                        const saved = loadBillPaymentDraft();
+                        if (saved) {
+                          const cleared = { ...saved };
+                          delete cleared.paymentId;
+                          saveBillPaymentDraft(cleared);
+                        }
+                        setSnapToken('');
+                        setSnapRedirectUrl('');
+                        setChannelInactive(false);
+                        setQrError('');
+                        setMidtransHint('');
+                        load();
+                      }}
+                    >
+                      Buat QR ulang
+                    </button>
                   </div>
                 ) : !midtransTransfer && qrDataUrl ? (
                   <img

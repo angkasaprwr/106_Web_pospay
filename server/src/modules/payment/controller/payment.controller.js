@@ -28,6 +28,16 @@ const status = asyncHandler(async (req, res) => {
   return ok(res, data, 'Status pembayaran');
 });
 
+const statusByOrder = asyncHandler(async (req, res) => {
+  const data = await paymentService.getStatus(req.params.orderId, req.user);
+  return ok(res, data, 'Status pembayaran');
+});
+
+const detail = asyncHandler(async (req, res) => {
+  const data = await paymentService.getStatus(req.params.id, req.user);
+  return ok(res, data, 'Detail pembayaran');
+});
+
 const history = asyncHandler(async (req, res) => {
   const { items, total, page, limit } = await paymentService.getHistory(req.user, req.query);
   return ok(res, items, 'Riwayat pembayaran', { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) });
@@ -69,16 +79,19 @@ const invoice = asyncHandler(async (req, res) => {
 });
 
 const midtransStatus = asyncHandler(async (req, res) => {
-  const keysOk = Boolean(
-    String(require('../../../config/env').env.midtrans.serverKey || '').trim()
-    && String(require('../../../config/env').env.midtrans.clientKey || '').trim(),
-  );
+  const { env } = require('../../../config/env');
+  const midtransGateway = require('../gateway/midtrans.gateway');
   const method = await require('../../../config/prisma').prisma.paymentMethod.findFirst({
     where: { channel: 'QRIS', isActive: true },
   });
+  const keys = midtransGateway.resolveKeys(method || {});
+  const sandboxReady = midtransGateway.isSandboxKeyPair(keys);
   return ok(res, {
-    configured: keysOk || Boolean(method?.midtransServerKey && method?.midtransClientKey),
-    isProduction: require('../../../config/env').env.midtrans.isProduction,
+    configured: midtransGateway.hasValidMidtransKeys(keys),
+    sandbox_ready: sandboxReady,
+    isProduction: keys.isProduction,
+    env_is_production: env.midtrans.isProduction,
+    key_prefix: keys.serverKey ? keys.serverKey.slice(0, 14) : null,
     school_account: {
       bank: 'BNI',
       accountNo: method?.accountNo || '6513009817',
@@ -86,6 +99,9 @@ const midtransStatus = asyncHandler(async (req, res) => {
     },
     simulator_url: 'https://simulator.sandbox.midtrans.com/openapi/qris/index',
     dashboard_keys_url: 'https://dashboard.sandbox.midtrans.com/settings/config_info',
+    hint: sandboxReady
+      ? 'Key Sandbox OK — buat pembayaran QRIS untuk generate EMV QR scannable.'
+      : 'Isi SB-Mid-server-/SB-Mid-client- di server/.env (MIDTRANS_IS_PRODUCTION=false). Key Mid-server- Production menyebabkan No payment channels available.',
   }, 'Status konfigurasi Midtrans');
 });
 
@@ -103,6 +119,8 @@ module.exports = {
   createCash,
   webhook,
   status,
+  statusByOrder,
+  detail,
   history,
   methods,
   approve,

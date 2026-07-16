@@ -114,6 +114,8 @@ async function formatPaymentStatusResponse(payment, options = {}) {
   const scannable = (!channelInactive && Boolean(snapToken))
     || (isEmvQrisString(payment.qrString) && !sandboxLocal);
 
+  const statusPaid = payment.status === 'VERIFIED' ? 'PAID' : payment.status;
+
   return {
     id: payment.id,
     invoice_id: payment.bill.id,
@@ -122,18 +124,25 @@ async function formatPaymentStatusResponse(payment, options = {}) {
     order_id: payment.orderId,
     transaction_id: payment.transactionId,
     status: payment.status,
+    /** Alias LUNAS untuk frontend polling (VERIFIED → PAID) */
+    payment_status: statusPaid,
+    transaction_status: payment.midtransStatus || (payment.status === 'VERIFIED' ? 'settlement' : 'pending'),
     midtrans_status: payment.midtransStatus,
     amount: toNumber(payment.amount),
+    gross_amount: toNumber(payment.amount),
     channel: payment.channel,
+    payment_method_label: method?.name || payment.channel,
     qr_string: payment.qrString,
     qr_url: qr_url || payment.qrUrl,
     qrDataUrl: qr_url,
     scannable,
-    snap_token: snapToken,
-    snap_redirect_url: snapToken ? (payment.qrUrl || null) : null,
+    snap_token: channelInactive ? null : snapToken,
+    token: channelInactive ? null : snapToken,
+    snap_redirect_url: snapToken && !channelInactive ? (payment.qrUrl || null) : null,
+    redirect_url: snapToken && !channelInactive ? (payment.qrUrl || null) : null,
     midtrans_client_key: clientKey,
     midtrans_is_production: isProduction,
-    display_mode: snapToken ? 'snap_embed' : (sandboxLocal ? 'demo' : 'qris_image'),
+    display_mode: snapToken && !channelInactive ? 'snap_embed' : (sandboxLocal ? 'demo' : 'qris_image'),
     midtrans_channel_inactive: channelInactive,
     midtrans_hint: channelInactive
       ? 'Kanal QRIS/GoPay belum aktif di Midtrans (enabled_payments kosong). Isi key Sandbox SB-Mid-… atau aktifkan QRIS di MAP.'

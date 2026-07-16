@@ -10,11 +10,7 @@ const DEFAULT_SNAP_ENABLED_PAYMENTS = [
   'qris',
   'gopay',
   'shopeepay',
-  'bni_va',
-  'bca_va',
-  'bri_va',
-  'other_va',
-  'echannel',
+  'bank_transfer',
 ];
 
 function resolveKeys(method) {
@@ -25,42 +21,65 @@ function resolveKeys(method) {
   const sbSk = String(env.midtrans.sandboxServerKey || '').trim();
   const sbCk = String(env.midtrans.sandboxClientKey || '').trim();
 
-  // Preferensi Sandbox: method SB- → env SB- → MIDTRANS_SANDBOX_* → method/env primary
+  const hasSandboxPair = hasValidMidtransKeys({ serverKey: sbSk, clientKey: sbCk });
+  const methodIsSb = /^SB-Mid-server-/.test(methodSk);
+  const envIsSb = /^SB-Mid-server-/.test(envSk);
+
   let serverKey = methodSk || envSk;
   let clientKey = methodCk || envCk;
 
-  const methodIsSb = /^SB-Mid-server-/.test(methodSk);
-  const envIsSb = /^SB-Mid-server-/.test(envSk);
-  const hasSandboxPair = hasValidMidtransKeys({ serverKey: sbSk, clientKey: sbCk });
-
-  // Jika primary Production tetapi Sandbox tersedia & preferSandbox, pakai Sandbox
-  const primaryIsProd = /^Mid-server-/.test(serverKey);
-  if (!methodIsSb && !envIsSb && primaryIsProd && hasSandboxPair && env.midtrans.preferSandbox !== false) {
-    serverKey = sbSk;
-    clientKey = sbCk;
-    logger.info('Midtrans: memakai MIDTRANS_SANDBOX_* (preferensi Sandbox)');
+  // Target: Midtrans Snap Sandbox — utamakan SB-Mid-*
+  if (env.midtrans.isProduction === false || env.midtrans.preferSandbox !== false) {
+    if (methodIsSb) {
+      serverKey = methodSk;
+      clientKey = methodCk || sbCk || envCk;
+    } else if (envIsSb) {
+      serverKey = envSk;
+      clientKey = envCk;
+    } else if (hasSandboxPair) {
+      serverKey = sbSk;
+      clientKey = sbCk;
+      logger.info('Midtrans: memakai MIDTRANS_SANDBOX_* (Sandbox wajib)');
+    }
   } else if (methodIsSb) {
     serverKey = methodSk;
     clientKey = methodCk || sbCk || envCk;
-  } else if (envIsSb) {
-    serverKey = envSk;
-    clientKey = envCk;
-  } else if (hasSandboxPair && !primaryIsProd) {
+  } else if (hasSandboxPair && /^Mid-server-/.test(serverKey)) {
     serverKey = sbSk;
     clientKey = sbCk;
   }
 
-  let isProduction = method?.productionMode ?? env.midtrans.isProduction;
+  let isProduction = false;
   if (/^Mid-server-/.test(serverKey)) isProduction = true;
   if (/^SB-Mid-server-/.test(serverKey)) isProduction = false;
+  // Paksa Sandbox jika flag env false
+  if (env.midtrans.isProduction === false && /^SB-Mid-server-/.test(serverKey)) {
+    isProduction = false;
+  }
 
-  if (isProduction && env.midtrans.isProduction === false) {
+  if (env.midtrans.isProduction === false && /^Mid-server-/.test(serverKey)) {
     logger.warn(
-      'MIDTRANS_IS_PRODUCTION=false tetapi Server Key berawalan Mid-server- (Production). Ganti ke SB-Mid-server-… untuk Sandbox.',
+      'MIDTRANS_IS_PRODUCTION=false tetapi key masih Mid-server- (Production). QRIS akan gagal (No payment channels). Isi SB-Mid-server-/SB-Mid-client- di server/.env.',
     );
   }
 
   return { serverKey, clientKey, isProduction };
+}
+
+/** True jika key siap untuk Sandbox QRIS (SB-Mid-). */
+function isSandboxKeyPair(keys) {
+  return /^SB-Mid-server-/.test(String(keys?.serverKey || ''))
+    && (!keys?.clientKey || /^SB-Mid-client-/.test(String(keys.clientKey || '')));
+}
+
+function assertSandboxConfigured(method) {
+  const keys = resolveKeys(method);
+  if (env.midtrans.isProduction === false && !isSandboxKeyPair(keys)) {
+    throw ApiError.badRequest(
+      'QRIS Sandbox belum dikonfigurasi. Isi MIDTRANS_SERVER_KEY=SB-Mid-server-… dan MIDTRANS_CLIENT_KEY=SB-Mid-client-… di server/.env (dari dashboard.sandbox.midtrans.com), set MIDTRANS_IS_PRODUCTION=false, lalu restart. Key Production (Mid-server-) menyebabkan "No payment channels available".',
+    );
+  }
+  return keys;
 }
 
 function hasValidMidtransKeys(keys) {
@@ -399,6 +418,8 @@ module.exports = {
   verifySignature,
   resolveKeys,
   hasValidMidtransKeys,
+  isSandboxKeyPair,
+  assertSandboxConfigured,
   isSettlementStatus,
   DEFAULT_SNAP_ENABLED_PAYMENTS,
 };
