@@ -217,10 +217,17 @@ export default function StatusPembayaranTab() {
       }
     }
   }, [tagihanGroups, filters.tagihanKey]);
-  const filteredItems = useMemo(
-    () => filterByStatus(allItems, filters.statusFilter, pendingBillIds),
-    [allItems, filters.statusFilter, pendingBillIds],
-  );
+  const filteredItems = useMemo(() => {
+    // Fallback: jika filter "Semua" dan allItems kosong tapi summary sudah terisi dari DB
+    const source = (
+      allItems.length === 0
+      && !filters.tagihanKey
+      && !filters.classId
+      && !filters.search?.trim()
+      && summaryItems.length > 0
+    ) ? summaryItems : allItems;
+    return filterByStatus(source, filters.statusFilter, pendingBillIds);
+  }, [allItems, summaryItems, filters.statusFilter, filters.tagihanKey, filters.classId, filters.search, pendingBillIds]);
 
   useEffect(() => {
     const { items, meta: m } = paginateRows(filteredItems, filters.page, filters.limit);
