@@ -161,7 +161,7 @@ async function createMidtransPayment(input, actor, req) {
   const keys = midtransGateway.resolveKeys(method);
 
   // Jika sudah ada transaksi QRIS Midtrans pending, kembalikan QR yang sama
-  // kecuali pending lama adalah demo lokal — regenerate jika key Midtrans sudah valid.
+  // kecuali pending lama adalah demo lokal / Snap tanpa kanal — regenerate jika key Midtrans sudah valid.
   const existingPending = await paymentRepository.findPendingByBillId(bill.id);
   if (existingPending) {
     const full = await paymentRepository.findPaymentByInvoiceRef(existingPending.id);
@@ -172,12 +172,19 @@ async function createMidtransPayment(input, actor, req) {
     ) {
       const wasLocal = String(full.transactionId || '').startsWith('sandbox-local-')
         || !isEmvQrisString(full.qrString);
-      const canUpgrade = wasLocal && midtransGateway.hasValidMidtransKeys(keys);
+      const snapTokExisting = String(full.qrString || '').startsWith('SNAP:')
+        ? String(full.qrString).slice(5)
+        : null;
+      let snapChannelsEmpty = false;
+      if (snapTokExisting) {
+        const keysProbe = midtransGateway.resolveKeys(method);
+        const probed = await midtransGateway.probeSnapEnabledPayments(snapTokExisting, keysProbe.isProduction);
+        snapChannelsEmpty = probed.enabledPayments.length === 0;
+      }
+      const canUpgrade = (wasLocal || snapChannelsEmpty) && midtransGateway.hasValidMidtransKeys(keys);
 
       if (!canUpgrade) {
-        const snapTok = String(full.qrString || '').startsWith('SNAP:')
-          ? String(full.qrString).slice(5)
-          : null;
+        const snapTok = snapTokExisting;
         const qr_url = snapTok
           ? null
           : await resolveQrDisplayUrl(full.qrUrl, full.qrString, { serverKey: keys.serverKey });
@@ -206,10 +213,10 @@ async function createMidtransPayment(input, actor, req) {
         }
         throw ApiError.badRequest('Tagihan ini masih memiliki pembayaran yang menunggu proses');
       }
-      // Tolak pending demo → buat charge Midtrans EMV baru
+      // Tolak pending demo / Snap tanpa kanal → buat charge Midtrans EMV/Snap baru
       await prisma.payment.update({
         where: { id: full.id },
-        data: { status: 'REJECTED', rejectionReason: 'Diganti QRIS Midtrans EMV scannable' },
+        data: { status: 'REJECTED', rejectionReason: 'Diganti QRIS Midtrans scannable' },
       });
     } else {
       throw ApiError.badRequest('Tagihan ini masih memiliki pembayaran yang menunggu proses');
@@ -291,6 +298,30 @@ async function createMidtransPayment(input, actor, req) {
     sandboxLocal = true;
     charge = await buildLocalQrisCharge('midtrans_keys_invalid_or_placeholder');
   } else {
+    const buildSnapCharge = (snapPayload, coreErr, channelInactive) => ({
+      transactionId: snapPayload.snapToken,
+      orderId,
+      grossAmount: amount,
+      qrString: `SNAP:${snapPayload.snapToken}`,
+      qrUrl: snapPayload.redirectUrl,
+      expiryTime: new Date(Date.now() + 30 * 60 * 1000),
+      midtransStatus: 'pending',
+      statusCode: '201',
+      scannable: !channelInactive,
+      channelInactive,
+      snapToken: snapPayload.snapToken,
+      snapRedirectUrl: snapPayload.redirectUrl,
+      clientKey: snapPayload.clientKey,
+      isProduction: snapPayload.isProduction,
+      raw: {
+        snap: true,
+        ...snapPayload,
+        core_error: coreErr?.message || null,
+        channel_inactive: channelInactive,
+        enabled_payments: snapPayload.enabledPayments || [],
+      },
+    });
+
     try {
       charge = await midtransGateway.chargeQris({
         orderId,
@@ -301,7 +332,7 @@ async function createMidtransPayment(input, actor, req) {
       });
     } catch (coreErr) {
       // Core API QRIS sering 402 jika kanal belum diaktifkan — fallback Snap (QRIS Tap via UI Midtrans)
-      const channelInactive = /not activated|402|channel is not|pop id is not found/i.test(
+      const channelInactiveCore = /not activated|402|channel is not|pop id is not found/i.test(
         String(coreErr.message || ''),
       );
       try {
@@ -310,32 +341,53 @@ async function createMidtransPayment(input, actor, req) {
           grossAmount: amount,
           method,
           customerDetails,
-          // Jika Core bilang kanal mati, jangan filter ketat — tampilkan semua kanal Snap yang aktif
-          enabledPayments: channelInactive ? undefined : ['qris', 'gopay', 'other_qris'],
+          enabledPayments: channelInactiveCore ? undefined : ['qris', 'gopay', 'other_qris'],
         });
-        charge = {
-          transactionId: snapPayload.snapToken,
-          orderId,
-          grossAmount: amount,
-          qrString: `SNAP:${snapPayload.snapToken}`,
-          qrUrl: snapPayload.redirectUrl,
-          expiryTime: new Date(Date.now() + 30 * 60 * 1000),
-          midtransStatus: 'pending',
-          statusCode: '201',
-          // Token Snap bisa dibuat meski kanal QRIS belum aktif; scannable hanya jika Core tidak 402
-          scannable: !channelInactive,
-          channelInactive,
-          snapToken: snapPayload.snapToken,
-          snapRedirectUrl: snapPayload.redirectUrl,
-          clientKey: snapPayload.clientKey,
-          isProduction: snapPayload.isProduction,
-          raw: { snap: true, ...snapPayload, core_error: coreErr.message, channel_inactive: channelInactive },
-        };
+        let channelInactive = Boolean(snapPayload.channelInactive) || channelInactiveCore;
+
+        // Production tanpa kanal → coba Sandbox keys (MIDTRANS_SANDBOX_*) jika tersedia
+        if (channelInactive) {
+          const sandboxMethod = midtransGateway.withSandboxKeys(method);
+          if (sandboxMethod) {
+            try {
+              const sandboxOrderId = `${orderId}-SB`;
+              try {
+                charge = await midtransGateway.chargeQris({
+                  orderId: sandboxOrderId,
+                  grossAmount: amount,
+                  method: sandboxMethod,
+                  customerDetails,
+                  itemDetails,
+                });
+                snapPayload = null;
+                channelInactive = false;
+              } catch (sandboxCoreErr) {
+                snapPayload = await midtransGateway.createSnapTransaction({
+                  orderId: sandboxOrderId,
+                  grossAmount: amount,
+                  method: sandboxMethod,
+                  customerDetails,
+                  enabledPayments: undefined,
+                });
+                channelInactive = Boolean(snapPayload.channelInactive);
+                if (!channelInactive) {
+                  charge = buildSnapCharge(snapPayload, sandboxCoreErr, false);
+                }
+              }
+            } catch {
+              /* lanjut pakai Snap production (meski kanal kosong) */
+            }
+          }
+        }
+
+        if (!charge) {
+          charge = buildSnapCharge(snapPayload, coreErr, channelInactive);
+        }
       } catch (snapErr) {
         if (!env.midtrans.sandboxFallback) {
           await prisma.payment.delete({ where: { id: payment.id } }).catch(() => {});
           throw ApiError.badRequest(
-            `Gagal membuat QRIS Midtrans: ${coreErr.message || snapErr.message}. Aktifkan kanal QRIS/GoPay di dashboard Midtrans.`,
+            `Gagal membuat QRIS Midtrans: ${coreErr.message || snapErr.message}. Aktifkan kanal QRIS/GoPay di dashboard Midtrans Sandbox/Production, atau isi MIDTRANS_SANDBOX_SERVER_KEY.`,
           );
         }
         sandboxLocal = true;
@@ -352,14 +404,22 @@ async function createMidtransPayment(input, actor, req) {
       qrUrl: charge.qrUrl,
       expiryTime: charge.expiryTime,
       midtransStatus: charge.midtransStatus,
+      ...(charge.orderId && charge.orderId !== orderId ? { orderId: charge.orderId } : {}),
     },
     {
       note: sandboxLocal
         ? 'QRIS demo lokal (belum scannable)'
         : snapPayload
-          ? 'QRIS Midtrans Snap (QRIS Tap e-wallet/bank)'
+          ? (charge.channelInactive
+            ? 'QRIS Midtrans Snap (kanal belum aktif — QR belum scannable)'
+            : 'QRIS Midtrans Snap (QRIS Tap e-wallet/bank)')
           : 'QRIS Midtrans Core (EMV scannable)',
-      metadata: { statusCode: charge.statusCode, sandboxLocal, snap: Boolean(snapPayload) },
+      metadata: {
+        statusCode: charge.statusCode,
+        sandboxLocal,
+        snap: Boolean(snapPayload),
+        channelInactive: Boolean(charge.channelInactive),
+      },
     },
   );
 
@@ -411,7 +471,7 @@ async function createMidtransPayment(input, actor, req) {
     scannable,
     midtrans_channel_inactive: channelInactive,
     midtrans_hint: channelInactive
-      ? 'Kanal QRIS/GoPay belum aktif di Midtrans MAP. Aktifkan Payment Channels (QRIS + GoPay) dan pastikan settlement ke rekening BNI 6513009817 agar kode QR bisa di-scan e-wallet/bank.'
+      ? 'Kanal QRIS/GoPay belum aktif di Midtrans (enabled_payments kosong). Isi Server/Client Key Sandbox (SB-Mid-…) di server/.env atau Pengaturan → Metode Pembayaran, lalu aktifkan QRIS di dashboard.sandbox.midtrans.com. Settlement ke BNI 6513009817 – PAPK SMP PUSPONEGORO BREBES.'
       : null,
     snap_token: snapPayload?.snapToken || null,
     snap_redirect_url: snapPayload?.redirectUrl || null,
@@ -576,6 +636,7 @@ async function getStatus(invoiceRef, actor) {
     serverKey: keys.serverKey,
     clientKey: keys.clientKey,
     isProduction: keys.isProduction,
+    probeSnap: midtransGateway.probeSnapEnabledPayments,
   });
 }
 

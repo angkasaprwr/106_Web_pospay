@@ -100,7 +100,19 @@ async function formatPaymentStatusResponse(payment, options = {}) {
     ? null
     : await resolveQrDisplayUrl(payment.qrUrl, payment.qrString, { serverKey });
   const method = sanitizeMethodForPortal(payment.paymentMethod);
-  const scannable = Boolean(snapToken) || (isEmvQrisString(payment.qrString) && !sandboxLocal);
+
+  let channelInactive = false;
+  if (snapToken && typeof options.probeSnap === 'function') {
+    try {
+      const probed = await options.probeSnap(snapToken, Boolean(isProduction));
+      channelInactive = Array.isArray(probed?.enabledPayments) && probed.enabledPayments.length === 0;
+    } catch {
+      channelInactive = false;
+    }
+  }
+
+  const scannable = (!channelInactive && Boolean(snapToken))
+    || (isEmvQrisString(payment.qrString) && !sandboxLocal);
 
   return {
     id: payment.id,
@@ -122,6 +134,10 @@ async function formatPaymentStatusResponse(payment, options = {}) {
     midtrans_client_key: clientKey,
     midtrans_is_production: isProduction,
     display_mode: snapToken ? 'snap_embed' : (sandboxLocal ? 'demo' : 'qris_image'),
+    midtrans_channel_inactive: channelInactive,
+    midtrans_hint: channelInactive
+      ? 'Kanal QRIS/GoPay belum aktif di Midtrans (enabled_payments kosong). Isi key Sandbox SB-Mid-… atau aktifkan QRIS di MAP.'
+      : null,
     expiry_time: payment.expiryTime,
     paid_at: payment.verifiedAt || payment.paidAt,
     verifiedAt: payment.verifiedAt,
