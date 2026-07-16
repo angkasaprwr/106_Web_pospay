@@ -5,6 +5,7 @@ import { Spinner, Modal, Field, EmptyState, ConfirmDialog } from '../components/
 import { Icon } from '../components/Icons';
 import { formatIDR } from '../lib/format';
 import { FeeTypeBadge } from '../components/tagihan/shared';
+import { deleteOnce } from '../lib/deleteOnce';
 
 const emptyForm = {
   code: '',
@@ -92,10 +93,13 @@ export default function FeeTypeManagementSection({ onFeeTypesChange }) {
   };
 
   const del = async () => {
+    if (!confirm?.id || saving) return;
     setSaving(true);
     try {
-      await api.delete(`/masterdata/fee-types/${confirm.id}`);
-      toast.success('Jenis tagihan dihapus');
+      await deleteOnce(`fee-type:${confirm.id}`, async () => {
+        await api.delete(`/masterdata/fee-types/${confirm.id}`);
+      });
+      toast.success('Jenis tagihan dihapus permanen');
       setConfirm(null);
       loadFeeTypes();
     } catch (e) {

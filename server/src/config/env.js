@@ -30,6 +30,8 @@ const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   isProd: process.env.NODE_ENV === 'production',
   port: parseInt(process.env.PORT || '4000', 10),
+  /** Bind semua interface agar IPv4/IPv6 & port-forward Cloud bisa menjangkau API */
+  host: process.env.HOST || '0.0.0.0',
   corsOrigins: (process.env.CORS_ORIGINS
     || 'http://127.0.0.1:5173,http://127.0.0.1:5174,http://localhost:5173,http://localhost:5174')
     .split(',')
@@ -103,8 +105,15 @@ const env = {
     serverKey: process.env.MIDTRANS_SERVER_KEY || '',
     clientKey: process.env.MIDTRANS_CLIENT_KEY || '',
     merchantId: process.env.MIDTRANS_MERCHANT_ID || '',
-    isProduction: bool(process.env.MIDTRANS_IS_PRODUCTION, false),
+    /** true hanya jika string "true" — selaras midtrans-client Snap({ isProduction }) */
+    isProduction: String(process.env.MIDTRANS_IS_PRODUCTION || '').toLowerCase() === 'true',
     callbackUrl: process.env.MIDTRANS_CALLBACK_URL || '',
+    sandboxFallback: bool(process.env.MIDTRANS_SANDBOX_FALLBACK, false),
+    /** Opsional: jika Production tanpa kanal QRIS, charge ulang pakai Sandbox */
+    sandboxServerKey: process.env.MIDTRANS_SANDBOX_SERVER_KEY || '',
+    sandboxClientKey: process.env.MIDTRANS_SANDBOX_CLIENT_KEY || '',
+    /** true = utamakan Sandbox keys bila tersedia (default true) */
+    preferSandbox: bool(process.env.MIDTRANS_PREFER_SANDBOX, true),
   },
 };
 
