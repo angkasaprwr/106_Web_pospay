@@ -111,6 +111,8 @@ const env = {
     /** Opsional: jika Production tanpa kanal QRIS, charge ulang pakai Sandbox */
     sandboxServerKey: process.env.MIDTRANS_SANDBOX_SERVER_KEY || '',
     sandboxClientKey: process.env.MIDTRANS_SANDBOX_CLIENT_KEY || '',
+    /** true = utamakan Sandbox keys bila tersedia (default true) */
+    preferSandbox: bool(process.env.MIDTRANS_PREFER_SANDBOX, true),
   },
 };
 

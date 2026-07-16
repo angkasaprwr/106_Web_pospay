@@ -272,14 +272,14 @@ export default function BillConfirm() {
       }
 
       const qr = paymentData.qr_url || paymentData.qrDataUrl || '';
-      const nextSnapToken = paymentData.snap_token || (String(paymentData.qr_string || '').startsWith('SNAP:') ? String(paymentData.qr_string).slice(5) : '');
+      const nextSnapToken = paymentData.snap_token || paymentData.token || (String(paymentData.qr_string || '').startsWith('SNAP:') ? String(paymentData.qr_string).slice(5) : '');
       setPaymentId(pid);
-      setPaymentStatus(paymentData.status || 'PENDING');
+      setPaymentStatus(paymentData.status || paymentData.transaction_status || 'PENDING');
       setQrDataUrl(qr);
       setQrScannable(paymentData.scannable !== false && !paymentData.sandbox_local);
       setSandboxLocal(Boolean(paymentData.sandbox_local));
       setSnapToken(nextSnapToken);
-      setSnapRedirectUrl(paymentData.snap_redirect_url || (paymentData.qr_url?.includes?.('midtrans.com/snap') ? paymentData.qr_url : ''));
+      setSnapRedirectUrl(paymentData.snap_redirect_url || paymentData.redirect_url || (paymentData.qr_url?.includes?.('midtrans.com/snap') ? paymentData.qr_url : ''));
       setMidtransClientKey(paymentData.midtrans_client_key || '');
       setMidtransIsProduction(Boolean(paymentData.midtrans_is_production));
       setChannelInactive(Boolean(paymentData.midtrans_channel_inactive));
