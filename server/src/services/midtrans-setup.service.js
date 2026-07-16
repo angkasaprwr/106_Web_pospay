@@ -25,6 +25,12 @@ function persistMidtransKeysToEnv({ serverKey, clientKey, merchantId, isProducti
   const ck = String(clientKey || '').trim();
   if (!sk || !ck) return { written: false };
 
+  // Jangan tulis key tidak valid ke .env (mencegah overwrite Access Key Midtrans)
+  if (!midtransGateway.hasValidMidtransKeys({ serverKey: sk, clientKey: ck })) {
+    logger.warn('persistMidtransKeysToEnv dibatalkan: format Server/Client Key tidak valid');
+    return { written: false, invalid: true };
+  }
+
   if (fs.existsSync(ENV_PATH)) {
     let content = fs.readFileSync(ENV_PATH, 'utf8');
     content = upsertEnvLine(content, 'MIDTRANS_SERVER_KEY', sk);
@@ -61,15 +67,21 @@ async function syncMidtransKeysToPaymentMethods() {
   const ck = String(env.midtrans.clientKey || '').trim();
   if (!sk || !ck) {
     logger.warn(
-      'MIDTRANS_SERVER_KEY / MIDTRANS_CLIENT_KEY kosong — QRIS tidak bisa di-scan sampai diisi (Sandbox Midtrans).',
+      'MIDTRANS_SERVER_KEY / MIDTRANS_CLIENT_KEY kosong — QRIS tidak bisa di-scan sampai diisi (Sandbox/Production Midtrans).',
     );
     return { updated: 0 };
   }
+  if (!midtransGateway.hasValidMidtransKeys({ serverKey: sk, clientKey: ck })) {
+    logger.warn('MIDTRANS_* di .env tidak valid — skip sync ke metode pembayaran');
+    return { updated: 0, invalid: true };
+  }
+
+  const isProduction = /^Mid-server-/.test(sk) ? true : (/^SB-Mid-server-/.test(sk) ? false : Boolean(env.midtrans.isProduction));
 
   const result = await prisma.paymentMethod.updateMany({
     where: {
-      gateway: 'midtrans',
       OR: [
+        { gateway: 'midtrans' },
         { paymentType: 'QRIS_MIDTRANS' },
         { paymentType: 'TRANSFER_MIDTRANS' },
         { channel: 'QRIS' },
@@ -78,8 +90,9 @@ async function syncMidtransKeysToPaymentMethods() {
     data: {
       midtransServerKey: sk,
       midtransClientKey: ck,
-      productionMode: env.midtrans.isProduction,
-      merchantId: env.midtrans.merchantId || undefined,
+      productionMode: isProduction,
+      merchantId: env.midtrans.merchantId || 'M852853652',
+      gateway: 'midtrans',
       accountNo: '6513009817',
       accountName: 'PAPK SMP PUSPONEGORO BREBES',
     },
@@ -181,11 +194,26 @@ async function applyMidtransKeysFromMethod(data = {}) {
   const ck = String(data.midtransClientKey || '').trim();
   if (!sk || !ck) return { written: false, synced: 0 };
 
+  // Tolak key palsu (contoh NIS siswa) supaya tidak menimpa Access Key Midtrans yang valid
+  const probe = midtransGateway.resolveKeys({
+    midtransServerKey: sk,
+    midtransClientKey: ck,
+    productionMode: data.productionMode === true,
+  });
+  if (!midtransGateway.hasValidMidtransKeys(probe)) {
+    logger.warn('Abaikan simpan Midtrans key tidak valid (bukan Mid-server-/SB-Mid-server-)');
+    return { written: false, synced: 0, invalid: true };
+  }
+
+  const isProduction = /^Mid-server-/.test(sk)
+    ? true
+    : (/^SB-Mid-server-/.test(sk) ? false : data.productionMode === true);
+
   persistMidtransKeysToEnv({
     serverKey: sk,
     clientKey: ck,
-    merchantId: data.merchantId,
-    isProduction: data.productionMode === true,
+    merchantId: data.merchantId || 'M852853652',
+    isProduction,
   });
   const synced = await syncMidtransKeysToPaymentMethods();
   return { written: true, synced: synced.updated };

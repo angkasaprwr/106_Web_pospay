@@ -635,7 +635,7 @@ function PaymentMethods() {
               <Field label="Merchant Name"><input className="input" value={form.merchantName || ''} onChange={(e) => setForm({ ...form, merchantName: e.target.value })} /></Field>
               <Field label="Merchant ID"><input className="input" value={form.merchantId || ''} onChange={(e) => setForm({ ...form, merchantId: e.target.value })} /></Field>
               <Field label="Client Key"><input className="input" value={form.midtransClientKey || ''} onChange={(e) => setForm({ ...form, midtransClientKey: e.target.value })} placeholder="SB-Mid-client-..." /></Field>
-              <Field label="Server Key"><input type="password" className="input" value={form.midtransServerKey || ''} onChange={(e) => setForm({ ...form, midtransServerKey: e.target.value })} placeholder="SB-Mid-server-..." /></Field>
+              <Field label="Server Key"><input type="password" className="input" value={form.midtransServerKey || ''} onChange={(e) => setForm({ ...form, midtransServerKey: e.target.value })} placeholder="Mid-server-... atau SB-Mid-server-..." /></Field>
               <Field label="Callback URL"><input className="input" placeholder="https://domain.com/api/payment/webhook" value={form.callbackUrl || ''} onChange={(e) => setForm({ ...form, callbackUrl: e.target.value })} /></Field>
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.productionMode} onChange={(e) => setForm({ ...form, productionMode: e.target.checked })} /> Production Mode</label>
               {modal?.mode === 'edit' && (
