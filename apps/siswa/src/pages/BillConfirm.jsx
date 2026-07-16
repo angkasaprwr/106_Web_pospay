@@ -124,6 +124,9 @@ export default function BillConfirm() {
 
   const [expiryTime, setExpiryTime] = useState(null);
   const [countdown, setCountdown] = useState('');
+  const [orderId, setOrderId] = useState('');
+  const [createdAt, setCreatedAt] = useState(null);
+  const [qrExpired, setQrExpired] = useState(false);
   const [schoolName, setSchoolName] = useState('SMP Pusponegoro Brebes');
 
   const [qrError, setQrError] = useState('');
@@ -169,6 +172,10 @@ export default function BillConfirm() {
       if (payment.midtrans_is_production !== undefined) setMidtransIsProduction(Boolean(payment.midtrans_is_production));
       if (payment.midtrans_channel_inactive !== undefined) setChannelInactive(Boolean(payment.midtrans_channel_inactive));
       if (payment.midtrans_hint) setMidtransHint(payment.midtrans_hint);
+      if (payment.order_id) setOrderId(payment.order_id);
+      if (payment.created_at || payment.createdAt) setCreatedAt(payment.created_at || payment.createdAt);
+      if (payment.expiry_time) setExpiryTime(payment.expiry_time);
+      setQrExpired(Boolean(payment.expired) || payment.payment_status === 'EXPIRED' || (payment.expiry_time && new Date(payment.expiry_time).getTime() <= Date.now()));
       setTransferInfo({
         vaNumber: payment.qr_string || payment.va_number || null,
         bank: payment.payment_method?.merchantName || payment.payment_method?.name || payment.paymentMethod?.name || null,
@@ -273,7 +280,10 @@ export default function BillConfirm() {
           || paymentData.status === 'REJECTED'
           || paymentData.midtrans_channel_inactive
           || paymentData.sandbox_local
+          || paymentData.expired
+          || paymentData.payment_status === 'EXPIRED'
           || (hasSnap && !hasEmv)
+          || (!hasEmv && isMidtransQrisMethod(methodData))
           || (!hasQr && isMidtransQrisMethod(methodData));
         if (needRegen) {
           paymentData = await createFresh();
@@ -313,6 +323,9 @@ export default function BillConfirm() {
         bank: paymentData.bank || null,
       });
       setExpiryTime(paymentData.expiry_time || paymentData.expiryTime || null);
+      setOrderId(paymentData.order_id || paymentData.orderId || '');
+      setCreatedAt(paymentData.created_at || paymentData.createdAt || new Date().toISOString());
+      setQrExpired(Boolean(paymentData.expired));
       setSchoolName(paymentData.school_name || 'SMP Pusponegoro Brebes');
       setSchoolAccount(
         paymentData.school_account || {
@@ -455,11 +468,13 @@ export default function BillConfirm() {
       const diff = new Date(expiryTime).getTime() - Date.now();
       if (diff <= 0) {
         setCountdown('Kedaluwarsa');
+        setQrExpired(true);
         return;
       }
-      const m = Math.floor(diff / 60000);
-      const s = Math.floor((diff % 60000) / 1000);
-      setCountdown(`${m}:${String(s).padStart(2, '0')}`);
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const sec = Math.floor((diff % 60000) / 1000);
+      setCountdown(`${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`);
     };
     tick();
     const t = setInterval(tick, 1000);
@@ -860,7 +875,34 @@ export default function BillConfirm() {
             <section className={`${CARD} p-5`}>
               <h2 className="mb-4 font-bold text-slate-800 dark:text-slate-100">{midtransTransfer ? 'Transfer Bank Midtrans' : `Scan QR ${midtrans ? 'Midtrans' : method.name}`}</h2>
               <div className="flex flex-col items-center">
-                {midtrans && qrDataUrl && qrScannable && !sandboxLocal ? (
+                {midtrans && (qrExpired || countdown === 'Kedaluwarsa') ? (
+                  <div className="w-full space-y-3 text-center">
+                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-4 text-left text-[11px] leading-relaxed text-rose-900 dark:border-rose-900/50 dark:bg-rose-950/40 dark:text-rose-200">
+                      <p className="text-sm font-semibold">QRIS telah kedaluwarsa</p>
+                      <p className="mt-2">Masa berlaku 24 jam telah habis. Buat QR baru untuk melanjutkan pembayaran.</p>
+                      <button
+                        type="button"
+                        className="mt-3 rounded-lg bg-rose-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-rose-800"
+                        onClick={() => {
+                          const saved = loadBillPaymentDraft();
+                          if (saved) {
+                            const cleared = { ...saved };
+                            delete cleared.paymentId;
+                            saveBillPaymentDraft(cleared);
+                          }
+                          setQrDataUrl('');
+                          setQrExpired(false);
+                          setCountdown('');
+                          setSnapToken('');
+                          setQrError('');
+                          load();
+                        }}
+                      >
+                        Buat QR Baru
+                      </button>
+                    </div>
+                  </div>
+                ) : midtrans && qrDataUrl && qrScannable && !sandboxLocal ? (
                   <div className="w-full space-y-3 text-center">
                     <img
                       src={qrDataUrl}
@@ -868,19 +910,32 @@ export default function BillConfirm() {
                       className="mx-auto h-64 w-64 rounded-xl border border-slate-200 bg-white p-2 dark:border-slate-600"
                     />
                     <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{formatIDR(amount)}</p>
-                    {countdown && (
-                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">Berlaku: {countdown}</p>
+                    {orderId && (
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">Order ID: <span className="font-mono font-semibold text-slate-700 dark:text-slate-200">{orderId}</span></p>
                     )}
+                    {createdAt && (
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">Dibuat: {formatDate(createdAt)}</p>
+                    )}
+                    {expiryTime && (
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400">Berlaku sampai: {formatDate(expiryTime)}</p>
+                    )}
+                    {countdown && (
+                      <p className="text-xs font-semibold text-amber-700 dark:text-amber-300">Countdown 24 jam: {countdown}</p>
+                    )}
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Status: {paymentStatus || 'PENDING'}</p>
                     <div className="rounded-lg border border-sky-200 bg-sky-50 px-3 py-2 text-left text-[11px] leading-relaxed text-sky-900 dark:border-sky-900/50 dark:bg-sky-950/40 dark:text-sky-200">
-                      Scan kode QR ini dengan <strong>GoPay, Dana, ShopeePay, SeaBank, OVO, Livin, BRImo, BNI Mobile, BCA, Mandiri</strong> atau bank lain yang mendukung QRIS Tap.
+                      Scan kode QR Midtrans ini dengan <strong>GoPay, Dana, ShopeePay, SeaBank, OVO, Livin, BRImo, BNI Mobile, BCA, Mandiri</strong> atau bank lain yang mendukung QRIS.
                       Dana masuk <strong>BNI 6513009817 – PAPK SMP PUSPONEGORO BREBES</strong>.
+                      {!midtransIsProduction && (
+                        <> Uji bayar Sandbox: <a className="underline font-semibold" href="https://simulator.sandbox.midtrans.com/openapi/qris/index" target="_blank" rel="noreferrer">Midtrans QRIS Simulator</a>.</>
+                      )}
                     </div>
                     <button
                       type="button"
                       className="text-xs font-semibold text-[#0056D2] underline dark:text-blue-400"
                       onClick={() => paymentId && checkPaymentStatus(paymentId)}
                     >
-                      Refresh status pembayaran
+                      Refresh Status
                     </button>
                   </div>
                 ) : midtrans && snapToken && !channelInactive ? (
