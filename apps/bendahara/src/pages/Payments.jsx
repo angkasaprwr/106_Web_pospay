@@ -67,7 +67,7 @@ export default function Payments() {
     <div>
       <PageHeader title="Pembayaran" subtitle="Verifikasi bukti pembayaran siswa" />
 
-      <div className="card mb-4 flex flex-wrap items-center gap-3 p-4">
+      <div className="card mb-4 flex flex-wrap items-center gap-3 p-4 dark:border-slate-700 dark:bg-slate-900">
         <div className="relative flex-1 min-w-[200px]">
           <Icon.Search width={18} height={18} className="absolute left-3 top-2.5 text-slate-400" />
           <input className="input pl-10" placeholder="Cari referensi / siswa..." value={filters.search} onChange={(e) => setFilters({ ...filters, search: e.target.value, page: 1 })} />
@@ -93,7 +93,7 @@ export default function Payments() {
                 {items.map((p) => (
                   <tr key={p.id}>
                     <td className="font-mono text-xs">{p.reference}</td>
-                    <td><div className="font-medium">{p.bill?.student?.fullName}</div><div className="text-xs text-slate-400">{p.bill?.student?.nis}</div></td>
+                    <td><div className="font-medium dark:text-slate-100">{p.bill?.student?.fullName}</div><div className="text-xs text-slate-400 dark:text-slate-500">{p.bill?.student?.nis}</div></td>
                     <td>{p.bill?.feeType?.name}</td>
                     <td className="text-right">{formatIDR(p.amount)}</td>
                     <td className="text-xs">{formatDateTime(p.paidAt)}</td>

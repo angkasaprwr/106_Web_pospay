@@ -141,9 +141,10 @@ export default function BillConfirm() {
       const { data } = await api.get(`/payment/status/${id}`);
       const payment = data.data;
       setPaymentStatus(payment.status);
+      setQrDataUrl(payment.qr_url || payment.qrDataUrl || '');
       setTransferInfo({
-        vaNumber: payment.qr_string || null,
-        bank: payment.payment_method?.merchantName || payment.payment_method?.name || null,
+        vaNumber: payment.qr_string || payment.va_number || null,
+        bank: payment.payment_method?.merchantName || payment.payment_method?.name || payment.paymentMethod?.name || null,
       });
       if (payment.status === 'VERIFIED') {
         if (pollRef.current) clearInterval(pollRef.current);
@@ -176,7 +177,16 @@ export default function BillConfirm() {
     }
     setPaymentId(pid);
     setPaymentStatus(paymentData?.status || 'PENDING');
-  }, [note, toast]);
+
+    if (paymentData?.status === 'VERIFIED') {
+      finishSuccess(paymentData);
+      return;
+    }
+
+    if (pollRef.current) clearInterval(pollRef.current);
+    pollRef.current = setInterval(() => pollPaymentStatus(pid), 5000);
+    pollPaymentStatus(pid);
+  }, [note, toast, finishSuccess, pollPaymentStatus]);
 
   const initMidtransPayment = useCallback(async (saved, billData, methodData, amount) => {
     let pid = saved.paymentId;
