@@ -1,5 +1,6 @@
 const QRCode = require('qrcode');
 const { toNumber } = require('../../../utils/money');
+const { logger } = require('../../../utils/logger');
 
 function sanitizeMethodForPortal(method) {
   if (!method) return method;
@@ -11,6 +12,16 @@ function sanitizeMethodForPortal(method) {
 function isEmvQrisString(qrString) {
   const s = String(qrString || '').trim();
   return s.startsWith('000201') && s.length >= 40;
+}
+
+/** Tolak payload palsu (order_id, SNAP token, demo lokal). */
+function isInvalidQrisSource(qrString) {
+  const s = String(qrString || '').trim();
+  if (!s) return true;
+  if (s.startsWith('SNAP:')) return true;
+  if (s.startsWith('POSPAY-QRIS-DEMO')) return true;
+  if (/^https?:\/\//i.test(s) && s.includes('midtrans.com/snap')) return true;
+  return false;
 }
 
 function midtransAuthHeader(serverKey) {
@@ -34,51 +45,68 @@ async function fetchMidtransQrImage(url, serverKey) {
 }
 
 async function renderEmvQrisDataUrl(qrString) {
-  // EMV QRIS panjang — gunakan error correction L agar tetap terbaca scanner bank/e-wallet
+  // Render HANYA dari qr_string EMV Midtrans — jangan encode order_id/snap_token
   return QRCode.toDataURL(qrString, {
-    width: 320,
+    width: 360,
     margin: 2,
-    errorCorrectionLevel: 'L',
+    errorCorrectionLevel: 'M',
     type: 'image/png',
   });
 }
 
 /**
  * Siapkan URL/data-URL QR untuk ditampilkan di browser siswa.
- * Prioritas: EMV qr_string → gambar Midtrans (dengan auth) → qr_string lain → qrUrl.
+ * Prioritas (sesuai Midtrans):
+ * 1) Image URL Midtrans (actions generate-qr-code / qr_url) — tampilkan gambar resmi
+ * 2) qr_string EMV Midtrans (000201...) — generate QR dari payload resmi
+ * JANGAN generate dari order_id / snap_token / redirect_url / invoice.
  */
 async function resolveQrDisplayUrl(qrUrl, qrString, options = {}) {
   const { serverKey } = options;
-  const emv = isEmvQrisString(qrString);
 
-  if (emv) {
-    try {
-      return await renderEmvQrisDataUrl(qrString);
-    } catch {
-      /* lanjut ke URL Midtrans */
-    }
+  if (isInvalidQrisSource(qrString) && !isEmvQrisString(qrString)) {
+    logger.error('QRIS Loaded REJECTED: sumber QR bukan Midtrans EMV', {
+      prefix: String(qrString || '').slice(0, 24),
+    });
+    // jangan render payload palsu
   }
 
-  if (qrUrl && (qrUrl.startsWith('data:') || qrUrl.startsWith('/'))) return qrUrl;
+  // 1) Image URL resmi Midtrans (prioritas utama)
+  if (qrUrl && (qrUrl.startsWith('data:') || qrUrl.startsWith('/'))) {
+    logger.info('QRIS Loaded from data/local url');
+    return qrUrl;
+  }
 
-  if (qrUrl && /^https?:\/\//i.test(qrUrl)) {
+  if (qrUrl && /^https?:\/\//i.test(qrUrl) && !qrUrl.includes('midtrans.com/snap/v')) {
     try {
       const dataUrl = await fetchMidtransQrImage(qrUrl, serverKey);
-      if (dataUrl) return dataUrl;
-    } catch {
-      /* lanjut */
+      if (dataUrl) {
+        logger.info('QRIS Loaded from Midtrans image URL');
+        return dataUrl;
+      }
+      // Tanpa auth berhasil — browser mungkin tetap bisa load jika URL publik
+      if (!serverKey) {
+        logger.info('QRIS Loaded: passthrough Midtrans qr_url');
+        return qrUrl;
+      }
+    } catch (e) {
+      logger.warn('QRIS Loaded: gagal fetch Midtrans qr_url', e.message);
     }
-    if (!serverKey) return qrUrl;
   }
 
-  if (qrString) {
+  // 2) Hanya qr_string EMV Midtrans yang valid
+  if (isEmvQrisString(qrString)) {
     try {
-      return await QRCode.toDataURL(qrString, { width: 280, margin: 1, errorCorrectionLevel: 'M' });
-    } catch {
+      const dataUrl = await renderEmvQrisDataUrl(qrString);
+      logger.info('QRIS Loaded from Midtrans qr_string EMV', { len: qrString.length });
+      return dataUrl;
+    } catch (e) {
+      logger.error('QRIS Loaded: gagal render EMV', e.message);
       return null;
     }
   }
 
+  logger.error('QRIS Loaded FAILED: tidak ada qr_url/qr_string Midtrans yang valid');
   return null;
 }
 
@@ -92,13 +120,15 @@ async function formatPaymentStatusResponse(payment, options = {}) {
   const isProduction = options.isProduction;
   const snapToken = String(payment.qrString || '').startsWith('SNAP:')
     ? String(payment.qrString).slice(5)
-    : (String(payment.transactionId || '').includes('-') && String(payment.qrUrl || '').includes('midtrans.com/snap')
-      ? payment.transactionId
-      : null);
-  const sandboxLocal = String(payment.transactionId || '').startsWith('sandbox-local-');
-  const qr_url = snapToken
-    ? null
-    : await resolveQrDisplayUrl(payment.qrUrl, payment.qrString, { serverKey });
+    : null;
+  const sandboxLocal = String(payment.transactionId || '').startsWith('sandbox-local-')
+    || isInvalidQrisSource(payment.qrString);
+  const emv = isEmvQrisString(payment.qrString);
+
+  // Jangan tampilkan Snap sebagai QR scannable — hanya EMV Midtrans
+  const qr_url = (emv || (payment.qrUrl && !String(payment.qrUrl).includes('/snap/')))
+    ? await resolveQrDisplayUrl(payment.qrUrl, payment.qrString, { serverKey })
+    : null;
   const method = sanitizeMethodForPortal(payment.paymentMethod);
 
   let channelInactive = false;
@@ -111,9 +141,20 @@ async function formatPaymentStatusResponse(payment, options = {}) {
     }
   }
 
-  const scannable = isEmvQrisString(payment.qrString) && !sandboxLocal;
+  const expired = payment.expiryTime
+    ? new Date(payment.expiryTime).getTime() <= Date.now()
+    : false;
+  if (expired) {
+    logger.info('QRIS Expiry reached', { orderId: payment.orderId, expiryTime: payment.expiryTime });
+  }
+
+  const scannable = emv && !sandboxLocal && !expired;
 
   const statusPaid = payment.status === 'VERIFIED' ? 'PAID' : payment.status;
+  const midStatus = String(payment.midtransStatus || '').toUpperCase();
+  const displayStatus = expired && payment.status === 'PENDING'
+    ? 'EXPIRED'
+    : (midStatus === 'EXPIRED' || midStatus === 'CANCELLED' ? midStatus : statusPaid);
 
   return {
     id: payment.id,
@@ -123,33 +164,35 @@ async function formatPaymentStatusResponse(payment, options = {}) {
     order_id: payment.orderId,
     transaction_id: payment.transactionId,
     status: payment.status,
-    /** Alias LUNAS untuk frontend polling (VERIFIED → PAID) */
-    payment_status: statusPaid,
+    payment_status: displayStatus === 'EXPIRED' ? 'EXPIRED' : statusPaid,
     transaction_status: payment.midtransStatus || (payment.status === 'VERIFIED' ? 'settlement' : 'pending'),
     midtrans_status: payment.midtransStatus,
     amount: toNumber(payment.amount),
     gross_amount: toNumber(payment.amount),
     channel: payment.channel,
+    payment_type: payment.paymentType || payment.channel,
     payment_method_label: method?.name || payment.channel,
-    qr_string: payment.qrString,
-    qr_url: qr_url || payment.qrUrl,
+    qr_string: emv ? payment.qrString : null,
+    qr_url: qr_url || (emv ? payment.qrUrl : null),
     qrDataUrl: qr_url,
     scannable,
-    snap_token: channelInactive ? null : snapToken,
-    token: channelInactive ? null : snapToken,
-    snap_redirect_url: snapToken && !channelInactive ? (payment.qrUrl || null) : null,
-    redirect_url: snapToken && !channelInactive ? (payment.qrUrl || null) : null,
+    expired,
+    snap_token: null, // jangan pakai Snap token sebagai sumber QR tampilan
+    token: null,
+    snap_redirect_url: null,
+    redirect_url: emv ? null : (payment.qrUrl && String(payment.qrUrl).includes('/snap/') ? payment.qrUrl : null),
     midtrans_client_key: clientKey,
     midtrans_is_production: isProduction,
-    display_mode: snapToken && !channelInactive ? 'snap_embed' : (sandboxLocal ? 'demo' : 'qris_image'),
+    display_mode: emv ? 'qris_image' : (sandboxLocal ? 'demo' : 'none'),
     midtrans_channel_inactive: channelInactive,
-    midtrans_hint: channelInactive
-      ? 'Kanal QRIS/GoPay belum aktif di Midtrans (enabled_payments kosong). Isi key Sandbox SB-Mid-… atau aktifkan QRIS di MAP.'
-      : null,
+    midtrans_hint: !emv
+      ? 'QRIS harus dari Midtrans (qr_string EMV / qr_url). Buat QR ulang.'
+      : (expired ? 'QRIS telah kedaluwarsa. Buat QR baru.' : null),
     expiry_time: payment.expiryTime,
     paid_at: payment.verifiedAt || payment.paidAt,
     verifiedAt: payment.verifiedAt,
     createdAt: payment.createdAt,
+    created_at: payment.createdAt,
     settlement_time: payment.settlementTime,
     fraud_status: payment.fraudStatus,
     bill: {
@@ -172,12 +215,16 @@ async function formatPaymentStatusResponse(payment, options = {}) {
           accountName: 'PAPK SMP PUSPONEGORO BREBES',
         },
     sandbox_local: sandboxLocal,
+    midtrans_simulator_url: !isProduction && emv
+      ? 'https://simulator.sandbox.midtrans.com/openapi/qris/index'
+      : null,
   };
 }
 
 module.exports = {
   sanitizeMethodForPortal,
   isEmvQrisString,
+  isInvalidQrisSource,
   resolveQrDisplayUrl,
   formatPaymentStatusResponse,
 };

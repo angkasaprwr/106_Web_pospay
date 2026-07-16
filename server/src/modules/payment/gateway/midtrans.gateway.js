@@ -11,13 +11,12 @@ const { ApiError } = require('../../../core/ApiError');
 const { logger } = require('../../../utils/logger');
 const { isEmvQrisString } = require('../dto/payment.dto');
 
-/** Kanal Snap default — wajib sesuai MAP Sandbox */
+/** Hanya QRIS — agar Snap/Core menampilkan QRIS scannable lintas e-wallet/bank */
 const DEFAULT_SNAP_ENABLED_PAYMENTS = [
   'qris',
-  'gopay',
-  'shopeepay',
-  'bank_transfer',
 ];
+
+const QRIS_EXPIRY_HOURS = 24;
 
 /**
  * Resolve keys: environment ditentukan MIDTRANS_IS_PRODUCTION, bukan prefix key.
@@ -202,6 +201,11 @@ async function createSnapTransaction({
       }))
       : buildDefaultItemDetails(orderId, amount),
     enabled_payments: payments,
+    // Masa berlaku QRIS / Snap: 24 jam
+    expiry: {
+      unit: 'hour',
+      duration: QRIS_EXPIRY_HOURS,
+    },
   };
 
   logger.info('Midtrans Snap createTransaction REQUEST', {
@@ -362,8 +366,18 @@ async function chargeQris({ orderId, grossAmount, method, customerDetails, itemD
     customer_details: buildDefaultCustomerDetails(customerDetails),
     qris: { acquirer: 'gopay' },
     item_details: Array.isArray(itemDetails) && itemDetails.length
-      ? itemDetails
+      ? itemDetails.map((it) => ({
+        id: String(it.id || 'ITEM').slice(0, 50),
+        price: Number(Math.round(Number(it.price))),
+        quantity: Number(it.quantity || 1),
+        name: String(it.name || 'Tagihan').slice(0, 50),
+      }))
       : buildDefaultItemDetails(orderId, amount),
+    // Masa berlaku QRIS Midtrans: 24 jam
+    custom_expiry: {
+      expiry_duration: QRIS_EXPIRY_HOURS,
+      unit: 'hour',
+    },
   };
 
   logger.info('Midtrans Core QRIS charge REQUEST', { isProduction: keys.isProduction, parameter });
@@ -386,16 +400,45 @@ async function chargeQris({ orderId, grossAmount, method, customerDetails, itemD
     );
   }
   const extracted = extractQrisData(response);
+  if (!extracted.qrString) {
+    logger.error('QRIS Created FAILED: qr_string kosong dari Midtrans', {
+      orderId,
+      status_code: response.status_code,
+      actions: response.actions,
+    });
+  }
+  if (!extracted.qrUrl) {
+    logger.warn('QRIS Created: qr_url kosong — akan render dari qr_string EMV Midtrans', { orderId });
+  }
   if (!extracted.qrString && !extracted.qrUrl) {
     throw ApiError.badRequest(
       'Midtrans tidak mengembalikan kode QR. Pastikan fitur QRIS aktif di dashboard Sandbox Midtrans.',
     );
   }
-  if (!extracted.scannable && !extracted.qrUrl) {
+  // QR wajib EMV Midtrans (000201...) — jangan pakai order_id/snap_token sebagai payload QR
+  if (extracted.qrString && !isEmvQrisString(extracted.qrString)) {
+    logger.error('QRIS Created REJECTED: qr_string bukan EMV Midtrans', {
+      orderId,
+      prefix: String(extracted.qrString).slice(0, 20),
+    });
     throw ApiError.badRequest(
-      'Midtrans tidak mengembalikan QRIS EMV yang valid. Periksa Server Key Sandbox dan aktivasi QRIS.',
+      'QRIS dari Midtrans tidak valid (bukan payload EMV). Jangan gunakan order_id/snap_token sebagai QR.',
     );
   }
+  // Pastikan expiry 24 jam tersimpan
+  if (!extracted.expiryTime || Number.isNaN(new Date(extracted.expiryTime).getTime())) {
+    extracted.expiryTime = new Date(Date.now() + QRIS_EXPIRY_HOURS * 60 * 60 * 1000);
+  }
+  logger.info('QRIS Created', {
+    orderId: extracted.orderId,
+    transactionId: extracted.transactionId,
+    expiryTime: extracted.expiryTime,
+    qrEmv: true,
+    hasQrUrl: Boolean(extracted.qrUrl),
+    qrLen: (extracted.qrString || '').length,
+  });
+  // eslint-disable-next-line no-console
+  console.log('[Midtrans] QRIS Created order=', extracted.orderId, 'expiry=', extracted.expiryTime);
   return extracted;
 }
 
@@ -453,4 +496,5 @@ module.exports = {
   assertSandboxConfigured,
   isSettlementStatus,
   DEFAULT_SNAP_ENABLED_PAYMENTS,
+  QRIS_EXPIRY_HOURS,
 };
