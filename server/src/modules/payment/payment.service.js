@@ -201,6 +201,7 @@ async function createMidtransPayment(input, actor, req) {
             snap_redirect_url: snapTok ? full.qrUrl : null,
             midtrans_client_key: keys.clientKey,
             midtrans_is_production: keys.isProduction,
+            display_mode: snapTok ? 'snap_embed' : (sandboxLocal ? 'demo' : 'qris_image'),
           };
         }
         throw ApiError.badRequest('Tagihan ini masih memiliki pembayaran yang menunggu proses');
@@ -300,13 +301,17 @@ async function createMidtransPayment(input, actor, req) {
       });
     } catch (coreErr) {
       // Core API QRIS sering 402 jika kanal belum diaktifkan — fallback Snap (QRIS Tap via UI Midtrans)
+      const channelInactive = /not activated|402|channel is not|pop id is not found/i.test(
+        String(coreErr.message || ''),
+      );
       try {
         snapPayload = await midtransGateway.createSnapTransaction({
           orderId,
           grossAmount: amount,
           method,
           customerDetails,
-          enabledPayments: ['qris', 'gopay', 'other_qris'],
+          // Jika Core bilang kanal mati, jangan filter ketat — tampilkan semua kanal Snap yang aktif
+          enabledPayments: channelInactive ? undefined : ['qris', 'gopay', 'other_qris'],
         });
         charge = {
           transactionId: snapPayload.snapToken,
@@ -317,12 +322,14 @@ async function createMidtransPayment(input, actor, req) {
           expiryTime: new Date(Date.now() + 30 * 60 * 1000),
           midtransStatus: 'pending',
           statusCode: '201',
-          scannable: true,
+          // Token Snap bisa dibuat meski kanal QRIS belum aktif; scannable hanya jika Core tidak 402
+          scannable: !channelInactive,
+          channelInactive,
           snapToken: snapPayload.snapToken,
           snapRedirectUrl: snapPayload.redirectUrl,
           clientKey: snapPayload.clientKey,
           isProduction: snapPayload.isProduction,
-          raw: { snap: true, ...snapPayload, core_error: coreErr.message },
+          raw: { snap: true, ...snapPayload, core_error: coreErr.message, channel_inactive: channelInactive },
         };
       } catch (snapErr) {
         if (!env.midtrans.sandboxFallback) {
@@ -375,9 +382,18 @@ async function createMidtransPayment(input, actor, req) {
     throw ApiError.badRequest('Kode QR Midtrans tidak tersedia dari server. Periksa konfigurasi Midtrans.');
   }
 
-  const scannable = !sandboxLocal && (Boolean(snapPayload) || charge.scannable || isEmvQrisString(charge.qrString));
+  const channelInactive = Boolean(charge.channelInactive);
+  const scannable = !sandboxLocal
+    && !channelInactive
+    && (Boolean(snapPayload && !channelInactive) || charge.scannable || isEmvQrisString(charge.qrString));
 
-  emitPaymentUpdated({ ...updated, bill: { student } }, { paymentType: 'QRIS_MIDTRANS', sandboxLocal, scannable, snap: Boolean(snapPayload) });
+  emitPaymentUpdated({ ...updated, bill: { student } }, {
+    paymentType: 'QRIS_MIDTRANS',
+    sandboxLocal,
+    scannable,
+    snap: Boolean(snapPayload),
+    channelInactive,
+  });
 
   return {
     ...updated,
@@ -393,10 +409,15 @@ async function createMidtransPayment(input, actor, req) {
     school_account: schoolAccount,
     sandbox_local: sandboxLocal,
     scannable,
+    midtrans_channel_inactive: channelInactive,
+    midtrans_hint: channelInactive
+      ? 'Kanal QRIS/GoPay belum aktif di Midtrans MAP. Aktifkan Payment Channels (QRIS + GoPay) dan pastikan settlement ke rekening BNI 6513009817 agar kode QR bisa di-scan e-wallet/bank.'
+      : null,
     snap_token: snapPayload?.snapToken || null,
     snap_redirect_url: snapPayload?.redirectUrl || null,
     midtrans_client_key: snapPayload?.clientKey || keys.clientKey || null,
     midtrans_is_production: snapPayload?.isProduction ?? keys.isProduction,
+    display_mode: snapPayload ? 'snap_embed' : (sandboxLocal ? 'demo' : 'qris_image'),
     midtrans_simulator_url: !keys.isProduction && scannable && !snapPayload
       ? 'https://simulator.sandbox.midtrans.com/openapi/qris/index'
       : null,
