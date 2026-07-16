@@ -154,6 +154,44 @@ export function buildPaymentTagihanGroups(payments) {
   return Array.from(map.values());
 }
 
+export function dispensationStatusBadge(status) {
+  if (status === 'APPROVED') return { label: 'Disetujui', cls: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200' };
+  if (status === 'REJECTED') return { label: 'Ditolak', cls: 'bg-red-50 text-red-700 ring-1 ring-red-200' };
+  return { label: 'Menunggu Verifikasi', cls: 'bg-amber-50 text-amber-700 ring-1 ring-amber-200' };
+}
+
+const DISP_TYPE_LABEL = { WAIVER: 'Pembebasan', DISCOUNT: 'Potongan', POSTPONE: 'Penundaan' };
+
+export function dispensationTypeLabel(type) {
+  return DISP_TYPE_LABEL[type] || type || '-';
+}
+
+export function exportDispensationsCsv(items, arrearsMap) {
+  const header = 'No,Nama Siswa,NIS,Jumlah Tunggakan,Jumlah Tagihan,Alasan,Tanggal Kesanggupan Bayar,Status\n';
+  const rows = items.map((d, i) => {
+    const arr = arrearsMap[d.studentId] || { amount: 0, count: 0 };
+    const st = dispensationStatusBadge(d.status);
+    const cols = [
+      i + 1,
+      d.student?.fullName,
+      d.student?.nis,
+      Number(arr.amount),
+      arr.count,
+      d.reason,
+      d.newDueDate ? new Date(d.newDueDate).toLocaleDateString('id-ID') : '',
+      st.label,
+    ];
+    return cols.map((c) => `"${String(c || '').replace(/"/g, '""')}"`).join(',');
+  });
+  const blob = new Blob([header + rows.join('\n')], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `tunggakan-dispensasi-pospay-${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export function tagihanGroupKey(bill) {
   return `${bill.feeTypeId || ''}|${bill.period || ''}|${bill.description || ''}`;
 }
