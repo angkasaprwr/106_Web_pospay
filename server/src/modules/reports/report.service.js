@@ -179,6 +179,8 @@ async function arrearsReport(query) {
   const where = { status: { in: ['UNPAID', 'PARTIAL', 'OVERDUE'] } };
   if (query.classId) where.student = { classId: query.classId };
   if (query.feeTypeId) where.feeTypeId = query.feeTypeId;
+  const dateFilter = resolveReportDateFilter(query);
+  if (dateFilter) where.dueDate = dateFilter;
 
   const bills = await prisma.bill.findMany({
     where,
@@ -191,12 +193,92 @@ async function arrearsReport(query) {
   return { bills: rows, total };
 }
 
+function resolveReportDateFilter(query) {
+  const now = new Date();
+  const year = parseInt(query.year, 10) || now.getFullYear();
+  const month = query.month ? parseInt(query.month, 10) : null;
+  if (query.period === 'month' && month) {
+    return { gte: new Date(year, month - 1, 1), lte: new Date(year, month, 0, 23, 59, 59) };
+  }
+  if (query.period === 'year' || query.year) {
+    return yearRange(String(year));
+  }
+  return null;
+}
+
+async function arrearsReportDashboard(query) {
+  const { bills } = await arrearsReport(query);
+  const studentMap = new Map();
+
+  bills.forEach((b) => {
+    const sid = b.studentId;
+    const out = outstanding(b);
+    const paid = toNumber(b.paidAmount);
+    const totalBill = toNumber(b.amount) - toNumber(b.discount);
+    if (!studentMap.has(sid)) {
+      studentMap.set(sid, {
+        studentId: sid,
+        nis: b.student.nis,
+        fullName: b.student.fullName,
+        className: b.student.schoolClass?.name || '-',
+        totalTagihan: 0,
+        totalTerbayar: 0,
+        sisaTunggakan: 0,
+        jumlahTagihan: 0,
+        lastDueDate: null,
+        bills: [],
+      });
+    }
+    const row = studentMap.get(sid);
+    row.totalTagihan += totalBill;
+    row.totalTerbayar += paid;
+    row.sisaTunggakan += out;
+    row.jumlahTagihan += 1;
+    row.bills.push(b);
+    if (b.dueDate && (!row.lastDueDate || new Date(b.dueDate) > new Date(row.lastDueDate))) {
+      row.lastDueDate = b.dueDate;
+    }
+  });
+
+  const rows = Array.from(studentMap.values())
+    .sort((a, b) => b.sisaTunggakan - a.sisaTunggakan)
+    .map((r) => ({
+      studentId: r.studentId,
+      nis: r.nis,
+      fullName: r.fullName,
+      className: r.className,
+      totalTagihan: r.totalTagihan,
+      totalTerbayar: r.totalTerbayar,
+      sisaTunggakan: r.sisaTunggakan,
+      jumlahTagihan: r.jumlahTagihan,
+      totalTagihanFormatted: formatIDR(r.totalTagihan),
+      totalTerbayarFormatted: formatIDR(r.totalTerbayar),
+      sisaTunggakanFormatted: formatIDR(r.sisaTunggakan),
+      tunggakanTerakhir: r.lastDueDate
+        ? new Date(r.lastDueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+        : '-',
+    }));
+
+  const totalNominal = rows.reduce((s, r) => s + r.sisaTunggakan, 0);
+  return {
+    stats: {
+      totalStudents: rows.length,
+      totalBills: bills.length,
+      totalNominal,
+      totalNominalFormatted: formatIDR(totalNominal),
+      avgPerStudent: rows.length ? totalNominal / rows.length : 0,
+      avgPerStudentFormatted: formatIDR(rows.length ? totalNominal / rows.length : 0),
+    },
+    rows,
+  };
+}
+
 async function dispensationReport(query) {
   const where = {};
   if (query.status) where.status = query.status;
   if (query.type) where.type = query.type;
-  const range = dateRange(query);
-  if (range) where.createdAt = range;
+  const dateFilter = resolveReportDateFilter(query);
+  if (dateFilter) where.createdAt = dateFilter;
 
   const items = await prisma.dispensation.findMany({
     where,
@@ -205,6 +287,38 @@ async function dispensationReport(query) {
   });
   const total = items.reduce((s, d) => s + toNumber(d.amount), 0);
   return { items, total };
+}
+
+async function dispensationReportDashboard(query) {
+  const { items } = await dispensationReport(query);
+  const approved = items.filter((d) => d.status === 'APPROVED');
+  const pending = items.filter((d) => d.status === 'PENDING');
+  const rejected = items.filter((d) => d.status === 'REJECTED');
+
+  const rows = items.map((d) => ({
+    id: d.id,
+    nis: d.student.nis,
+    fullName: d.student.fullName,
+    className: d.student.schoolClass?.name || '-',
+    type: d.type,
+    reason: d.reason,
+    status: d.status,
+    tanggal: new Date(d.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }),
+    reviewedAt: d.reviewedAt
+      ? new Date(d.reviewedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })
+      : '-',
+    reviewer: d.reviewedBy?.fullName || '-',
+  }));
+
+  return {
+    stats: {
+      total: items.length,
+      approved: approved.length,
+      pending: pending.length,
+      rejected: rejected.length,
+    },
+    rows,
+  };
 }
 
 // ---- Mappers to flat rows for export ----
@@ -255,7 +369,9 @@ module.exports = {
   paymentReport,
   paymentReportDashboard,
   arrearsReport,
+  arrearsReportDashboard,
   dispensationReport,
+  dispensationReportDashboard,
   paymentRows,
   arrearsRows,
   dispensationRows,

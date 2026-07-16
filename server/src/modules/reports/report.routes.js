@@ -67,6 +67,11 @@ router.get('/payments/export', asyncHandler(async (req, res) => {
 }));
 
 // ----- Arrears (tunggakan) report -----
+router.get('/arrears/summary', asyncHandler(async (req, res) => {
+  const data = await service.arrearsReportDashboard(req.query);
+  return ok(res, data, 'Ringkasan laporan tunggakan');
+}));
+
 router.get('/arrears', asyncHandler(async (req, res) => {
   const { bills, total } = await service.arrearsReport(req.query);
   return ok(res, { rows: service.arrearsRows(bills), total, totalFormatted: formatIDR(total) }, 'Laporan tunggakan');
@@ -114,6 +119,11 @@ router.get('/arrears/export', asyncHandler(async (req, res) => {
 }));
 
 // ----- Dispensation report -----
+router.get('/dispensations/summary', asyncHandler(async (req, res) => {
+  const data = await service.dispensationReportDashboard(req.query);
+  return ok(res, data, 'Ringkasan laporan dispensasi');
+}));
+
 router.get('/dispensations', asyncHandler(async (req, res) => {
   const { items, total } = await service.dispensationReport(req.query);
   return ok(res, { rows: service.dispensationRows(items), total, totalFormatted: formatIDR(total) }, 'Laporan dispensasi');
