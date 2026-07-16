@@ -38,7 +38,7 @@ const listBillSchema = z.object({
   academicYearId: z.string().optional(),
   status: z.enum(['UNPAID', 'PARTIAL', 'PAID', 'OVERDUE', 'WAIVED']).optional(),
   page: z.coerce.number().int().positive().optional().default(1),
-  limit: z.coerce.number().int().positive().max(100).optional().default(10),
+  limit: z.coerce.number().int().positive().max(1000).optional().default(10),
 });
 
 module.exports = { createBillSchema, bulkBillSchema, updateBillSchema, listBillSchema };

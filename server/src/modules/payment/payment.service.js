@@ -85,7 +85,7 @@ async function createCashPayment(input, actor, req) {
     throw ApiError.badRequest('Metode pembayaran bukan tunai');
   }
 
-  const { bill } = await validateBillForStudent(input.billId, actor);
+  const { bill, student } = await validateBillForStudent(input.billId, actor);
   const amount = input.amount ?? outstanding(bill);
   if (amount > outstanding(bill) + 0.001) {
     throw ApiError.badRequest(`Nominal melebihi sisa tagihan (${outstanding(bill)})`);
@@ -109,12 +109,12 @@ async function createCashPayment(input, actor, req) {
   await recordAudit({ userId: actor.id, action: 'CREATE', entity: 'Payment', entityId: payment.id, req });
   await notifyTreasurers({
     title: 'Pembayaran Tunai Menunggu Verifikasi',
-    body: `${bill.student.fullName} mengajukan pembayaran tunai ${bill.feeType.name}.`,
+    body: `${student.fullName} mengajukan pembayaran tunai ${bill.feeType.name}.`,
     type: 'PAYMENT_SUBMITTED',
     data: { paymentId: payment.id, billId: bill.id },
   });
 
-  emitPaymentUpdated({ ...payment, bill: { student: bill.student } }, { paymentType: 'CASH' });
+  emitPaymentUpdated({ ...payment, bill: { student } }, { paymentType: 'CASH' });
   return payment;
 }
 
@@ -313,6 +313,12 @@ async function createMidtransTransferPayment(input, actor, req) {
     throw ApiError.badRequest(`Nominal melebihi sisa tagihan (${outstanding(bill)})`);
   }
 
+  const schoolAccount = {
+    bank: 'BNI',
+    accountNo: method.accountNo || '6513009817',
+    accountName: method.accountName || 'PAPK SMP PUSPONEGORO BREBES',
+  };
+
   const orderId = generateMidtransOrderId();
   const payment = await paymentRepository.createPaymentWithHistory(
     {
@@ -330,44 +336,83 @@ async function createMidtransTransferPayment(input, actor, req) {
     'Transaksi transfer Midtrans dibuat',
   );
 
+  const keys = midtransGateway.resolveKeys(method);
   let charge;
-  try {
-    charge = await midtransGateway.chargeBankTransfer({
+  let sandboxLocal = false;
+
+  if (!midtransGateway.hasValidMidtransKeys(keys)) {
+    sandboxLocal = true;
+    charge = {
+      transactionId: `sandbox-tf-${payment.id}`,
       orderId,
       grossAmount: amount,
-      method,
-      customerDetails: {
-        first_name: student.fullName,
-        email: actor.email || `${student.nis}@siswa.local`,
-        phone: student.parentPhone || actor.phone || '08123456789',
-      },
-    });
-  } catch (err) {
-    await prisma.payment.delete({ where: { id: payment.id } });
-    throw ApiError.badRequest(`Gagal membuat transaksi transfer Midtrans: ${err.message}`);
+      paymentType: 'bank_transfer',
+      paymentUrl: null,
+      vaNumber: schoolAccount.accountNo,
+      bank: schoolAccount.bank,
+      expiryTime: new Date(Date.now() + 24 * 60 * 60 * 1000),
+      midtransStatus: 'pending',
+      statusCode: '201',
+      raw: { sandbox_local: true, reason: 'midtrans_keys_invalid', school_account: schoolAccount },
+    };
+  } else {
+    try {
+      charge = await midtransGateway.chargeBankTransfer({
+        orderId,
+        grossAmount: amount,
+        method,
+        customerDetails: {
+          first_name: student.fullName,
+          email: actor.email || `${student.nis}@siswa.local`,
+          phone: student.parentPhone || actor.phone || '08123456789',
+        },
+      });
+    } catch (err) {
+      // Fallback sandbox: arahkan transfer ke rekening resmi sekolah
+      sandboxLocal = true;
+      charge = {
+        transactionId: `sandbox-tf-${payment.id}`,
+        orderId,
+        grossAmount: amount,
+        paymentType: 'bank_transfer',
+        paymentUrl: null,
+        vaNumber: schoolAccount.accountNo,
+        bank: schoolAccount.bank,
+        expiryTime: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        midtransStatus: 'pending',
+        statusCode: '201',
+        raw: { sandbox_local: true, reason: err.message || 'midtrans_transfer_failed', school_account: schoolAccount },
+      };
+    }
   }
 
   const updated = await paymentRepository.updatePaymentWithHistory(
     payment.id,
     {
       transactionId: charge.transactionId,
-      qrString: charge.vaNumber || null,
+      qrString: charge.vaNumber || schoolAccount.accountNo,
       qrUrl: charge.paymentUrl || null,
       expiryTime: charge.expiryTime,
       midtransStatus: charge.midtransStatus,
     },
-    { note: 'Transfer Midtrans di-generate', metadata: { statusCode: charge.statusCode, bank: charge.bank } },
+    {
+      note: sandboxLocal
+        ? 'Transfer sandbox lokal → rekening BNI sekolah'
+        : 'Transfer Midtrans di-generate',
+      metadata: { statusCode: charge.statusCode, bank: charge.bank, sandboxLocal },
+    },
   );
 
   await paymentRepository.createMidtransLog({
     paymentId: payment.id,
     orderId,
-    eventType: 'charge',
-    payload: { orderId, amount, bank: charge.bank, channel: 'TRANSFER' },
+    eventType: sandboxLocal ? 'charge_sandbox_local' : 'charge',
+    payload: { orderId, amount, bank: charge.bank, channel: 'TRANSFER', schoolAccount },
     response: charge.raw,
   });
 
   await recordAudit({ userId: actor.id, action: 'CREATE', entity: 'Payment', entityId: payment.id, req });
+  emitPaymentUpdated({ ...updated, bill: { student } }, { paymentType: 'TRANSFER_MIDTRANS', sandboxLocal });
 
   return {
     ...updated,
@@ -376,11 +421,13 @@ async function createMidtransTransferPayment(input, actor, req) {
     gross_amount: toNumber(amount),
     payment_type: charge.paymentType,
     payment_url: charge.paymentUrl || null,
-    va_number: charge.vaNumber || null,
-    bank: charge.bank || null,
+    va_number: charge.vaNumber || schoolAccount.accountNo,
+    bank: charge.bank || schoolAccount.bank,
     expiry_time: charge.expiryTime,
     school_name: env.school.name,
     invoice_no: bill.invoiceNo,
+    school_account: schoolAccount,
+    sandbox_local: sandboxLocal,
   };
 }
 

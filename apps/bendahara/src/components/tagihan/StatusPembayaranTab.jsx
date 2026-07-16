@@ -5,7 +5,7 @@ import { useToast } from '../../context/ToastContext';
 import { Spinner, Modal, EmptyState, Field } from '../ui';
 import { Icon } from '../Icons';
 import { formatIDR, formatDateTime } from '../../lib/format';
-import { useSocket } from '../../hooks/useSocket';
+import { usePortalCatalogSync } from '../../hooks/usePortalCatalogSync';
 import {
   TagihanPagination,
   billDisplayName,
@@ -103,16 +103,18 @@ export default function StatusPembayaranTab() {
   const [rejectReason, setRejectReason] = useState('');
   const [showReject, setShowReject] = useState(false);
   const [acting, setActing] = useState(false);
+  const [cashMethodId, setCashMethodId] = useState(null);
 
   const selectedGroup = tagihanGroups.find((g) => g.key === filters.tagihanKey);
 
   const loadAux = useCallback(async () => {
     try {
-      const [pendingRes, verifiedRes, groupsRes, classRes] = await Promise.all([
-        api.get('/payments?status=PENDING&limit=100'),
-        api.get('/payments?status=VERIFIED&limit=100'),
-        api.get('/bills?limit=100'),
+      const [pendingRes, verifiedRes, groupsRes, classRes, methodsRes] = await Promise.all([
+        api.get('/payments?status=PENDING&limit=500'),
+        api.get('/payments?status=VERIFIED&limit=500'),
+        api.get('/bills?limit=500'),
         api.get('/masterdata/classes'),
+        api.get('/masterdata/payment-methods').catch(() => ({ data: { data: [] } })),
       ]);
       setPendingBillIds(new Set(pendingRes.data.data.map((p) => p.billId)));
       const pendingMap = {};
@@ -133,6 +135,10 @@ export default function StatusPembayaranTab() {
       setPaymentDates(dates);
       setTagihanGroups(buildTagihanGroups(groupsRes.data.data));
       setClasses(classRes.data.data);
+      const methods = methodsRes?.data?.data || [];
+      setCashMethodId(
+        methods.find((m) => m.channel === 'CASH' || /tunai|cash|loket/i.test(m.name || ''))?.id || null,
+      );
     } catch {
       /* ignore */
     }
@@ -142,10 +148,10 @@ export default function StatusPembayaranTab() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      params.set('limit', '100');
+      params.set('limit', '500');
       if (filters.classId) params.set('classId', filters.classId);
-      const searchQ = filters.search || selectedGroup?.period || '';
-      if (searchQ) params.set('search', searchQ);
+      // Jangan masukkan period sebagai search (API search hanya NIS/nama/invoice)
+      if (filters.search?.trim()) params.set('search', filters.search.trim());
       if (selectedGroup) params.set('feeTypeId', selectedGroup.feeTypeId);
 
       const { data } = await api.get(`/bills?${params}`);
@@ -158,7 +164,7 @@ export default function StatusPembayaranTab() {
       if (selectedGroup) {
         setSummaryItems(rows);
       } else {
-        const sumParams = new URLSearchParams({ limit: '100' });
+        const sumParams = new URLSearchParams({ limit: '500' });
         if (filters.classId) sumParams.set('classId', filters.classId);
         const { data: sumData } = await api.get(`/bills?${sumParams}`);
         setSummaryItems(sumData.data);
@@ -178,13 +184,10 @@ export default function StatusPembayaranTab() {
     load();
   }, [load]);
 
-  useSocket({
-    'payment:updated': () => { loadAux(); load(); },
-    'payment:verified': () => { loadAux(); load(); },
-    'payment:pending': () => { loadAux(); load(); },
-    'catalog:changed': () => { loadAux(); load(); },
-    'bill:created': () => { loadAux(); load(); },
-  });
+  // Satu refresh debounced saat CRUD bendahara↔siswa (hindari load berkali-kali)
+  usePortalCatalogSync(useCallback(async () => {
+    await Promise.all([loadAux(), load()]);
+  }, [loadAux, load]));
 
   useEffect(() => {
     if (tagihanGroups.length > 0 && !filters.tagihanKey) {
@@ -296,6 +299,38 @@ export default function StatusPembayaranTab() {
       return;
     }
     await verifyPayment(payment.id);
+  };
+
+  /** Terima tunai di loket tanpa siswa memilih metode di portal (langsung lunas). */
+  const receiveCashAtLoket = async (bill) => {
+    if (!cashMethodId) {
+      toast.error('Metode pembayaran Tunai belum dikonfigurasi.');
+      return;
+    }
+    const remaining = Math.max(
+      0,
+      Number(bill.amount) - Number(bill.discount || 0) - Number(bill.paidAmount || 0),
+    );
+    if (remaining <= 0) {
+      toast.info('Tagihan ini sudah tidak memiliki sisa.');
+      return;
+    }
+    setActing(true);
+    try {
+      await api.post('/payments', {
+        billId: bill.id,
+        paymentMethodId: cashMethodId,
+        amount: remaining,
+        channel: 'CASH',
+        note: 'Diterima tunai di loket bendahara',
+      });
+      toast.success(`Pembayaran tunai ${bill.student?.fullName || 'siswa'} dicatat — tagihan lunas`);
+      await refreshAfterVerify();
+    } catch (e) {
+      toast.error(apiError(e));
+    } finally {
+      setActing(false);
+    }
   };
 
   const sendReminder = async (bill) => {
@@ -458,20 +493,32 @@ export default function StatusPembayaranTab() {
                               </>
                             )}
                             {st.key === 'unpaid' && (
-                              <button
-                                type="button"
-                                onClick={() => sendReminder(b)}
-                                disabled={sendingNotifyId === b.id}
-                                title="Kirim notifikasi pengingat tagihan belum bayar"
-                                className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50"
-                              >
-                                {sendingNotifyId === b.id ? (
-                                  <Spinner size={14} />
-                                ) : (
-                                  <Icon.Bell width={14} height={14} />
-                                )}
-                                Notifikasi
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => receiveCashAtLoket(b)}
+                                  disabled={acting || !cashMethodId}
+                                  title="Catat pembayaran tunai di loket tanpa siswa memilih metode di portal"
+                                  className="inline-flex items-center gap-1 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+                                >
+                                  <Icon.Money width={14} height={14} />
+                                  Terima Tunai
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => sendReminder(b)}
+                                  disabled={sendingNotifyId === b.id}
+                                  title="Kirim notifikasi pengingat tagihan belum bayar"
+                                  className="inline-flex items-center gap-1 rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-100 disabled:opacity-50"
+                                >
+                                  {sendingNotifyId === b.id ? (
+                                    <Spinner size={14} />
+                                  ) : (
+                                    <Icon.Bell width={14} height={14} />
+                                  )}
+                                  Notifikasi
+                                </button>
+                              </>
                             )}
                           </div>
                         </td>

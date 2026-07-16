@@ -160,6 +160,7 @@ async function create(input, { actor, asTreasurer = false, req }) {
 
   if (cashless && !hasProof && !isMidtransQrisMethod(paymentMethod)) {
     scheduleCashlessSettlement(payment.id, actor, req);
+    emitPaymentUpdated(payment, { paymentType: 'QRIS', cashlessPending: true });
     return { ...payment, cashlessPending: true };
   }
 
@@ -177,6 +178,7 @@ async function create(input, { actor, asTreasurer = false, req }) {
     data: { paymentId: payment.id, billId: bill.id },
   });
 
+  emitPaymentUpdated(payment, { paymentType: cash ? 'CASH' : channel });
   return payment;
 }
 
