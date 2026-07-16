@@ -93,18 +93,12 @@ async function syncMidtransKeysToPaymentMethods() {
     return { updated: 0, invalid: true };
   }
 
-  const isProduction = /^Mid-server-/.test(sk) ? true : (/^SB-Mid-server-/.test(sk) ? false : Boolean(env.midtrans.isProduction));
+  // Environment ditentukan flag .env, BUKAN prefix Mid-server- (dashboard Sandbox juga memakai Mid-*).
+  const isProduction = Boolean(env.midtrans.isProduction);
 
-  // Mode Sandbox (MIDTRANS_IS_PRODUCTION=false): jangan sync key Production ke DB —
-  // Mid-server- tanpa kanal QRIS → Snap "No payment channels available".
-  if (env.midtrans.isProduction === false && isProduction) {
-    logger.warn(
-      'Skip sync Midtrans Production keys ke DB (MIDTRANS_IS_PRODUCTION=false). '
-      + 'Isi MIDTRANS_SERVER_KEY=SB-Mid-server-… / MIDTRANS_CLIENT_KEY=SB-Mid-client-… '
-      + 'atau MIDTRANS_SANDBOX_SERVER_KEY + MIDTRANS_SANDBOX_CLIENT_KEY.',
-    );
-    // Bersihkan key Production yang tersimpan di metode agar resolveKeys memakai env saja
-    await prisma.paymentMethod.updateMany({
+  // Mode Sandbox: sync key dari .env (Mid-server- atau SB-Mid-server-) ke metode QRIS dengan productionMode=false.
+  if (!isProduction) {
+    const result = await prisma.paymentMethod.updateMany({
       where: {
         OR: [
           { gateway: 'midtrans' },
@@ -114,27 +108,19 @@ async function syncMidtransKeysToPaymentMethods() {
         ],
       },
       data: {
+        midtransServerKey: sk,
+        midtransClientKey: ck,
         productionMode: false,
+        merchantId: env.midtrans.merchantId || 'M852853652',
+        gateway: 'midtrans',
         accountNo: '6513009817',
         accountName: 'PAPK SMP PUSPONEGORO BREBES',
       },
     });
-    await prisma.paymentMethod.updateMany({
-      where: {
-        OR: [
-          { gateway: 'midtrans' },
-          { paymentType: 'QRIS_MIDTRANS' },
-          { paymentType: 'TRANSFER_MIDTRANS' },
-          { channel: 'QRIS' },
-        ],
-        midtransServerKey: { startsWith: 'Mid-server-' },
-      },
-      data: {
-        midtransServerKey: null,
-        midtransClientKey: null,
-      },
-    });
-    return { updated: 0, skippedProductionInSandboxMode: true };
+    if (result.count > 0) {
+      logger.info(`Midtrans Sandbox keys disinkronkan ke ${result.count} metode pembayaran (host api.sandbox.midtrans.com)`);
+    }
+    return { updated: result.count, sandbox: true };
   }
 
   // Jangan timpa key Sandbox valid di DB dengan Production yang sama sekali tanpa kanal
@@ -143,13 +129,16 @@ async function syncMidtransKeysToPaymentMethods() {
     const existingSb = await prisma.paymentMethod.findFirst({
       where: {
         channel: 'QRIS',
-        midtransServerKey: { startsWith: 'SB-Mid-server-' },
+        OR: [
+          { midtransServerKey: { startsWith: 'SB-Mid-server-' } },
+          { productionMode: false },
+        ],
       },
       select: { id: true, midtransServerKey: true },
     });
-    if (existingSb) {
+    if (existingSb && /^SB-Mid-server-/.test(String(existingSb.midtransServerKey || ''))) {
       logger.info(
-        'Pertahankan Server Key Sandbox di metode QRIS (tidak ditimpa Production dari .env). Isi MIDTRANS_SANDBOX_* atau ganti MIDTRANS_SERVER_KEY ke SB-Mid-… untuk sync Sandbox.',
+        'Pertahankan Server Key Sandbox di metode QRIS (tidak ditimpa Production dari .env).',
       );
       return { updated: 0, preservedSandbox: true };
     }

@@ -113,8 +113,8 @@ const midtransStatus = asyncHandler(async (req, res) => {
       enabled_payments: midtransGateway.DEFAULT_SNAP_ENABLED_PAYMENTS,
     },
     hint: sandboxReady
-      ? 'Key Sandbox OK — buat pembayaran QRIS untuk generate EMV QR scannable.'
-      : 'Isi SB-Mid-server-/SB-Mid-client- di server/.env (MIDTRANS_IS_PRODUCTION=false). Key Mid-server- Production menyebabkan No payment channels available.',
+      ? 'Key Sandbox OK — buat pembayaran QRIS untuk generate EMV QR scannable (e-wallet/bank).'
+      : 'Isi Server/Client Key dari dashboard.sandbox.midtrans.com → Access Keys ke server/.env (MIDTRANS_IS_PRODUCTION=false), lalu restart.',
   }, 'Status konfigurasi Midtrans');
 });
 

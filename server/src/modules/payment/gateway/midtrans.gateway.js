@@ -20,17 +20,11 @@ const DEFAULT_SNAP_ENABLED_PAYMENTS = [
 ];
 
 /**
- * Resolve keys: saat MIDTRANS_IS_PRODUCTION=false hanya Sandbox (SB-Mid-…).
- * Mengikuti dotenv process.env via midtrans.config.
+ * Resolve keys: environment ditentukan MIDTRANS_IS_PRODUCTION, bukan prefix key.
+ * Dashboard Sandbox boleh menampilkan Mid-server- / Mid-client-.
  */
 function resolveKeys(method) {
   const resolved = resolveEnvMidtransKeys(method);
-  if (!isProductionFlag() && /^Mid-server-/.test(resolved.serverKey || '')) {
-    logger.warn(
-      'MIDTRANS_IS_PRODUCTION=false tetapi key masih Mid-server- (Production). '
-      + 'QRIS akan gagal (No payment channels). Isi SB-Mid-server-/SB-Mid-client- di server/.env.',
-    );
-  }
   return {
     serverKey: resolved.serverKey,
     clientKey: resolved.clientKey,
@@ -40,32 +34,39 @@ function resolveKeys(method) {
   };
 }
 
-/** True jika key siap untuk Sandbox QRIS (SB-Mid-). */
+/**
+ * Siap untuk QRIS Sandbox: mode non-production + Server/Client Key valid (Mid-* atau SB-Mid-*).
+ */
 function isSandboxKeyPair(keys) {
-  return /^SB-Mid-server-/.test(String(keys?.serverKey || ''))
-    && (!keys?.clientKey || /^SB-Mid-client-/.test(String(keys.clientKey || '')));
+  const sk = String(keys?.serverKey || '');
+  const ck = String(keys?.clientKey || '');
+  if (!sk || sk.length < 20) return false;
+  if (!/^SB-Mid-server-|^Mid-server-/.test(sk)) return false;
+  if (ck && !/^SB-Mid-client-|^Mid-client-/.test(ck)) return false;
+  // Mode harus Sandbox (host api.sandbox.midtrans.com)
+  if (keys?.isProduction === true) return false;
+  if (isProductionFlag()) return false;
+  return true;
 }
 
 function assertSandboxConfigured(method) {
   const keys = resolveKeys(method);
   if (!keys.serverKey) {
     throw ApiError.badRequest(
-      'MIDTRANS_SERVER_KEY kosong. Isi Server Key Sandbox (SB-Mid-server-…) di server/.env.',
+      'MIDTRANS_SERVER_KEY kosong. Isi Server Key dari dashboard.sandbox.midtrans.com → Settings → Access Keys ke server/.env.',
     );
   }
   if (!keys.clientKey) {
     throw ApiError.badRequest(
-      'MIDTRANS_CLIENT_KEY kosong. Isi Client Key Sandbox (SB-Mid-client-…) di server/.env.',
+      'MIDTRANS_CLIENT_KEY kosong. Isi Client Key dari dashboard.sandbox.midtrans.com → Settings → Access Keys ke server/.env.',
     );
   }
   if (env.midtrans.isProduction === false && !isSandboxKeyPair(keys)) {
     throw ApiError.badRequest(
-      'QRIS Sandbox belum dikonfigurasi. '
+      'QRIS Sandbox belum siap. '
       + `Mode=${keys.mode || 'Sandbox'}, Server Prefix=${keyPrefix(keys.serverKey, 'server')}, `
       + `Client Prefix=${keyPrefix(keys.clientKey, 'client')}. `
-      + 'Isi MIDTRANS_SERVER_KEY=SB-Mid-server-… dan MIDTRANS_CLIENT_KEY=SB-Mid-client-… di server/.env '
-      + '(dari dashboard.sandbox.midtrans.com), set MIDTRANS_IS_PRODUCTION=false, lalu restart. '
-      + 'Key Production (Mid-server-) menyebabkan "No payment channels available".',
+      + 'Pastikan MIDTRANS_IS_PRODUCTION=false dan Server/Client Key dari dashboard Sandbox tersimpan di server/.env, lalu restart.',
     );
   }
   return keys;
@@ -287,17 +288,15 @@ async function createSnapTransaction({
 
 function diagnoseEmptyChannels(keys, probed) {
   const reasons = [];
-  if (/^Mid-server-/.test(keys.serverKey || '')) {
-    reasons.push('SERVER_KEY adalah Production (Mid-server-). Saat MIDTRANS_IS_PRODUCTION=false wajib SB-Mid-server-.');
-  }
-  if (/^Mid-client-/.test(keys.clientKey || '')) {
-    reasons.push('CLIENT_KEY adalah Production (Mid-client-). Wajib SB-Mid-client- untuk Sandbox.');
-  }
-  if (!isSandboxKeyPair(keys) && process.env.MIDTRANS_IS_PRODUCTION !== 'true') {
-    reasons.push('Pasangan key bukan Sandbox (SB-Mid-).');
+  if (process.env.MIDTRANS_IS_PRODUCTION === 'true') {
+    reasons.push('Mode Production: pastikan kanal QRIS/GoPay aktif di MAP Production.');
+  } else if (!keys.serverKey) {
+    reasons.push('SERVER_KEY kosong.');
+  } else if (!keys.clientKey) {
+    reasons.push('CLIENT_KEY kosong.');
   }
   if (Array.isArray(probed?.enabledPayments) && probed.enabledPayments.length === 0) {
-    reasons.push('Snap token valid tetapi merchant belum mengaktifkan kanal QRIS/GoPay/ShopeePay/bank_transfer di Midtrans MAP.');
+    reasons.push('Snap token valid tetapi enabled_payments kosong — aktifkan QRIS/GoPay/ShopeePay/Transfer di Midtrans MAP Sandbox.');
   }
   if (probed?.raw?.httpStatus) {
     reasons.push(`Probe Snap HTTP ${probed.raw.httpStatus}.`);

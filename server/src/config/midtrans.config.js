@@ -1,6 +1,10 @@
 /**
  * Konfigurasi Midtrans resmi dari process.env (dotenv dimuat di config/env.js).
  * Jangan hardcode Server/Client Key.
+ *
+ * Catatan dashboard.sandbox.midtrans.com:
+ * Merchant baru sering menampilkan Mid-server- / Mid-client- (bukan SB-Mid-).
+ * Environment ditentukan oleh MIDTRANS_IS_PRODUCTION === "true", bukan prefix key.
  */
 const midtransClient = require('midtrans-client');
 const { env } = require('./env');
@@ -40,10 +44,19 @@ function keyPrefix(key, kind = 'server') {
   return `${k.slice(0, 12)}…`;
 }
 
+function isServerKeyFormat(sk) {
+  return /^SB-Mid-server-|^Mid-server-/.test(String(sk || ''));
+}
+
+function isClientKeyFormat(ck) {
+  if (!ck) return true;
+  return /^SB-Mid-client-|^Mid-client-/.test(String(ck || ''));
+}
+
 /**
- * Key yang dipakai Snap/Core:
- * - MIDTRANS_IS_PRODUCTION=false → HANYA Sandbox (SB-Mid-…)
- * - Preferensi: MIDTRANS_SANDBOX_* → MIDTRANS_* jika SB- → (opsional) method SB-
+ * Key yang dipakai Snap/Core.
+ * MIDTRANS_IS_PRODUCTION=false → host Sandbox (isProduction:false).
+ * Prefix Mid-server- dari dashboard Sandbox tetap valid.
  */
 function resolveEnvMidtransKeys(method = null) {
   const flagProduction = isProductionFlag();
@@ -58,18 +71,17 @@ function resolveEnvMidtransKeys(method = null) {
   let clientKey = '';
 
   if (!flagProduction) {
-    // Mode Sandbox: jangan pakai Mid-server- Production (penyebab "No payment channels")
-    if (/^SB-Mid-server-/.test(sbSk) && /^SB-Mid-client-/.test(sbCk || 'SB-Mid-client-')) {
+    // Prioritas Sandbox: MIDTRANS_SANDBOX_* → MIDTRANS_* → method DB
+    if (isServerKeyFormat(sbSk)) {
       serverKey = sbSk;
-      clientKey = sbCk || envCk;
-    } else if (/^SB-Mid-server-/.test(envSk)) {
+      clientKey = isClientKeyFormat(sbCk) && sbCk ? sbCk : (envCk || methodCk);
+    } else if (isServerKeyFormat(envSk)) {
       serverKey = envSk;
-      clientKey = /^SB-Mid-client-/.test(envCk) ? envCk : (sbCk || envCk);
-    } else if (/^SB-Mid-server-/.test(methodSk)) {
+      clientKey = envCk || sbCk || methodCk;
+    } else if (isServerKeyFormat(methodSk)) {
       serverKey = methodSk;
-      clientKey = /^SB-Mid-client-/.test(methodCk) ? methodCk : (sbCk || envCk);
+      clientKey = methodCk || envCk || sbCk;
     } else {
-      // Tetap expose env key agar validasi/error jelas (bukan diam-diam Production)
       serverKey = envSk || methodSk || sbSk;
       clientKey = envCk || methodCk || sbCk;
     }
@@ -82,7 +94,6 @@ function resolveEnvMidtransKeys(method = null) {
     };
   }
 
-  // Mode Production
   serverKey = methodSk || envSk;
   clientKey = methodCk || envCk;
   return {
@@ -103,7 +114,6 @@ function describeKeySource(serverKey, { envSk, sbSk, methodSk }) {
 
 /**
  * Instance Snap sesuai pola resmi Midtrans + dotenv.
- * Saat Sandbox, isProduction selalu false; key diambil dari resolveEnvMidtransKeys.
  */
 function createSnapFromEnv(method = null) {
   const keys = resolveEnvMidtransKeys(method);
@@ -131,7 +141,6 @@ function createCoreFromEnv(method = null) {
 
 /**
  * Validasi + logging saat startup (tanpa menampilkan full key).
- * @returns {{ ok: boolean, readyForQris: boolean, issues: string[], warnings: string[] }}
  */
 function validateMidtransStartup() {
   const issues = [];
@@ -156,56 +165,53 @@ function validateMidtransStartup() {
   // eslint-disable-next-line no-console
   console.log(`Key Source: ${resolved.source}`);
   // eslint-disable-next-line no-console
-  console.log(`dotenv: server/.env (MIDTRANS_SERVER_KEY / MIDTRANS_CLIENT_KEY)`);
+  console.log('dotenv: server/.env (MIDTRANS_SERVER_KEY / MIDTRANS_CLIENT_KEY)');
 
   if (!envSk && !sbSk) {
-    const msg = 'MIDTRANS_SERVER_KEY kosong. Isi di server/.env (Sandbox: SB-Mid-server-…).';
+    const msg = 'MIDTRANS_SERVER_KEY kosong. Isi di server/.env dari dashboard.sandbox.midtrans.com → Settings → Access Keys.';
     issues.push(msg);
     logger.error(msg);
     // eslint-disable-next-line no-console
     console.error(`[Midtrans] ERROR: ${msg}`);
   }
   if (!envCk && !sbCk) {
-    const msg = 'MIDTRANS_CLIENT_KEY kosong. Isi di server/.env (Sandbox: SB-Mid-client-…).';
+    const msg = 'MIDTRANS_CLIENT_KEY kosong. Isi di server/.env dari dashboard.sandbox.midtrans.com → Settings → Access Keys.';
     issues.push(msg);
     logger.error(msg);
     // eslint-disable-next-line no-console
     console.error(`[Midtrans] ERROR: ${msg}`);
   }
 
-  if (!flagProduction) {
-    const effectiveSk = resolved.serverKey || envSk || sbSk;
-    const effectiveCk = resolved.clientKey || envCk || sbCk;
-    if (effectiveSk && !effectiveSk.startsWith('SB-Mid-server-')) {
-      const msg = 'MIDTRANS_IS_PRODUCTION=false tetapi SERVER_KEY bukan SB-Mid-server-. Sandbox Key wajib digunakan agar QRIS tidak "No payment channels available".';
-      warnings.push(msg);
-      logger.warn(msg);
-      // eslint-disable-next-line no-console
-      console.warn(`[Midtrans] WARNING: ${msg}`);
-    }
-    if (effectiveCk && !effectiveCk.startsWith('SB-Mid-client-')) {
-      const msg = 'MIDTRANS_IS_PRODUCTION=false tetapi CLIENT_KEY bukan SB-Mid-client-. Sandbox Client Key wajib digunakan.';
-      warnings.push(msg);
-      logger.warn(msg);
-      // eslint-disable-next-line no-console
-      console.warn(`[Midtrans] WARNING: ${msg}`);
-    }
-    if (/^Mid-server-/.test(envSk) && !sbSk) {
-      const msg = 'Key Production (Mid-server-) terdeteksi di MIDTRANS_SERVER_KEY. Ganti ke SB-Mid-server- dari dashboard.sandbox.midtrans.com atau isi MIDTRANS_SANDBOX_SERVER_KEY.';
-      warnings.push(msg);
-      logger.warn(msg);
-    }
+  if (resolved.serverKey && !isServerKeyFormat(resolved.serverKey)) {
+    const msg = 'SERVER_KEY tidak diawali Mid-server- atau SB-Mid-server-. Salin ulang dari dashboard Midtrans.';
+    warnings.push(msg);
+    logger.warn(msg);
+  }
+  if (resolved.clientKey && !isClientKeyFormat(resolved.clientKey)) {
+    const msg = 'CLIENT_KEY tidak diawali Mid-client- atau SB-Mid-client-. Salin ulang dari dashboard Midtrans.';
+    warnings.push(msg);
+    logger.warn(msg);
+  }
+
+  if (!flagProduction && /^SB-Mid-server-/.test(resolved.serverKey || '')) {
+    // eslint-disable-next-line no-console
+    console.log('Note: memakai format SB-Mid-server- (Sandbox klasik)');
+  } else if (!flagProduction && /^Mid-server-/.test(resolved.serverKey || '')) {
+    // eslint-disable-next-line no-console
+    console.log('Note: Mid-server- dari dashboard Sandbox OK (host api.sandbox.midtrans.com)');
   }
 
   const readyForQris = !flagProduction
-    && /^SB-Mid-server-/.test(resolved.serverKey)
-    && (!resolved.clientKey || /^SB-Mid-client-/.test(resolved.clientKey));
+    && isServerKeyFormat(resolved.serverKey)
+    && isClientKeyFormat(resolved.clientKey)
+    && Boolean(resolved.serverKey)
+    && Boolean(resolved.clientKey);
 
   // eslint-disable-next-line no-console
   console.log(`QRIS Sandbox Ready: ${readyForQris ? 'YES' : 'NO'}`);
   if (!readyForQris && !flagProduction) {
     // eslint-disable-next-line no-console
-    console.log('Action: https://dashboard.sandbox.midtrans.com/settings/config_info → copy SB-Mid-server- / SB-Mid-client- → server/.env → restart');
+    console.log('Action: https://dashboard.sandbox.midtrans.com/settings/access-keys → copy Server/Client Key → server/.env → restart');
   }
   // eslint-disable-next-line no-console
   console.log('==================================================');
@@ -237,6 +243,8 @@ module.exports = {
   readEnvServerKey,
   readEnvClientKey,
   keyPrefix,
+  isServerKeyFormat,
+  isClientKeyFormat,
   resolveEnvMidtransKeys,
   createSnapFromEnv,
   createCoreFromEnv,
