@@ -142,8 +142,12 @@ export default function StatusPembayaranTab() {
       setPaymentDates(dates);
       setTagihanGroups(buildTagihanGroups(allBills));
       setClasses(classRes.data?.data || []);
-      // Fallback: bila load utama gagal/filter salah, tetap punya data tagihan dari DB
-      setSummaryItems((prev) => (allBills.length ? allBills : prev));
+      // Isi cache dari PostgreSQL — jangan biarkan tabel Status Tagihan kosong
+      if (allBills.length) {
+        setSummaryItems(allBills);
+        // Seed baris tabel segera bila belum ada data tampil (load utama menyusul)
+        setAllItems((prev) => (prev.length > 0 ? prev : allBills));
+      }
       const methods = methodsRes?.data?.data || [];
       let cashId = methods.find((m) => m.channel === 'CASH' || /tunai|cash|loket/i.test(m.name || ''))?.id || null;
       if (!cashId) {
