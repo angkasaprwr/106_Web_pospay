@@ -121,6 +121,7 @@ async function formatPaymentStatusResponse(payment, options = {}) {
     snap_redirect_url: snapToken ? (payment.qrUrl || null) : null,
     midtrans_client_key: clientKey,
     midtrans_is_production: isProduction,
+    display_mode: snapToken ? 'snap_embed' : (sandboxLocal ? 'demo' : 'qris_image'),
     expiry_time: payment.expiryTime,
     paid_at: payment.verifiedAt || payment.paidAt,
     verifiedAt: payment.verifiedAt,

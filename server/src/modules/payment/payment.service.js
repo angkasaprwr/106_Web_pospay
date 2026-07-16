@@ -201,6 +201,7 @@ async function createMidtransPayment(input, actor, req) {
             snap_redirect_url: snapTok ? full.qrUrl : null,
             midtrans_client_key: keys.clientKey,
             midtrans_is_production: keys.isProduction,
+            display_mode: snapTok ? 'snap_embed' : (sandboxLocal ? 'demo' : 'qris_image'),
           };
         }
         throw ApiError.badRequest('Tagihan ini masih memiliki pembayaran yang menunggu proses');
@@ -397,6 +398,7 @@ async function createMidtransPayment(input, actor, req) {
     snap_redirect_url: snapPayload?.redirectUrl || null,
     midtrans_client_key: snapPayload?.clientKey || keys.clientKey || null,
     midtrans_is_production: snapPayload?.isProduction ?? keys.isProduction,
+    display_mode: snapPayload ? 'snap_embed' : (sandboxLocal ? 'demo' : 'qris_image'),
     midtrans_simulator_url: !keys.isProduction && scannable && !snapPayload
       ? 'https://simulator.sandbox.midtrans.com/openapi/qris/index'
       : null,

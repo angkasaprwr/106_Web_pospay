@@ -18,6 +18,7 @@ import { Icon } from '../components/Icons';
 import { useSocket } from '../hooks/useSocket';
 
 const CARD = 'rounded-2xl border border-slate-100 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900';
+const SNAP_EMBED_ID = 'pospay-snap-qris';
 
 const STEP_DEFS = [
   { num: 1, label: 'Bayar Tagihan', icon: Icon.Bills, path: '/tagihan' },
@@ -134,6 +135,9 @@ export default function BillConfirm() {
   const [midtransClientKey, setMidtransClientKey] = useState('');
   const [midtransIsProduction, setMidtransIsProduction] = useState(false);
   const [openingSnap, setOpeningSnap] = useState(false);
+  const [snapEmbedded, setSnapEmbedded] = useState(false);
+  const snapEmbedTokenRef = useRef('');
+  const snapEmbedAttemptRef = useRef('');
 
   const midtrans = useMemo(() => isMidtransQrisMethod(method), [method]);
   const midtransTransfer = useMemo(() => isMidtransTransferMethod(method), [method]);
@@ -273,6 +277,11 @@ export default function BillConfirm() {
       setSnapRedirectUrl(paymentData.snap_redirect_url || (paymentData.qr_url?.includes?.('midtrans.com/snap') ? paymentData.qr_url : ''));
       setMidtransClientKey(paymentData.midtrans_client_key || '');
       setMidtransIsProduction(Boolean(paymentData.midtrans_is_production));
+      if (nextSnapToken) {
+        setSnapEmbedded(false);
+        snapEmbedTokenRef.current = '';
+        snapEmbedAttemptRef.current = '';
+      }
       setTransferInfo({
         vaNumber: paymentData.va_number || null,
         bank: paymentData.bank || null,
@@ -446,6 +455,103 @@ export default function BillConfirm() {
     }
   };
 
+  const loadSnapScript = useCallback(async (clientKey) => {
+    const snapSrc = midtransIsProduction
+      ? 'https://app.midtrans.com/snap/snap.js'
+      : 'https://app.sandbox.midtrans.com/snap/snap.js';
+
+    await new Promise((resolve, reject) => {
+      if (window.snap) {
+        resolve();
+        return;
+      }
+      const existing = document.querySelector(`script[src="${snapSrc}"]`);
+      if (existing) {
+        if (clientKey && !existing.getAttribute('data-client-key')) {
+          existing.setAttribute('data-client-key', clientKey);
+        }
+        if (window.snap) {
+          resolve();
+          return;
+        }
+        existing.addEventListener('load', () => resolve());
+        existing.addEventListener('error', reject);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = snapSrc;
+      script.setAttribute('data-client-key', clientKey);
+      script.onload = () => resolve();
+      script.onerror = reject;
+      document.body.appendChild(script);
+    });
+  }, [midtransIsProduction]);
+
+  const snapCallbacks = useCallback(() => ({
+    onSuccess: () => {
+      toast.success('Pembayaran berhasil diproses Midtrans');
+      if (paymentId) checkPaymentStatus(paymentId);
+    },
+    onPending: () => {
+      toast.info('Menunggu pembayaran QRIS. Scan QR dengan GoPay/Dana/ShopeePay/bank.');
+      if (paymentId) checkPaymentStatus(paymentId);
+    },
+    onError: () => {
+      toast.error('Pembayaran Midtrans gagal. Coba lagi.');
+    },
+    onClose: () => {
+      toast.info('Jendela pembayaran ditutup. Tagihan tetap menunggu hingga dibayar.');
+    },
+  }), [toast, paymentId, checkPaymentStatus]);
+
+  /** Tampilkan QRIS Midtrans di halaman (embed) agar bisa di-scan e-wallet/bank. */
+  const embedSnapPay = useCallback(async ({ silent = false } = {}) => {
+    if (!snapToken) {
+      if (!silent && snapRedirectUrl) {
+        window.open(snapRedirectUrl, '_blank', 'noopener,noreferrer');
+        return false;
+      }
+      if (!silent) toast.error('Token Snap Midtrans belum tersedia.');
+      return false;
+    }
+    const clientKey = midtransClientKey;
+    if (!clientKey) {
+      if (!silent && snapRedirectUrl) window.open(snapRedirectUrl, '_blank', 'noopener,noreferrer');
+      else if (!silent) toast.error('Client Key Midtrans belum tersedia.');
+      return false;
+    }
+
+    if (!silent) setOpeningSnap(true);
+    try {
+      await loadSnapScript(clientKey);
+      if (!window.snap?.embed) {
+        throw new Error('snap.embed unavailable');
+      }
+      const container = document.getElementById(SNAP_EMBED_ID);
+      if (container) container.innerHTML = '';
+
+      window.snap.embed(snapToken, {
+        embedId: SNAP_EMBED_ID,
+        language: 'id',
+        uiMode: 'qr',
+        ...snapCallbacks(),
+      });
+      snapEmbedTokenRef.current = snapToken;
+      setSnapEmbedded(true);
+      return true;
+    } catch {
+      setSnapEmbedded(false);
+      if (!silent) {
+        if (snapRedirectUrl) window.open(snapRedirectUrl, '_blank', 'noopener,noreferrer');
+        else toast.error('Gagal menampilkan QRIS Midtrans di halaman.');
+      }
+      return false;
+    } finally {
+      if (!silent) setOpeningSnap(false);
+    }
+  }, [snapToken, snapRedirectUrl, midtransClientKey, loadSnapScript, snapCallbacks, toast]);
+
+  /** Fallback: pop-up Snap atau tab baru. */
   const openSnapPay = useCallback(async () => {
     if (!snapToken) {
       if (snapRedirectUrl) {
@@ -463,52 +569,41 @@ export default function BillConfirm() {
         else toast.error('Client Key Midtrans belum tersedia.');
         return;
       }
-      const snapSrc = midtransIsProduction
-        ? 'https://app.midtrans.com/snap/snap.js'
-        : 'https://app.sandbox.midtrans.com/snap/snap.js';
-
-      await new Promise((resolve, reject) => {
-        if (window.snap) {
-          resolve();
-          return;
-        }
-        const existing = document.querySelector(`script[src="${snapSrc}"]`);
-        if (existing) {
-          existing.addEventListener('load', () => resolve());
-          existing.addEventListener('error', reject);
-          return;
-        }
-        const script = document.createElement('script');
-        script.src = snapSrc;
-        script.setAttribute('data-client-key', clientKey);
-        script.onload = () => resolve();
-        script.onerror = reject;
-        document.body.appendChild(script);
-      });
-
-      window.snap.pay(snapToken, {
-        onSuccess: () => {
-          toast.success('Pembayaran berhasil diproses Midtrans');
-          if (paymentId) checkPaymentStatus(paymentId);
-        },
-        onPending: () => {
-          toast.info('Menunggu pembayaran QRIS. Scan QR di halaman Midtrans dengan GoPay/Dana/bank.');
-          if (paymentId) checkPaymentStatus(paymentId);
-        },
-        onError: () => {
-          toast.error('Pembayaran Midtrans gagal. Coba lagi.');
-        },
-        onClose: () => {
-          toast.info('Jendela pembayaran ditutup. Tagihan tetap menunggu hingga dibayar.');
-        },
-      });
+      await loadSnapScript(clientKey);
+      if (window.snap?.pay) {
+        window.snap.pay(snapToken, {
+          language: 'id',
+          uiMode: 'qr',
+          ...snapCallbacks(),
+        });
+        return;
+      }
+      await embedSnapPay({ silent: false });
     } catch {
       if (snapRedirectUrl) window.open(snapRedirectUrl, '_blank', 'noopener,noreferrer');
       else toast.error('Gagal membuka Midtrans Snap.');
     } finally {
       setOpeningSnap(false);
     }
-  }, [snapToken, snapRedirectUrl, midtransClientKey, midtransIsProduction, toast, paymentId, checkPaymentStatus]);
+  }, [snapToken, snapRedirectUrl, midtransClientKey, loadSnapScript, snapCallbacks, embedSnapPay, toast]);
+
+  useEffect(() => {
+    if (!midtrans || !snapToken || !midtransClientKey) return undefined;
+    if (snapEmbedTokenRef.current === snapToken && snapEmbedded) return undefined;
+    if (snapEmbedAttemptRef.current === snapToken) return undefined;
+
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      if (cancelled) return;
+      snapEmbedAttemptRef.current = snapToken;
+      embedSnapPay({ silent: true });
+    }, 400);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [midtrans, snapToken, midtransClientKey, snapEmbedded, embedSnapPay]);
 
   const handleComplete = async () => {
     if (!bill || !method || !draft) {
@@ -696,19 +791,40 @@ export default function BillConfirm() {
               <div className="flex flex-col items-center">
                 {midtrans && snapToken ? (
                   <div className="w-full space-y-3 text-center">
-                    <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-5 dark:border-sky-900/50 dark:bg-sky-950/40">
-                      <p className="text-sm font-semibold text-sky-900 dark:text-sky-100">Pembayaran QRIS Midtrans siap</p>
+                    <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-4 dark:border-sky-900/50 dark:bg-sky-950/40">
+                      <p className="text-sm font-semibold text-sky-900 dark:text-sky-100">Scan QRIS Midtrans</p>
                       <p className="mt-2 text-[11px] leading-relaxed text-sky-800 dark:text-sky-200/90">
-                        Klik tombol di bawah untuk membuka halaman QRIS. Scan dengan <strong>GoPay, Dana, ShopeePay, SeaBank, OVO, Livin, BRImo, BNI Mobile, BCA, Mandiri</strong>, atau bank lain yang mendukung QRIS Tap.
+                        Scan kode QR di bawah dengan <strong>GoPay, Dana, ShopeePay, SeaBank, OVO, Livin, BRImo, BNI Mobile, BCA, Mandiri</strong>, atau bank lain yang mendukung QRIS Tap.
                         Dana masuk rekening sekolah <strong>BNI 6513009817 – PAPK SMP PUSPONEGORO BREBES</strong>.
                       </p>
+                      <div
+                        id={SNAP_EMBED_ID}
+                        className="mx-auto mt-4 flex min-h-[560px] w-full max-w-[420px] items-start justify-center overflow-hidden rounded-xl bg-white dark:bg-slate-900"
+                      />
+                      {!snapEmbedded && (
+                        <div className="mt-3 flex items-center justify-center gap-2 text-[11px] text-sky-800 dark:text-sky-200">
+                          <Spinner size={14} />
+                          Menampilkan kode QR Midtrans…
+                        </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          snapEmbedAttemptRef.current = '';
+                          embedSnapPay({ silent: false });
+                        }}
+                        disabled={openingSnap}
+                        className="mt-4 w-full rounded-xl border border-[#0056D2] bg-white py-2.5 text-sm font-bold text-[#0056D2] hover:bg-sky-50 disabled:opacity-60 dark:border-blue-400 dark:bg-transparent dark:text-blue-300 dark:hover:bg-slate-800"
+                      >
+                        {openingSnap ? 'Memuat QRIS…' : (snapEmbedded ? 'Muat ulang QRIS' : 'Tampilkan QRIS di halaman')}
+                      </button>
                       <button
                         type="button"
                         onClick={openSnapPay}
                         disabled={openingSnap}
-                        className="mt-4 w-full rounded-xl bg-[#0056D2] py-3 text-sm font-bold text-white hover:bg-[#004BB8] disabled:opacity-60"
+                        className="mt-2 w-full rounded-xl bg-[#0056D2] py-3 text-sm font-bold text-white hover:bg-[#004BB8] disabled:opacity-60"
                       >
-                        {openingSnap ? 'Membuka Midtrans…' : 'Bayar via QRIS Tap (Midtrans)'}
+                        {openingSnap ? 'Membuka Midtrans…' : 'Bayar via pop-up QRIS Tap'}
                       </button>
                       {snapRedirectUrl && (
                         <a
