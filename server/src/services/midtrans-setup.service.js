@@ -61,10 +61,27 @@ function persistMidtransKeysToEnv({ serverKey, clientKey, merchantId, isProducti
 
 /**
  * Salin MIDTRANS_* dari server/.env ke metode QRIS/Transfer di DB.
+ * Prioritas: Sandbox keys (SB-Mid- / MIDTRANS_SANDBOX_*) agar QRIS scannable tidak tertimpa Production mati.
  */
 async function syncMidtransKeysToPaymentMethods() {
-  const sk = String(env.midtrans.serverKey || '').trim();
-  const ck = String(env.midtrans.clientKey || '').trim();
+  const envSk = String(env.midtrans.serverKey || '').trim();
+  const envCk = String(env.midtrans.clientKey || '').trim();
+  const sbSk = String(env.midtrans.sandboxServerKey || '').trim();
+  const sbCk = String(env.midtrans.sandboxClientKey || '').trim();
+
+  // Preferensi Sandbox jika tersedia (user minta SENDBOX aktif untuk QRIS scannable)
+  const preferSandbox = midtransGateway.hasValidMidtransKeys({ serverKey: sbSk, clientKey: sbCk })
+    || /^SB-Mid-server-/.test(envSk);
+
+  let sk = preferSandbox && sbSk ? sbSk : envSk;
+  let ck = preferSandbox && sbCk ? sbCk : envCk;
+
+  // Jika primary adalah SB-, pakai itu
+  if (/^SB-Mid-server-/.test(envSk) && /^SB-Mid-client-/.test(envCk)) {
+    sk = envSk;
+    ck = envCk;
+  }
+
   if (!sk || !ck) {
     logger.warn(
       'MIDTRANS_SERVER_KEY / MIDTRANS_CLIENT_KEY kosong — QRIS tidak bisa di-scan sampai diisi (Sandbox/Production Midtrans).',
@@ -77,6 +94,24 @@ async function syncMidtransKeysToPaymentMethods() {
   }
 
   const isProduction = /^Mid-server-/.test(sk) ? true : (/^SB-Mid-server-/.test(sk) ? false : Boolean(env.midtrans.isProduction));
+
+  // Jangan timpa key Sandbox valid di DB dengan Production yang sama sekali tanpa kanal
+  // (kecuali env memang SB- atau preferSandbox).
+  if (isProduction && !preferSandbox) {
+    const existingSb = await prisma.paymentMethod.findFirst({
+      where: {
+        channel: 'QRIS',
+        midtransServerKey: { startsWith: 'SB-Mid-server-' },
+      },
+      select: { id: true, midtransServerKey: true },
+    });
+    if (existingSb) {
+      logger.info(
+        'Pertahankan Server Key Sandbox di metode QRIS (tidak ditimpa Production dari .env). Isi MIDTRANS_SANDBOX_* atau ganti MIDTRANS_SERVER_KEY ke SB-Mid-… untuk sync Sandbox.',
+      );
+      return { updated: 0, preservedSandbox: true };
+    }
+  }
 
   const result = await prisma.paymentMethod.updateMany({
     where: {
@@ -99,7 +134,7 @@ async function syncMidtransKeysToPaymentMethods() {
   });
 
   if (result.count > 0) {
-    logger.info(`Midtrans keys disinkronkan ke ${result.count} metode pembayaran`);
+    logger.info(`Midtrans keys disinkronkan ke ${result.count} metode pembayaran (${isProduction ? 'production' : 'sandbox'})`);
   }
   return { updated: result.count };
 }
@@ -167,24 +202,28 @@ async function testQrisCharge({ methodId, amount = 10000 } = {}) {
       grossAmount: amount,
       method,
       customerDetails,
-      enabledPayments: ['qris', 'gopay', 'other_qris'],
+      enabledPayments: undefined,
     });
+    const channelInactive = Boolean(snap.channelInactive);
     return {
-      success: true,
-      scannable: true,
+      success: !channelInactive,
+      scannable: !channelInactive,
       mode: 'snap',
       order_id: orderId,
       snap_token: snap.snapToken,
       snap_redirect_url: snap.redirectUrl,
       midtrans_client_key: snap.clientKey,
       midtrans_is_production: snap.isProduction,
+      midtrans_channel_inactive: channelInactive,
+      enabled_payments: snap.enabledPayments || [],
       school_account: {
         bank: 'BNI',
         accountNo: method?.accountNo || '6513009817',
         accountName: method?.accountName || 'PAPK SMP PUSPONEGORO BREBES',
       },
-      message:
-        `Core API QRIS belum aktif (${coreErr.message}). Fallback Snap OK — gunakan halaman Snap untuk scan QRIS Tap (GoPay/Dana/bank).`,
+      message: channelInactive
+        ? `Core API QRIS belum aktif (${coreErr.message}). Snap token dibuat tetapi enabled_payments kosong — aktifkan QRIS/GoPay di MAP atau ganti ke key Sandbox (SB-Mid-…).`
+        : `Core API QRIS belum aktif (${coreErr.message}). Fallback Snap OK — scan QRIS Tap via halaman Snap (GoPay/Dana/bank).`,
     };
   }
 }
