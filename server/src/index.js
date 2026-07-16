@@ -1,3 +1,5 @@
+const path = require('path');
+const { execSync } = require('child_process');
 const { createApp } = require('./app');
 const { env } = require('./config/env');
 const { prisma } = require('./config/prisma');
@@ -8,13 +10,52 @@ const { initSocket } = require('./services/socket.service');
 const { startReminderJob, stopReminderJob } = require('./jobs/reminder.job');
 const { syncMidtransKeysToPaymentMethods } = require('./services/midtrans-setup.service');
 
-async function bootstrap() {
-  // Verify database connectivity early.
+const SERVER_ROOT = path.join(__dirname, '..');
+const EXPECTED_MODELS = 29;
+
+async function ensurePrismaMigrations() {
   try {
-    await prisma.$connect();
-    logger.info('Terhubung ke database');
+    execSync('npx prisma migrate deploy', {
+      cwd: SERVER_ROOT,
+      stdio: 'pipe',
+      env: process.env,
+    });
+    logger.info('Migration Success');
+    return true;
   } catch (e) {
-    logger.error('Gagal terhubung ke database. Periksa DATABASE_URL.', e.message);
+    const msg = e.stderr?.toString?.() || e.message || String(e);
+    logger.warn('Migration deploy gagal atau belum diperlukan', msg.slice(0, 300));
+    return false;
+  }
+}
+
+async function verifyDatabaseConnection() {
+  await prisma.$connect();
+  logger.info('Prisma Connected');
+
+  await prisma.$queryRaw`SELECT 1`;
+  logger.info('PostgreSQL Connected');
+
+  const tables = await prisma.$queryRaw`
+    SELECT COUNT(*)::int AS count
+    FROM information_schema.tables
+    WHERE table_schema = 'public'
+      AND table_type = 'BASE TABLE'
+      AND table_name <> '_prisma_migrations'
+  `;
+  const tableCount = tables?.[0]?.count ?? 0;
+  logger.info(`PostgreSQL tables ready (${tableCount} tabel, ${EXPECTED_MODELS} model Prisma)`);
+
+  return tableCount;
+}
+
+async function bootstrap() {
+  try {
+    await verifyDatabaseConnection();
+    await ensurePrismaMigrations();
+  } catch (e) {
+    logger.error('Gagal terhubung ke database. Periksa DATABASE_URL di server/.env', e.message);
+    logger.error('Format: postgresql://postgres:db123@127.0.0.1:5433/db_sikes?schema=public');
   }
 
   await emailService.verifySmtpConnection();

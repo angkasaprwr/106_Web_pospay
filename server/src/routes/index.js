@@ -1,6 +1,7 @@
 const { Router } = require('express');
 const { asyncHandler } = require('../core/asyncHandler');
 const { ok } = require('../core/ApiResponse');
+const { prisma } = require('../config/prisma');
 const { runReminders } = require('../jobs/reminder.job');
 const { authenticate, authorize } = require('../middlewares/auth.middleware');
 
@@ -26,7 +27,31 @@ const {
 
 const router = Router();
 
-router.get('/health', (req, res) => ok(res, { status: 'up', time: new Date().toISOString() }, 'OK'));
+router.get('/health', asyncHandler(async (req, res) => {
+  let database = 'disconnected';
+  let tables = 0;
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    database = 'connected';
+    const rows = await prisma.$queryRaw`
+      SELECT COUNT(*)::int AS count
+      FROM information_schema.tables
+      WHERE table_schema = 'public'
+        AND table_type = 'BASE TABLE'
+        AND table_name <> '_prisma_migrations'
+    `;
+    tables = rows?.[0]?.count ?? 0;
+  } catch {
+    database = 'error';
+  }
+  return ok(res, {
+    status: 'up',
+    database,
+    tables,
+    prisma: database === 'connected' ? 'connected' : 'error',
+    time: new Date().toISOString(),
+  }, database === 'connected' ? 'OK' : 'Database unavailable');
+}));
 
 router.use('/auth', authRoutes);
 router.use('/students', studentRoutes);
