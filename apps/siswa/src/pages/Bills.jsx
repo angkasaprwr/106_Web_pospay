@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { api, apiError } from '../lib/api';
 import { useToast } from '../context/ToastContext';
 import { formatIDR, formatDate, BILL_STATUS } from '../lib/format';
-import { saveBillPaymentDraft } from '../lib/billPaymentSession';
+import { saveBillPaymentDraft, isMidtransQrisMethod, isMidtransTransferMethod, isCashMethod } from '../lib/billPaymentSession';
 import { usePortalCatalogSync } from '../hooks/usePortalCatalogSync';
 import { Spinner, Badge } from '../components/ui';
 import { Icon } from '../components/Icons';
@@ -79,6 +79,8 @@ export default function Bills() {
   const [selectedBillId, setSelectedBillId] = useState('');
   const [selectedMethodId, setSelectedMethodId] = useState('');
 
+  const [paying, setPaying] = useState(false);
+
   const loadData = useCallback(async ({ silent = false } = {}) => {
     if (!silent) {
       setInitialLoading(true);
@@ -121,18 +123,11 @@ export default function Bills() {
     }
   }, [toast]);
 
-  const { setVersionSnapshot } = usePortalCatalogSync(loadData, { intervalMs: 60000 });
+  usePortalCatalogSync(loadData);
 
   useEffect(() => {
-    let active = true;
-    (async () => {
-      await loadData({ silent: false });
-      if (active) await setVersionSnapshot();
-    })();
-    return () => {
-      active = false;
-    };
-  }, [loadData, setVersionSnapshot]);
+    loadData({ silent: false });
+  }, [loadData]);
 
   const selectedBill = useMemo(
     () => bills.find((b) => b.id === selectedBillId) || null,
@@ -145,9 +140,19 @@ export default function Bills() {
   );
 
   const totalDue = selectedBill ? billRemaining(selectedBill) : 0;
-  const hasPendingPayment = selectedBill?.payments?.some((p) => p.status === 'PENDING');
+  const pendingPay = selectedBill?.payments?.find((p) => p.status === 'PENDING') || null;
+  const canContinuePending = Boolean(
+    pendingPay
+    && selectedMethod
+    && (
+      (isCashMethod(selectedMethod) && (pendingPay.channel === 'CASH' || pendingPay.paymentType === 'CASH'))
+      || (isMidtransQrisMethod(selectedMethod) && (pendingPay.channel === 'QRIS' || pendingPay.paymentType === 'QRIS_MIDTRANS'))
+      || (isMidtransTransferMethod(selectedMethod) && (pendingPay.channel === 'TRANSFER' || pendingPay.paymentType === 'TRANSFER_MIDTRANS'))
+      || pendingPay.paymentMethodId === selectedMethod.id
+    ),
+  );
 
-  const handlePay = () => {
+  const handlePay = async () => {
     if (!selectedBill) {
       toast.error('Pilih tagihan terlebih dahulu.');
       return;
@@ -156,22 +161,81 @@ export default function Bills() {
       toast.error('Pilih metode pembayaran terlebih dahulu.');
       return;
     }
-    if (hasPendingPayment) {
-      toast.info('Tagihan ini masih menunggu verifikasi pembayaran sebelumnya.');
-      return;
-    }
     if (totalDue <= 0) {
       toast.error('Tagihan ini tidak memiliki sisa pembayaran.');
       return;
     }
 
-    saveBillPaymentDraft({
-      billId: selectedBill.id,
-      paymentMethodId: selectedMethod.id,
-      amount: totalDue,
-      channel: selectedMethod.channel || 'TRANSFER',
-    });
-    navigate('/tagihan/konfirmasi');
+    // Pembayaran pending metode yang sama → lanjut konfirmasi (tunai: menunggu bendahara)
+    if (pendingPay && canContinuePending) {
+      saveBillPaymentDraft({
+        billId: selectedBill.id,
+        paymentMethodId: selectedMethod.id,
+        amount: totalDue,
+        channel: selectedMethod.channel || 'TRANSFER',
+        paymentId: pendingPay.id,
+      });
+      navigate('/tagihan/konfirmasi');
+      return;
+    }
+
+    if (pendingPay) {
+      toast.info('Tagihan ini masih menunggu verifikasi pembayaran sebelumnya.');
+      return;
+    }
+
+    setPaying(true);
+    try {
+      let paymentId = null;
+
+      if (isCashMethod(selectedMethod)) {
+        const { data } = await api.post('/payment/cash', {
+          billId: selectedBill.id,
+          paymentMethodId: selectedMethod.id,
+          amount: totalDue,
+        });
+        paymentId = data?.data?.id;
+        toast.success('Pembayaran tunai diajukan. Menunggu verifikasi bendahara di loket.');
+      } else if (isMidtransQrisMethod(selectedMethod) || isMidtransTransferMethod(selectedMethod)) {
+        const { data } = await api.post('/payment/create', {
+          billId: selectedBill.id,
+          paymentMethodId: selectedMethod.id,
+          amount: totalDue,
+        });
+        paymentId = data?.data?.id;
+      } else {
+        // Transfer manual / metode lain → catat PENDING agar tampil di Status Tagihan
+        const fd = new FormData();
+        fd.append('billId', selectedBill.id);
+        fd.append('amount', String(totalDue));
+        fd.append('channel', selectedMethod.channel || 'TRANSFER');
+        fd.append('paymentMethodId', selectedMethod.id);
+        const { data } = await api.post('/portal/payments', fd);
+        paymentId = data?.data?.id;
+      }
+
+      if (!paymentId) {
+        toast.error('Gagal membuat transaksi pembayaran.');
+        return;
+      }
+
+      saveBillPaymentDraft({
+        billId: selectedBill.id,
+        paymentMethodId: selectedMethod.id,
+        amount: totalDue,
+        channel: selectedMethod.channel || 'TRANSFER',
+        paymentId,
+      });
+
+      // Soft refresh daftar agar pending terlihat di portal siswa
+      await loadData({ silent: true });
+      navigate('/tagihan/konfirmasi');
+    } catch (e) {
+      const msg = apiError(e);
+      if (msg) toast.error(msg);
+    } finally {
+      setPaying(false);
+    }
   };
 
   return (
@@ -352,11 +416,11 @@ export default function Bills() {
             <button
               type="button"
               onClick={handlePay}
-              disabled={initialLoading || !selectedBill || !selectedMethod || hasPendingPayment || totalDue <= 0}
+              disabled={paying || initialLoading || !selectedBill || !selectedMethod || totalDue <= 0 || (Boolean(pendingPay) && !canContinuePending)}
               className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl bg-[#0056D2] py-3.5 text-sm font-bold text-white shadow-md transition hover:bg-[#004BB8] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-500"
             >
               <Icon.Money width={20} height={20} />
-              Bayar Tagihan
+              {paying ? 'Memproses...' : (canContinuePending ? 'Lanjut Konfirmasi' : 'Bayar Tagihan')}
             </button>
           </section>
         </div>

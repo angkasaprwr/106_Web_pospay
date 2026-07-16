@@ -45,11 +45,13 @@ export default function Bills() {
   const location = useLocation();
   const initialTab = resolveTab(location.state?.tab);
   const [tab, setTab] = useState(initialTab);
+  const [statusMounted, setStatusMounted] = useState(initialTab === 'status');
   const [stats, setStats] = useState({ total: 0, paid: 0, pendingPay: 0, unpaid: 0, pendingDisp: 0 });
   const [tunggakanStats, setTunggakanStats] = useState({ totalStudents: 0, totalNominal: 0, pendingDisp: 0, approvedStudents: 0 });
 
   const selectTab = (id) => {
     setTab(id);
+    if (id === 'status') setStatusMounted(true);
   };
 
   const loadTunggakanStats = useCallback(async () => {
@@ -95,7 +97,9 @@ export default function Bills() {
 
   useEffect(() => {
     if (location.state?.tab) {
-      setTab(resolveTab(location.state.tab));
+      const next = resolveTab(location.state.tab);
+      setTab(next);
+      if (next === 'status') setStatusMounted(true);
     }
   }, [location.state?.tab]);
 
@@ -145,7 +149,12 @@ export default function Bills() {
       </div>
 
       {tab === 'daftar' && <DaftarTagihanTab onStatsChange={refreshAllStats} />}
-      {tab === 'status' && <StatusPembayaranTab />}
+      {/* Keep-alive: Status Tagihan tetap ter-mount agar data Bill dari DB tidak hilang saat pindah submenu */}
+      {statusMounted && (
+        <div className={tab === 'status' ? 'block' : 'hidden'} aria-hidden={tab !== 'status'}>
+          <StatusPembayaranTab />
+        </div>
+      )}
       {tab === 'tunggakan' && <TunggakanDispensasiTab onStatsChange={refreshAllStats} />}
 
       <Link

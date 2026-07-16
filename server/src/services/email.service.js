@@ -12,13 +12,24 @@ function getLiveSmtpCredentials() {
     user: (process.env.SMTP_USER || process.env.SCHOOL_GMAIL_ADDRESS || env.smtp.user)
       .toLowerCase()
       .trim(),
-    pass: normalizeSmtpPass(process.env.SMTP_PASS),
+    // GMAIL_APP_PASSWORD adalah alias resmi; SMTP_PASS tetap didukung
+    pass: normalizeSmtpPass(process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || env.smtp.pass),
   };
 }
 
 function hasSmtpCredentials() {
   const { user, pass } = getLiveSmtpCredentials();
   return Boolean(user && pass.length === 16);
+}
+
+function hasAnyMailChannel() {
+  return Boolean(
+    hasOAuthCredentials()
+    || hasOAuthNodemailerCredentials()
+    || hasSmtpCredentials()
+    || (process.env.GMAIL_WEBHOOK_URL || '').trim()
+    || (process.env.RESEND_API_KEY || '').trim(),
+  );
 }
 
 function hasOAuthCredentials() {
@@ -47,11 +58,11 @@ function getOAuth2Transporter() {
 
 function smtpHelpMessage() {
   return [
-    'Periksa SMTP_PASS (App Password Gmail 16 karakter).',
-    'Buat App Password baru (nama: web pospay): https://myaccount.google.com/apppasswords',
-    'Pastikan 2FA aktif dan IMAP diaktifkan di pengaturan Gmail.',
-    'Di server/.env: SMTP_PASS="uzak lscf nowu szkt" (spasi otomatis dihapus).',
-    'Restart backend setelah mengubah .env.',
+    'SMTP_PASS / GMAIL_APP_PASSWORD ditolak Google (535 BadCredentials).',
+    'Buat App Password BARU (nama: web pospay): https://myaccount.google.com/apppasswords',
+    'Pastikan 2FA aktif dan IMAP aktif di Gmail.',
+    'Simpan 16 karakter ke server/.env sebagai SMTP_PASS="xxxx xxxx xxxx xxxx" (spasi dihapus otomatis).',
+    'Jangan memakai App Password lama yang sudah dicabut. Restart backend setelah mengubah .env.',
   ].join(' ');
 }
 
@@ -187,7 +198,77 @@ async function sendViaSmtp(mailOptions) {
   return { error: lastError || new Error('SMTP tidak tersedia') };
 }
 
+async function sendViaResend(mailOptions) {
+  const apiKey = process.env.RESEND_API_KEY || '';
+  if (!apiKey) return { error: new Error('RESEND_API_KEY tidak dikonfigurasi') };
+
+  try {
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: process.env.RESEND_FROM || `POSPAY <onboarding@resend.dev>`,
+        to: [mailOptions.to],
+        subject: mailOptions.subject,
+        html: mailOptions.html,
+        text: mailOptions.text,
+      }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const msg = body?.message || body?.error || `Resend HTTP ${res.status}`;
+      logger.warn(`Kirim Resend gagal: ${msg}`);
+      return { error: new Error(msg) };
+    }
+    logger.info(`Resend: email terkirim ke ${mailOptions.to}`);
+    return { sent: true, via: 'resend', id: body.id };
+  } catch (err) {
+    logger.warn(`Kirim Resend gagal: ${err.message}`);
+    return { error: err };
+  }
+}
+
+async function sendViaGmailWebhook(mailOptions) {
+  const url = (process.env.GMAIL_WEBHOOK_URL || '').trim();
+  if (!url) return { error: new Error('GMAIL_WEBHOOK_URL tidak dikonfigurasi') };
+
+  const token = (process.env.GMAIL_WEBHOOK_TOKEN || '').trim();
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      redirect: 'follow',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        token,
+        to: mailOptions.to,
+        subject: mailOptions.subject,
+        text: mailOptions.text,
+        html: mailOptions.html,
+        fromName: `POSPAY ${env.school.name}`,
+      }),
+    });
+    const text = await res.text();
+    let body = {};
+    try { body = JSON.parse(text); } catch { /* Apps Script kadang plain text */ }
+    if (!res.ok || body.ok === false || body.sent === false) {
+      const msg = body.error || body.message || text.slice(0, 180) || `Webhook HTTP ${res.status}`;
+      logger.warn(`Kirim Gmail webhook gagal: ${msg}`);
+      return { error: new Error(msg) };
+    }
+    logger.info(`Gmail webhook: email terkirim ke ${mailOptions.to}`);
+    return { sent: true, via: 'gmail_webhook' };
+  } catch (err) {
+    logger.warn(`Kirim Gmail webhook gagal: ${err.message}`);
+    return { error: err };
+  }
+}
+
 async function dispatchMail(mailOptions) {
+  const errors = [];
+
   if (hasOAuthCredentials()) {
     const apiResult = await gmailApi.sendMail({
       to: mailOptions.to,
@@ -196,35 +277,45 @@ async function dispatchMail(mailOptions) {
       html: mailOptions.html,
     });
     if (apiResult.sent) return apiResult;
+    if (apiResult.error) errors.push(apiResult.error.message || 'gmail_api');
   }
 
   if (hasOAuthNodemailerCredentials()) {
     const oauthResult = await sendViaOAuth2(mailOptions);
     if (oauthResult.sent) return oauthResult;
+    if (oauthResult.error) errors.push(oauthResult.error.message || 'oauth2');
   }
 
-  if (!hasSmtpCredentials()) {
-    return { error: new Error('SMTP tidak dikonfigurasi') };
-  }
-
-  if (!transporterVerified) {
-    const check = await verifySmtpConnection();
-    if (!check.ok) {
-      if (hasOAuthNodemailerCredentials()) {
-        return sendViaOAuth2(mailOptions);
+  if (hasSmtpCredentials()) {
+    if (!transporterVerified) {
+      const check = await verifySmtpConnection();
+      if (!check.ok) {
+        errors.push(check.reason || 'SMTP verify gagal');
       }
-      return { error: new Error(check.reason || 'SMTP tidak tersedia') };
+    }
+    if (transporterVerified || hasSmtpCredentials()) {
+      const smtpResult = await sendViaSmtp(mailOptions);
+      if (smtpResult.sent) return smtpResult;
+      if (smtpResult.error) errors.push(smtpResult.error.message || 'smtp');
     }
   }
 
-  const smtpResult = await sendViaSmtp(mailOptions);
-  if (smtpResult.sent) return smtpResult;
-
-  if (hasOAuthNodemailerCredentials()) {
-    return sendViaOAuth2(mailOptions);
+  // Fallback: Google Apps Script (login sebagai smppusponegorobrebess@gmail.com)
+  if (process.env.GMAIL_WEBHOOK_URL) {
+    const wh = await sendViaGmailWebhook(mailOptions);
+    if (wh.sent) return wh;
+    if (wh.error) errors.push(wh.error.message || 'webhook');
   }
 
-  return smtpResult;
+  // Fallback: Resend API (opsional)
+  if (process.env.RESEND_API_KEY) {
+    const rs = await sendViaResend(mailOptions);
+    if (rs.sent) return rs;
+    if (rs.error) errors.push(rs.error.message || 'resend');
+  }
+
+  const reason = errors.filter(Boolean)[0] || 'Tidak ada saluran email yang tersedia (SMTP/OAuth/Webhook/Resend)';
+  return { error: new Error(reason) };
 }
 
 async function sendVerificationCode(email, code, fullName) {
@@ -264,7 +355,7 @@ async function sendVerificationCode(email, code, fullName) {
     html,
   };
 
-  if (!hasOAuthCredentials() && !hasSmtpCredentials()) {
+  if (!hasAnyMailChannel()) {
     logger.warn(`[DEV] Kode verifikasi untuk ${email}: ${code}`);
     return { sent: false, devCode: code };
   }
@@ -272,7 +363,7 @@ async function sendVerificationCode(email, code, fullName) {
   const result = await dispatchMail(mailOptions);
   if (result.sent) {
     logger.info(`Email verifikasi terkirim ke ${email} (${result.via || 'smtp'})`);
-    return { sent: true };
+    return { sent: true, via: result.via || 'smtp' };
   }
 
   const errMsg = result.error?.message || 'Gagal mengirim email';
@@ -317,15 +408,15 @@ async function sendPasswordResetLink(email, fullName, resetUrl) {
     html,
   };
 
-  if (!hasOAuthCredentials() && !hasOAuthNodemailerCredentials() && !hasSmtpCredentials()) {
+  if (!hasAnyMailChannel()) {
     logger.warn(`[DEV] Tautan reset kata sandi untuk ${email}: ${resetUrl}`);
     return { sent: false, devResetUrl: resetUrl };
   }
 
   const result = await dispatchMail(mailOptions);
   if (result.sent) {
-    logger.info(`Email reset kata sandi terkirim ke ${email}`);
-    return { sent: true };
+    logger.info(`Email reset kata sandi terkirim ke ${email} (${result.via || 'smtp'})`);
+    return { sent: true, via: result.via || 'smtp' };
   }
 
   const errMsg = result.error?.message || 'Gagal mengirim email';

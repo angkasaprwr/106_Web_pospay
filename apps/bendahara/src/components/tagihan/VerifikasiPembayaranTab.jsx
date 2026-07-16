@@ -206,10 +206,10 @@ export default function VerifikasiPembayaranTab({ onStatsChange }) {
   return (
     <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
       <div className="xl:col-span-2">
-        <div className="rounded-xl border border-slate-100 bg-white shadow-sm">
-          <div className="border-b border-slate-100 p-5">
-            <h2 className="text-lg font-semibold text-slate-900">C. Verifikasi Pembayaran</h2>
-            <p className="text-sm text-slate-500">Verifikasi pembayaran yang dilakukan oleh siswa.</p>
+        <div className="rounded-xl border border-slate-100 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div className="border-b border-slate-100 p-5 dark:border-slate-700">
+            <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">C. Verifikasi Pembayaran</h2>
+            <p className="text-sm text-slate-500 dark:text-slate-400">Verifikasi pembayaran yang dilakukan oleh siswa.</p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 border-b border-slate-50 p-4">
@@ -270,7 +270,7 @@ export default function VerifikasiPembayaranTab({ onStatsChange }) {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-slate-100 bg-slate-50/80 text-left text-slate-500">
+                  <tr className="border-b border-slate-100 bg-slate-50/80 text-left text-slate-500 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-400">
                     <th className="px-3 py-3 font-medium">No</th>
                     <th className="px-3 py-3 font-medium">Nama Siswa</th>
                     <th className="px-3 py-3 font-medium">NIS</th>
@@ -290,8 +290,8 @@ export default function VerifikasiPembayaranTab({ onStatsChange }) {
                     return (
                       <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50/50">
                         <td className="px-3 py-3 text-slate-500">{rowNo}</td>
-                        <td className="px-3 py-3 font-medium text-slate-900">{p.bill?.student?.fullName}</td>
-                        <td className="px-3 py-3 text-slate-600">{p.bill?.student?.nis || '-'}</td>
+                        <td className="px-3 py-3 font-medium text-slate-900 dark:text-slate-100">{p.bill?.student?.fullName}</td>
+                        <td className="px-3 py-3 text-slate-600 dark:text-slate-300">{p.bill?.student?.nis || '-'}</td>
                         <td className="px-3 py-3">{paymentBillName(p)}</td>
                         <td className="px-3 py-3 text-slate-600">{formatDateTime(p.paidAt || p.createdAt)}</td>
                         <td className="px-3 py-3 text-right font-medium">{formatIDR(p.amount)}</td>

@@ -20,6 +20,8 @@ function createApp() {
   app.use(
     cors({
       origin(origin, cb) {
+        // Development: izinkan semua origin (port-forward Cloud / preview jauh)
+        if (!env.isProd) return cb(null, true);
         if (!origin || env.corsOrigins.includes(origin) || env.corsOrigins.includes('*')) {
           return cb(null, true);
         }

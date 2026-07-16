@@ -25,7 +25,7 @@ const listPaymentSchema = z.object({
   from: z.string().optional(),
   to: z.string().optional(),
   page: z.coerce.number().int().positive().optional().default(1),
-  limit: z.coerce.number().int().positive().max(100).optional().default(10),
+  limit: z.coerce.number().int().positive().max(1000).optional().default(10),
 });
 
 module.exports = { createPaymentSchema, verifySchema, rejectSchema, listPaymentSchema };

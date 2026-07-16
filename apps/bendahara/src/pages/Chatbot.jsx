@@ -5,6 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { Spinner, Modal, Field, EmptyState, ConfirmDialog } from '../components/ui';
 import { Icon } from '../components/Icons';
 import ChatInboxTab from '../components/chatbot/ChatInboxTab';
+import { deleteOnce } from '../lib/deleteOnce';
 
 const DAYS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
@@ -39,8 +40,8 @@ export default function Chatbot() {
   return (
     <div className="mx-auto max-w-[1600px] space-y-6">
       <div>
-        <h1 className="text-2xl font-bold text-pospay sm:text-3xl">Chatbot</h1>
-        <p className="mt-1 text-sm text-slate-500">
+        <h1 className="text-2xl font-bold text-pospay sm:text-3xl dark:text-blue-400">Chatbot</h1>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
           Kelola percakapan siswa, pertanyaan & jawaban, serta jam kerja layanan chatbot.
         </p>
       </div>
@@ -57,7 +58,7 @@ export default function Chatbot() {
               className={`inline-flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition ${
                 active
                   ? 'bg-pospay text-white shadow-sm'
-                  : 'border border-slate-200 bg-white text-slate-700 hover:border-pospay/30 hover:text-pospay'
+                  : 'border border-slate-200 bg-white text-slate-700 hover:border-pospay/30 hover:text-pospay dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-500/40 dark:hover:text-blue-400'
               }`}
             >
               <IconC width={18} height={18} />
@@ -143,10 +144,14 @@ function QAManager() {
   };
 
   const del = async () => {
+    if (!confirm?.id || saving) return;
     setSaving(true);
     try {
-      if (confirm.type === 'qa') await api.delete(`/chatbot/qa/${confirm.id}`);
-      else await api.delete(`/chatbot/documents/${confirm.id}`);
+      await deleteOnce(`chatbot:${confirm.type}:${confirm.id}`, async () => {
+        if (confirm.type === 'qa') await api.delete(`/chatbot/qa/${confirm.id}`);
+        else await api.delete(`/chatbot/documents/${confirm.id}`);
+      });
+      toast.success('Data dihapus permanen');
       setConfirm(null);
       load();
     } catch (e) {

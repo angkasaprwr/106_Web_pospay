@@ -6,6 +6,7 @@ const { generateInvoiceNo } = require('../../utils/identifiers');
 const { recordAudit } = require('../audit/audit.service');
 const { notifyUser } = require('../notifications/notification.service');
 const { formatIDR } = require('../../utils/money');
+const { emitBillCreated, emitCatalogChanged } = require('../../services/socket.service');
 
 async function list(query) {
   return billRepository.list(query);
@@ -32,6 +33,26 @@ async function create(input, actorId, req) {
   data.status = computeStatus({ ...data, paidAmount: 0 });
   const bill = await prisma.bill.create({ data, include: { feeType: true, student: true } });
   await recordAudit({ userId: actorId, action: 'CREATE', entity: 'Bill', entityId: bill.id, req });
+
+  let userId = bill.student?.userId;
+  if (!userId && bill.student?.nis) {
+    const linked = await prisma.user.findFirst({
+      where: { username: bill.student.nis, role: 'SISWA', isActive: true },
+      select: { id: true },
+    });
+    userId = linked?.id || null;
+  }
+  if (userId) {
+    const billName = bill.description || `${bill.feeType?.name || 'Tagihan'}${bill.period ? ` ${bill.period}` : ''}`;
+    await notifyUser(userId, {
+      title: 'Tagihan Baru',
+      body: `Tagihan ${billName} sebesar ${formatIDR(bill.amount)} telah ditambahkan. Segera cek menu Tagihan.`,
+      type: 'BILL_CREATED',
+      data: { billId: bill.id, studentId: bill.studentId },
+    });
+  }
+
+  emitBillCreated({ ...bill, student: { ...(bill.student || {}), userId: userId || bill.student?.userId } });
   return bill;
 }
 
@@ -61,6 +82,7 @@ async function bulkCreate(input, actorId, req) {
 
   const result = await prisma.bill.createMany({ data: rows });
   await recordAudit({ userId: actorId, action: 'CREATE', entity: 'Bill', metadata: { bulk: true, count: result.count }, req });
+  emitCatalogChanged({ reason: 'bill_bulk_created', count: result.count });
   return { created: result.count };
 }
 
@@ -85,13 +107,16 @@ async function update(id, input, actorId, req) {
     include: { feeType: true, student: true },
   });
   await recordAudit({ userId: actorId, action: 'UPDATE', entity: 'Bill', entityId: id, req });
+  emitCatalogChanged({ reason: 'bill_updated', billId: id, status: updated.status });
   return updated;
 }
 
 async function remove(id, actorId, req) {
   await getById(id);
+  // Cascade menghapus payments terkait — permanen dari PostgreSQL.
   await prisma.bill.delete({ where: { id } });
   await recordAudit({ userId: actorId, action: 'DELETE', entity: 'Bill', entityId: id, req });
+  emitCatalogChanged({ reason: 'bill_deleted', billId: id });
 }
 
 /**
