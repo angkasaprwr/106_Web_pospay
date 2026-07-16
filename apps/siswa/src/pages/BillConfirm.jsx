@@ -268,11 +268,12 @@ export default function BillConfirm() {
         paymentData = await checkPaymentStatus(pid);
         const hasSnap = Boolean(paymentData?.snap_token) || String(paymentData?.qr_string || '').startsWith('SNAP:');
         const hasEmv = String(paymentData?.qr_string || '').startsWith('000201');
-        const hasQr = Boolean(paymentData?.qr_url || paymentData?.qrDataUrl || hasEmv || (hasSnap && !paymentData?.midtrans_channel_inactive));
+        const hasQr = Boolean(paymentData?.qr_url || paymentData?.qrDataUrl || hasEmv);
         const needRegen = !paymentData
           || paymentData.status === 'REJECTED'
           || paymentData.midtrans_channel_inactive
           || paymentData.sandbox_local
+          || (hasSnap && !hasEmv)
           || (!hasQr && isMidtransQrisMethod(methodData));
         if (needRegen) {
           paymentData = await createFresh();

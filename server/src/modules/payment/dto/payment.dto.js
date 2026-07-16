@@ -111,8 +111,7 @@ async function formatPaymentStatusResponse(payment, options = {}) {
     }
   }
 
-  const scannable = (!channelInactive && Boolean(snapToken))
-    || (isEmvQrisString(payment.qrString) && !sandboxLocal);
+  const scannable = isEmvQrisString(payment.qrString) && !sandboxLocal;
 
   const statusPaid = payment.status === 'VERIFIED' ? 'PAID' : payment.status;
 
