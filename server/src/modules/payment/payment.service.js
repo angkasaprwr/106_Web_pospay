@@ -85,7 +85,7 @@ async function createCashPayment(input, actor, req) {
     throw ApiError.badRequest('Metode pembayaran bukan tunai');
   }
 
-  const { bill } = await validateBillForStudent(input.billId, actor);
+  const { bill, student } = await validateBillForStudent(input.billId, actor);
   const amount = input.amount ?? outstanding(bill);
   if (amount > outstanding(bill) + 0.001) {
     throw ApiError.badRequest(`Nominal melebihi sisa tagihan (${outstanding(bill)})`);
@@ -109,12 +109,12 @@ async function createCashPayment(input, actor, req) {
   await recordAudit({ userId: actor.id, action: 'CREATE', entity: 'Payment', entityId: payment.id, req });
   await notifyTreasurers({
     title: 'Pembayaran Tunai Menunggu Verifikasi',
-    body: `${bill.student.fullName} mengajukan pembayaran tunai ${bill.feeType.name}.`,
+    body: `${student.fullName} mengajukan pembayaran tunai ${bill.feeType.name}.`,
     type: 'PAYMENT_SUBMITTED',
     data: { paymentId: payment.id, billId: bill.id },
   });
 
-  emitPaymentUpdated({ ...payment, bill: { student: bill.student } }, { paymentType: 'CASH' });
+  emitPaymentUpdated({ ...payment, bill: { student } }, { paymentType: 'CASH' });
   return payment;
 }
 
