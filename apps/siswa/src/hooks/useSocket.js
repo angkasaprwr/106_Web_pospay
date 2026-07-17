@@ -11,8 +11,7 @@ function resolveSocketUrl() {
 }
 
 /**
- * Koneksi Socket.IO sekali (realtime update tanpa polling).
- * @param {Record<string, (payload: any) => void>} handlers
+ * Koneksi Socket.IO persisten (satu koneksi per tab, reconnect otomatis).
  */
 export function useSocket(handlers = {}) {
   const handlersRef = useRef(handlers);
@@ -27,18 +26,23 @@ export function useSocket(handlers = {}) {
       auth: { token },
       transports: ['websocket', 'polling'],
       reconnection: true,
-      reconnectionDelay: 1500,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      timeout: 20000,
     });
 
-    const entries = Object.entries(handlersRef.current);
-    entries.forEach(([event, fn]) => {
-      if (typeof fn === 'function') {
-        socket.on(event, (payload) => handlersRef.current[event]?.(payload));
-      }
-    });
+    const bind = (event, fn) => {
+      if (typeof fn !== 'function') return;
+      const wrapper = (payload) => handlersRef.current[event]?.(payload);
+      socket.on(event, wrapper);
+      return () => socket.off(event, wrapper);
+    };
+
+    const unbinds = Object.entries(handlersRef.current).map(([event, fn]) => bind(event, fn));
 
     return () => {
-      entries.forEach(([event]) => socket.off(event));
+      unbinds.forEach((off) => off?.());
       socket.disconnect();
     };
   }, []);

@@ -5,6 +5,7 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 const SEED_BENDAHARA = (process.env.SEED_DEFAULT_BENDAHARA || 'false').toLowerCase() === 'true';
+const SEED_SAMPLE_STUDENTS = (process.env.SEED_SAMPLE_STUDENTS || 'false').toLowerCase() === 'true';
 const STUDENT_PASSWORD = process.env.STUDENT_DEFAULT_PASSWORD || 'siswa123';
 
 async function main() {
@@ -169,7 +170,11 @@ async function main() {
     }
   }
 
-  // ---- Sample students with accounts ----
+  // ---- Sample students with accounts (hanya jika SEED_SAMPLE_STUDENTS=true) ----
+  // Default false agar database kosong siap uji CRUD Tambah Siswa dari bendahara.
+  if (!SEED_SAMPLE_STUDENTS) {
+    console.log('  -> SEED_SAMPLE_STUDENTS=false — tidak menanam data siswa contoh');
+  } else {
   const sampleStudents = [
     { nis: '2025001', fullName: 'Ahmad Fauzi', gender: 'L', className: '7A', parentName: 'Bpk. Sukirman', parentPhone: '081200000001' },
     { nis: '2025002', fullName: 'Siti Nurhaliza', gender: 'P', className: '7A', parentName: 'Ibu Aminah', parentPhone: '081200000002' },
@@ -244,6 +249,7 @@ async function main() {
         });
       }
     }
+  }
   }
 
   console.log('Seed selesai.');

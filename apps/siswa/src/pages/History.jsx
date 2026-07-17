@@ -75,18 +75,11 @@ export default function History() {
     }
   }, [page, status, toast, year]);
 
-  const { setVersionSnapshot } = usePortalCatalogSync(load, { intervalMs: 30000 });
+  usePortalCatalogSync(load);
 
   useEffect(() => {
-    let active = true;
-    (async () => {
-      await load({ silent: false });
-      if (active) await setVersionSnapshot();
-    })();
-    return () => {
-      active = false;
-    };
-  }, [load, setVersionSnapshot]);
+    load({ silent: false });
+  }, [load]);
 
   const downloadInvoice = async (paymentId) => {
     try {
