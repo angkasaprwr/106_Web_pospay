@@ -379,6 +379,8 @@ model Payment {
   transactionId   String?
   qrString        String?
   qrUrl           String?
+  snapToken       String?
+  redirectUrl     String?
   expiryTime      DateTime?
   settlementTime  DateTime?
   fraudStatus     String?

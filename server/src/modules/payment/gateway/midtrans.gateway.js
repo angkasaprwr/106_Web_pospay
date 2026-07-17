@@ -11,9 +11,23 @@ const { ApiError } = require('../../../core/ApiError');
 const { logger } = require('../../../utils/logger');
 const { isEmvQrisString } = require('../dto/payment.dto');
 
-/** Hanya QRIS — agar Snap/Core menampilkan QRIS scannable lintas e-wallet/bank */
+/** Kanal Snap yang diminta (MAP Sandbox harus mengaktifkan QRIS + e-wallet + transfer). */
 const DEFAULT_SNAP_ENABLED_PAYMENTS = [
   'qris',
+  'gopay',
+  'shopeepay',
+  'bank_transfer',
+];
+
+/** QRIS Core EMV scannable lintas aplikasi QRIS (GoPay, DANA, OVO, BRImo, Livin, BCA, dll.). */
+const QRIS_INTEROP_CHANNELS = [
+  'qris',
+  'gopay',
+  'shopeepay',
+  'dana',
+  'ovo',
+  'linkaja',
+  'bank_transfer',
 ];
 
 const QRIS_EXPIRY_HOURS = 24;
@@ -496,5 +510,6 @@ module.exports = {
   assertSandboxConfigured,
   isSettlementStatus,
   DEFAULT_SNAP_ENABLED_PAYMENTS,
+  QRIS_INTEROP_CHANNELS,
   QRIS_EXPIRY_HOURS,
 };

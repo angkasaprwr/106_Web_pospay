@@ -24,7 +24,8 @@ const webhook = asyncHandler(async (req, res) => {
 });
 
 const status = asyncHandler(async (req, res) => {
-  const data = await getPaymentStatusUsecase.execute(req.params.invoiceId, req.user);
+  const ref = req.params.orderId || req.params.invoiceId;
+  const data = await getPaymentStatusUsecase.execute(ref, req.user);
   return ok(res, data, 'Status pembayaran');
 });
 

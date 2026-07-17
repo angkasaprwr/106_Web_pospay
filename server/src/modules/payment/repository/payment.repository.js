@@ -14,12 +14,26 @@ class PaymentRepository {
   }
 
   findPaymentByOrderId(orderId) {
+    const oid = String(orderId || '');
     return prisma.payment.findUnique({
-      where: { orderId },
+      where: { orderId: oid },
       include: {
         paymentMethod: true,
         bill: { include: { student: true, feeType: true } },
       },
+    }).then(async (found) => {
+      if (found) return found;
+      // Snap memakai order_id `${coreOrderId}-SNAP`
+      if (oid.endsWith('-SNAP')) {
+        return prisma.payment.findUnique({
+          where: { orderId: oid.slice(0, -5) },
+          include: {
+            paymentMethod: true,
+            bill: { include: { student: true, feeType: true } },
+          },
+        });
+      }
+      return null;
     });
   }
 

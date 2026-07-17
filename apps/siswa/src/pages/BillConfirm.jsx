@@ -159,8 +159,19 @@ export default function BillConfirm() {
 
   const checkPaymentStatus = useCallback(async (id) => {
     try {
-      const { data } = await api.get(`/payment/status/${id}`);
-      const payment = data.data;
+      let payment = null;
+      try {
+        const { data } = await api.get(`/payment/status/${id}`);
+        payment = data.data;
+      } catch {
+        if (orderId) {
+          const { data } = await api.get(`/payment/status/order/${orderId}`);
+          payment = data.data;
+        } else {
+          throw new Error('status failed');
+        }
+      }
+      if (!payment) return null;
       setPaymentStatus(payment.status);
       const nextQr = payment.qr_url || payment.qrDataUrl || '';
       if (nextQr) setQrDataUrl(nextQr);
@@ -187,7 +198,7 @@ export default function BillConfirm() {
     } catch {
       return null;
     }
-  }, [finishSuccess]);
+  }, [finishSuccess, orderId]);
 
   // Socket.IO realtime + polling status setiap 5 detik (PAID → redirect berhasil)
   useSocket({

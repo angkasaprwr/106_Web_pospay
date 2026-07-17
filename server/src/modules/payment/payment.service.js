@@ -329,6 +329,25 @@ async function createMidtransPayment(input, actor, req) {
       if (!charge.expiryTime) {
         charge.expiryTime = new Date(Date.now() + hours * 60 * 60 * 1000);
       }
+      // Snap createTransaction (kanal qris+gopay+shopeepay+bank_transfer) — order_id berbeda agar tidak bentrok Core
+      try {
+        snapPayload = await midtransGateway.createSnapTransaction({
+          orderId: `${orderId}-SNAP`,
+          grossAmount: amount,
+          method,
+          customerDetails,
+          itemDetails,
+          enabledPayments: midtransGateway.DEFAULT_SNAP_ENABLED_PAYMENTS,
+        });
+        logger.info('Snap Token Created', {
+          orderId: `${orderId}-SNAP`,
+          hasToken: Boolean(snapPayload?.snapToken),
+          enabled_payments: snapPayload?.enabledPayments,
+        });
+      } catch (snapErr) {
+        logger.warn('Snap createTransaction opsional gagal (QR Core tetap dipakai)', snapErr.message);
+        snapPayload = null;
+      }
     } catch (coreErr) {
       // Coba ulang dengan MIDTRANS_SANDBOX_* jika tersedia
       const sandboxMethod = midtransGateway.withSandboxKeys(method);
@@ -368,21 +387,22 @@ async function createMidtransPayment(input, actor, req) {
       qrUrl: charge.qrUrl,
       expiryTime: charge.expiryTime,
       midtransStatus: charge.midtransStatus,
+      snapToken: snapPayload?.snapToken || null,
+      redirectUrl: snapPayload?.redirectUrl || null,
       ...(charge.orderId && charge.orderId !== orderId ? { orderId: charge.orderId } : {}),
     },
     {
       note: sandboxLocal
         ? 'QRIS demo lokal (belum scannable)'
-        : snapPayload
-          ? (charge.channelInactive
-            ? 'QRIS Midtrans Snap (kanal belum aktif — QR belum scannable)'
-            : 'QRIS Midtrans Snap (QRIS Tap e-wallet/bank)')
-          : 'QRIS Midtrans Core (EMV scannable)',
+        : 'QRIS Midtrans Core EMV (scannable GoPay/DANA/OVO/ShopeePay/BRImo/Livin/BCA/dll)',
       metadata: {
         statusCode: charge.statusCode,
         sandboxLocal,
         snap: Boolean(snapPayload),
-        channelInactive: Boolean(charge.channelInactive),
+        snapToken: snapPayload?.snapToken || null,
+        redirectUrl: snapPayload?.redirectUrl || null,
+        enabled_payments: midtransGateway.DEFAULT_SNAP_ENABLED_PAYMENTS,
+        channelInactive: Boolean(snapPayload?.channelInactive),
       },
     },
   );
@@ -390,9 +410,9 @@ async function createMidtransPayment(input, actor, req) {
   await paymentRepository.createMidtransLog({
     paymentId: payment.id,
     orderId,
-    eventType: sandboxLocal ? 'charge_sandbox_local' : (snapPayload ? 'charge_snap' : 'charge'),
-    payload: { orderId, amount, schoolAccount },
-    response: charge.raw,
+    eventType: sandboxLocal ? 'charge_sandbox_local' : (snapPayload ? 'charge_qris_core_and_snap' : 'charge_qris_core'),
+    payload: { orderId, amount, schoolAccount, enabled_payments: midtransGateway.DEFAULT_SNAP_ENABLED_PAYMENTS },
+    response: { core: charge.raw, snap: snapPayload ? { token: snapPayload.snapToken, redirect_url: snapPayload.redirectUrl } : null },
   });
 
   await recordAudit({ userId: actor.id, action: 'CREATE', entity: 'Payment', entityId: payment.id, req });
@@ -406,12 +426,13 @@ async function createMidtransPayment(input, actor, req) {
     );
   }
 
-  const channelInactive = false;
+  const channelInactive = Boolean(snapPayload?.channelInactive);
   const scannable = isEmvQrisString(charge.qrString) && !sandboxLocal;
-  logger.info('QRIS Loaded for student', {
+  logger.info('QRIS Loaded', {
     orderId: charge.orderId || orderId,
     expiryTime: charge.expiryTime,
     scannable,
+    hasSnapToken: Boolean(snapPayload?.snapToken),
   });
 
   emitPaymentUpdated({ ...updated, bill: { student } }, {
@@ -436,18 +457,23 @@ async function createMidtransPayment(input, actor, req) {
     school_account: schoolAccount,
     sandbox_local: sandboxLocal,
     scannable,
-    midtrans_channel_inactive: false,
-    midtrans_hint: null,
-    snap_token: null,
-    token: null,
-    snap_redirect_url: null,
-    redirect_url: null,
+    midtrans_channel_inactive: channelInactive,
+    midtrans_hint: channelInactive
+      ? 'Snap kanal kosong di MAP, tetapi QRIS Core EMV tetap bisa di-scan aplikasi QRIS Sandbox Simulator / e-wallet Sandbox.'
+      : null,
+    snap_token: snapPayload?.snapToken || null,
+    token: snapPayload?.snapToken || null,
+    snap_redirect_url: snapPayload?.redirectUrl || null,
+    redirect_url: snapPayload?.redirectUrl || null,
     transaction_status: charge.midtransStatus || 'pending',
     payment_type: 'qris',
+    payment_method: 'qris',
+    status: updated.status || 'PENDING',
     midtrans_client_key: keys.clientKey || null,
     midtrans_is_production: keys.isProduction,
-    enabled_payments: ['qris'],
-    midtrans_probe: null,
+    enabled_payments: midtransGateway.DEFAULT_SNAP_ENABLED_PAYMENTS,
+    qris_interop_channels: midtransGateway.QRIS_INTEROP_CHANNELS,
+    midtrans_probe: snapPayload?.probeRaw || null,
     display_mode: sandboxLocal ? 'demo' : 'qris_image',
     created_at: updated.createdAt || new Date(),
     midtrans_simulator_url: !keys.isProduction && scannable
@@ -762,6 +788,7 @@ async function handleMidtransWebhook(payload) {
   logger.info('Webhook Received', { orderId, transactionStatus, paymentType: payload.payment_type });
 
   if (midtransGateway.isSettlementStatus(transactionStatus) || transactionStatus === 'success') {
+    logger.info('Payment Success', { orderId, transactionId: payload.transaction_id });
     logger.info('QRIS Paid', { orderId, transactionId: payload.transaction_id });
     await paymentRepository.createPaymentTransaction({
       paymentId: payment.id,
@@ -792,8 +819,13 @@ async function handleMidtransWebhook(payload) {
     const statusLabel = transactionStatus === 'expire'
       ? 'EXPIRED'
       : (transactionStatus === 'cancel' ? 'CANCELLED' : transactionStatus.toUpperCase());
-    if (statusLabel === 'EXPIRED') logger.info('QRIS Expired', { orderId });
-    else logger.info('QRIS Cancelled/Denied', { orderId, statusLabel });
+    if (statusLabel === 'EXPIRED') {
+      logger.info('Payment Expired', { orderId });
+      logger.info('QRIS Expired', { orderId });
+    } else {
+      logger.info('Payment Cancelled', { orderId, statusLabel });
+      logger.info('QRIS Cancelled/Denied', { orderId, statusLabel });
+    }
     const rejected = await paymentRepository.updatePaymentWithHistory(
       payment.id,
       {
@@ -865,6 +897,8 @@ async function cancelPendingPayment(paymentId, actor, req) {
   if (payment.status !== 'PENDING') {
     throw ApiError.badRequest('Hanya pembayaran menunggu verifikasi yang dapat dibatalkan');
   }
+
+  logger.info('Payment Cancelled', { paymentId, orderId: payment.orderId, by: 'SISWA' });
 
   // Hapus permanen — PaymentHistory / MidtransLog ikut cascade / setNull.
   await prisma.payment.delete({ where: { id: paymentId } });

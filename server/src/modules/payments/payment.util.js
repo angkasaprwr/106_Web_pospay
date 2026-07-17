@@ -45,6 +45,10 @@ function buildQrPayload(payment, method) {
 }
 
 async function generateQrDataUrl(payment, method) {
+  // Jangan buat QR palsu dari order_id/reference untuk Midtrans — gunakan modul payment Core QRIS
+  if (isMidtransQrisMethod(method)) {
+    throw new Error('Metode Midtrans QRIS harus memakai qr_string/qr_url resmi Midtrans, bukan QR lokal.');
+  }
   const payload = buildQrPayload(payment, method);
   return QRCode.toDataURL(payload, { width: 280, margin: 2, errorCorrectionLevel: 'M' });
 }
