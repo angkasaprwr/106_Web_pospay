@@ -6,7 +6,7 @@ const { generateInvoiceNo } = require('../../utils/identifiers');
 const { recordAudit } = require('../audit/audit.service');
 const { notifyUser } = require('../notifications/notification.service');
 const { formatIDR } = require('../../utils/money');
-const { emitBillCreated } = require('../../services/socket.service');
+const { emitBillCreated, emitCatalogChanged } = require('../../services/socket.service');
 
 async function list(query) {
   return billRepository.list(query);
@@ -82,6 +82,7 @@ async function bulkCreate(input, actorId, req) {
 
   const result = await prisma.bill.createMany({ data: rows });
   await recordAudit({ userId: actorId, action: 'CREATE', entity: 'Bill', metadata: { bulk: true, count: result.count }, req });
+  emitCatalogChanged({ reason: 'bill_bulk_created', count: result.count });
   return { created: result.count };
 }
 

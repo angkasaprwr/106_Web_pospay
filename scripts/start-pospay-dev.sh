@@ -59,6 +59,21 @@ ensure_postgres() {
   fi
 }
 
+echo "==> Cek layanan POSPAY..."
+if [ "${POSPAY_FORCE_RESTART:-0}" != "1" ]; then
+  if curl -sf --connect-timeout 2 http://127.0.0.1:4000/api/health >/dev/null 2>&1 \
+    && curl -sf --connect-timeout 2 http://127.0.0.1:5173/ >/dev/null 2>&1 \
+    && curl -sf --connect-timeout 2 http://127.0.0.1:5174/ >/dev/null 2>&1; then
+    echo ""
+    echo "Semua layanan POSPAY sudah berjalan — lewati restart."
+    echo "  Backend API     : http://127.0.0.1:4000/api/health"
+    echo "  Portal Bendahara: http://127.0.0.1:5173/login"
+    echo "  Portal Siswa    : http://127.0.0.1:5174/login"
+    echo "  Paksa restart   : POSPAY_FORCE_RESTART=1 npm run dev:all"
+    exit 0
+  fi
+fi
+
 echo "==> Membersihkan port 4000, 5173, 5174..."
 kill_port 4000
 kill_port 5173

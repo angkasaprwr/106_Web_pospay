@@ -1,6 +1,11 @@
 const { prisma } = require('../../config/prisma');
 const { ApiError } = require('../../core/ApiError');
 const { recordAudit } = require('../audit/audit.service');
+const { emitCatalogChanged } = require('../../services/socket.service');
+
+function notifyCatalog(reason, extra = {}) {
+  emitCatalogChanged({ reason, ...extra });
+}
 
 // ---------------- Fee Types ----------------
 const feeTypes = {
@@ -8,11 +13,13 @@ const feeTypes = {
   create: async (data, actorId, req) => {
     const item = await prisma.feeType.create({ data });
     await recordAudit({ userId: actorId, action: 'CREATE', entity: 'FeeType', entityId: item.id, req });
+    notifyCatalog('fee_type_created', { feeTypeId: item.id });
     return item;
   },
   update: async (id, data, actorId, req) => {
     const item = await prisma.feeType.update({ where: { id }, data });
     await recordAudit({ userId: actorId, action: 'UPDATE', entity: 'FeeType', entityId: id, req });
+    notifyCatalog('fee_type_updated', { feeTypeId: id });
     return item;
   },
   remove: async (id, actorId, req) => {
@@ -20,6 +27,7 @@ const feeTypes = {
     if (count > 0) throw ApiError.badRequest('Jenis tagihan dipakai oleh tagihan, nonaktifkan saja');
     await prisma.feeType.delete({ where: { id } });
     await recordAudit({ userId: actorId, action: 'DELETE', entity: 'FeeType', entityId: id, req });
+    notifyCatalog('fee_type_deleted', { feeTypeId: id });
   },
 };
 
@@ -29,16 +37,19 @@ const paymentMethods = {
   create: async (data, actorId, req) => {
     const item = await prisma.paymentMethod.create({ data });
     await recordAudit({ userId: actorId, action: 'CREATE', entity: 'PaymentMethod', entityId: item.id, req });
+    notifyCatalog('payment_method_created', { paymentMethodId: item.id });
     return item;
   },
   update: async (id, data, actorId, req) => {
     const item = await prisma.paymentMethod.update({ where: { id }, data });
     await recordAudit({ userId: actorId, action: 'UPDATE', entity: 'PaymentMethod', entityId: id, req });
+    notifyCatalog('payment_method_updated', { paymentMethodId: id });
     return item;
   },
   remove: async (id, actorId, req) => {
     await prisma.paymentMethod.delete({ where: { id } });
     await recordAudit({ userId: actorId, action: 'DELETE', entity: 'PaymentMethod', entityId: id, req });
+    notifyCatalog('payment_method_deleted', { paymentMethodId: id });
   },
 };
 

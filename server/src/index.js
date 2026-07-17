@@ -27,6 +27,15 @@ async function bootstrap() {
     logger.info(`Health: http://127.0.0.1:${env.port}/api/health`);
   });
 
+  // Kapasitas koneksi & keep-alive untuk jangkauan jauh / banyak permintaan paralel
+  server.keepAliveTimeout = parseInt(process.env.HTTP_KEEP_ALIVE_MS || '65000', 10);
+  server.headersTimeout = parseInt(process.env.HTTP_HEADERS_TIMEOUT_MS || '66000', 10);
+  server.requestTimeout = parseInt(process.env.HTTP_REQUEST_TIMEOUT_MS || '120000', 10);
+  const maxConn = parseInt(process.env.HTTP_MAX_CONNECTIONS || '0', 10);
+  if (Number.isFinite(maxConn) && maxConn > 0) {
+    server.maxConnections = maxConn;
+  }
+
   server.on('error', (err) => {
     logger.error('Gagal bind HTTP server', err.message);
     process.exit(1);
