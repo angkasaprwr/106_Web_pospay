@@ -80,18 +80,26 @@ const invoice = asyncHandler(async (req, res) => {
 
 const midtransStatus = asyncHandler(async (req, res) => {
   const { env } = require('../../../config/env');
+  const { validateMidtransStartup, keyPrefix } = require('../../../config/midtrans.config');
   const midtransGateway = require('../gateway/midtrans.gateway');
   const method = await require('../../../config/prisma').prisma.paymentMethod.findFirst({
     where: { channel: 'QRIS', isActive: true },
   });
+  const audit = validateMidtransStartup();
   const keys = midtransGateway.resolveKeys(method || {});
   const sandboxReady = midtransGateway.isSandboxKeyPair(keys);
   return ok(res, {
     configured: midtransGateway.hasValidMidtransKeys(keys),
     sandbox_ready: sandboxReady,
+    qris_ready: audit.readyForQris,
     isProduction: keys.isProduction,
     env_is_production: env.midtrans.isProduction,
-    key_prefix: keys.serverKey ? keys.serverKey.slice(0, 14) : null,
+    midtrans_mode: audit.mode,
+    key_prefix: keyPrefix(keys.serverKey, 'server'),
+    client_key_prefix: keyPrefix(keys.clientKey, 'client'),
+    key_source: keys.source || audit.source,
+    issues: audit.issues,
+    warnings: audit.warnings,
     school_account: {
       bank: 'BNI',
       accountNo: method?.accountNo || '6513009817',
@@ -99,6 +107,11 @@ const midtransStatus = asyncHandler(async (req, res) => {
     },
     simulator_url: 'https://simulator.sandbox.midtrans.com/openapi/qris/index',
     dashboard_keys_url: 'https://dashboard.sandbox.midtrans.com/settings/config_info',
+    snap_config: {
+      isProduction: process.env.MIDTRANS_IS_PRODUCTION === 'true',
+      uses_dotenv: true,
+      enabled_payments: midtransGateway.DEFAULT_SNAP_ENABLED_PAYMENTS,
+    },
     hint: sandboxReady
       ? 'Key Sandbox OK — buat pembayaran QRIS untuk generate EMV QR scannable.'
       : 'Isi SB-Mid-server-/SB-Mid-client- di server/.env (MIDTRANS_IS_PRODUCTION=false). Key Mid-server- Production menyebabkan No payment channels available.',

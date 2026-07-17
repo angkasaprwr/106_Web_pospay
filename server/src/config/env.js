@@ -105,9 +105,10 @@ const env = {
     serverKey: process.env.MIDTRANS_SERVER_KEY || '',
     clientKey: process.env.MIDTRANS_CLIENT_KEY || '',
     merchantId: process.env.MIDTRANS_MERCHANT_ID || '',
-    isProduction: bool(process.env.MIDTRANS_IS_PRODUCTION, false),
+    /** true hanya jika string "true" — selaras midtrans-client Snap({ isProduction }) */
+    isProduction: String(process.env.MIDTRANS_IS_PRODUCTION || '').toLowerCase() === 'true',
     callbackUrl: process.env.MIDTRANS_CALLBACK_URL || '',
-    sandboxFallback: bool(process.env.MIDTRANS_SANDBOX_FALLBACK, true),
+    sandboxFallback: bool(process.env.MIDTRANS_SANDBOX_FALLBACK, false),
     /** Opsional: jika Production tanpa kanal QRIS, charge ulang pakai Sandbox */
     sandboxServerKey: process.env.MIDTRANS_SANDBOX_SERVER_KEY || '',
     sandboxClientKey: process.env.MIDTRANS_SANDBOX_CLIENT_KEY || '',

@@ -1,5 +1,6 @@
 const { createApp } = require('./app');
 const { env } = require('./config/env');
+const { validateMidtransStartup } = require('./config/midtrans.config');
 const { prisma } = require('./config/prisma');
 const { logger } = require('./utils/logger');
 const fcm = require('./services/fcm.service');
@@ -19,6 +20,14 @@ async function bootstrap() {
 
   await emailService.verifySmtpConnection();
 
+  // Audit Midtrans dari dotenv (server/.env) — log prefix saja, tanpa full key
+  const midtransAudit = validateMidtransStartup();
+  if (!midtransAudit.readyForQris && midtransAudit.mode === 'Sandbox') {
+    logger.warn(
+      'Backend belum siap menampilkan QRIS Sandbox. Isi SB-Mid-server-/SB-Mid-client- di server/.env lalu restart.',
+    );
+  }
+
   await syncMidtransKeysToPaymentMethods().catch((e) => {
     logger.warn('Sinkronisasi Midtrans keys gagal', e.message);
   });
@@ -30,6 +39,10 @@ async function bootstrap() {
   const server = app.listen(env.port, host, () => {
     logger.info(`POSPAY API berjalan di http://${host}:${env.port} (${env.nodeEnv}) [IPv4+all interfaces]`);
     logger.info(`Health: http://127.0.0.1:${env.port}/api/health`);
+    logger.info(
+      `Midtrans: mode=${midtransAudit.mode} server=${midtransAudit.serverKeyPrefix} `
+      + `client=${midtransAudit.clientKeyPrefix} qrisReady=${midtransAudit.readyForQris}`,
+    );
   });
 
   // Kapasitas koneksi & keep-alive untuk jangkauan jauh / banyak permintaan paralel

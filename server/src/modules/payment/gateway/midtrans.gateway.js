@@ -1,11 +1,17 @@
-const midtransClient = require('midtrans-client');
 const crypto = require('crypto');
 const { env } = require('../../../config/env');
+const {
+  resolveEnvMidtransKeys,
+  createSnapFromEnv,
+  createCoreFromEnv,
+  keyPrefix,
+  isProductionFlag,
+} = require('../../../config/midtrans.config');
 const { ApiError } = require('../../../core/ApiError');
 const { logger } = require('../../../utils/logger');
 const { isEmvQrisString } = require('../dto/payment.dto');
 
-/** Kanal Snap default — harus cocok dengan yang diaktifkan di MAP Sandbox/Production */
+/** Kanal Snap default — wajib sesuai MAP Sandbox */
 const DEFAULT_SNAP_ENABLED_PAYMENTS = [
   'qris',
   'gopay',
@@ -13,57 +19,25 @@ const DEFAULT_SNAP_ENABLED_PAYMENTS = [
   'bank_transfer',
 ];
 
+/**
+ * Resolve keys: saat MIDTRANS_IS_PRODUCTION=false hanya Sandbox (SB-Mid-…).
+ * Mengikuti dotenv process.env via midtrans.config.
+ */
 function resolveKeys(method) {
-  const methodSk = String(method?.midtransServerKey || '').trim();
-  const methodCk = String(method?.midtransClientKey || '').trim();
-  const envSk = String(env.midtrans.serverKey || '').trim();
-  const envCk = String(env.midtrans.clientKey || '').trim();
-  const sbSk = String(env.midtrans.sandboxServerKey || '').trim();
-  const sbCk = String(env.midtrans.sandboxClientKey || '').trim();
-
-  const hasSandboxPair = hasValidMidtransKeys({ serverKey: sbSk, clientKey: sbCk });
-  const methodIsSb = /^SB-Mid-server-/.test(methodSk);
-  const envIsSb = /^SB-Mid-server-/.test(envSk);
-
-  let serverKey = methodSk || envSk;
-  let clientKey = methodCk || envCk;
-
-  // Target: Midtrans Snap Sandbox — utamakan SB-Mid-*
-  if (env.midtrans.isProduction === false || env.midtrans.preferSandbox !== false) {
-    if (methodIsSb) {
-      serverKey = methodSk;
-      clientKey = methodCk || sbCk || envCk;
-    } else if (envIsSb) {
-      serverKey = envSk;
-      clientKey = envCk;
-    } else if (hasSandboxPair) {
-      serverKey = sbSk;
-      clientKey = sbCk;
-      logger.info('Midtrans: memakai MIDTRANS_SANDBOX_* (Sandbox wajib)');
-    }
-  } else if (methodIsSb) {
-    serverKey = methodSk;
-    clientKey = methodCk || sbCk || envCk;
-  } else if (hasSandboxPair && /^Mid-server-/.test(serverKey)) {
-    serverKey = sbSk;
-    clientKey = sbCk;
-  }
-
-  let isProduction = false;
-  if (/^Mid-server-/.test(serverKey)) isProduction = true;
-  if (/^SB-Mid-server-/.test(serverKey)) isProduction = false;
-  // Paksa Sandbox jika flag env false
-  if (env.midtrans.isProduction === false && /^SB-Mid-server-/.test(serverKey)) {
-    isProduction = false;
-  }
-
-  if (env.midtrans.isProduction === false && /^Mid-server-/.test(serverKey)) {
+  const resolved = resolveEnvMidtransKeys(method);
+  if (!isProductionFlag() && /^Mid-server-/.test(resolved.serverKey || '')) {
     logger.warn(
-      'MIDTRANS_IS_PRODUCTION=false tetapi key masih Mid-server- (Production). QRIS akan gagal (No payment channels). Isi SB-Mid-server-/SB-Mid-client- di server/.env.',
+      'MIDTRANS_IS_PRODUCTION=false tetapi key masih Mid-server- (Production). '
+      + 'QRIS akan gagal (No payment channels). Isi SB-Mid-server-/SB-Mid-client- di server/.env.',
     );
   }
-
-  return { serverKey, clientKey, isProduction };
+  return {
+    serverKey: resolved.serverKey,
+    clientKey: resolved.clientKey,
+    isProduction: resolved.isProduction,
+    mode: resolved.mode,
+    source: resolved.source,
+  };
 }
 
 /** True jika key siap untuk Sandbox QRIS (SB-Mid-). */
@@ -74,9 +48,24 @@ function isSandboxKeyPair(keys) {
 
 function assertSandboxConfigured(method) {
   const keys = resolveKeys(method);
+  if (!keys.serverKey) {
+    throw ApiError.badRequest(
+      'MIDTRANS_SERVER_KEY kosong. Isi Server Key Sandbox (SB-Mid-server-…) di server/.env.',
+    );
+  }
+  if (!keys.clientKey) {
+    throw ApiError.badRequest(
+      'MIDTRANS_CLIENT_KEY kosong. Isi Client Key Sandbox (SB-Mid-client-…) di server/.env.',
+    );
+  }
   if (env.midtrans.isProduction === false && !isSandboxKeyPair(keys)) {
     throw ApiError.badRequest(
-      'QRIS Sandbox belum dikonfigurasi. Isi MIDTRANS_SERVER_KEY=SB-Mid-server-… dan MIDTRANS_CLIENT_KEY=SB-Mid-client-… di server/.env (dari dashboard.sandbox.midtrans.com), set MIDTRANS_IS_PRODUCTION=false, lalu restart. Key Production (Mid-server-) menyebabkan "No payment channels available".',
+      'QRIS Sandbox belum dikonfigurasi. '
+      + `Mode=${keys.mode || 'Sandbox'}, Server Prefix=${keyPrefix(keys.serverKey, 'server')}, `
+      + `Client Prefix=${keyPrefix(keys.clientKey, 'client')}. `
+      + 'Isi MIDTRANS_SERVER_KEY=SB-Mid-server-… dan MIDTRANS_CLIENT_KEY=SB-Mid-client-… di server/.env '
+      + '(dari dashboard.sandbox.midtrans.com), set MIDTRANS_IS_PRODUCTION=false, lalu restart. '
+      + 'Key Production (Mid-server-) menyebabkan "No payment channels available".',
     );
   }
   return keys;
@@ -94,12 +83,14 @@ function hasValidMidtransKeys(keys) {
 }
 
 function createCoreApi(method) {
-  const keys = resolveKeys(method);
-  return new midtransClient.CoreApi({
-    isProduction: keys.isProduction,
-    serverKey: keys.serverKey,
-    clientKey: keys.clientKey,
-  });
+  const { core } = createCoreFromEnv(method);
+  return core;
+}
+
+function createSnapApi(method) {
+  // Pola resmi: isProduction dari env string "true", key dari dotenv
+  const { snap } = createSnapFromEnv(method);
+  return snap;
 }
 
 function verifySignature({ order_id: orderId, status_code: statusCode, gross_amount: grossAmount, signature_key: signatureKey }, serverKey) {
@@ -143,15 +134,6 @@ function normalizeBankFromMethod(method) {
   if (source.includes('mandiri')) return 'mandiri';
   if (source.includes('jateng')) return 'permata';
   return 'bni';
-}
-
-function createSnapApi(method) {
-  const keys = resolveKeys(method);
-  return new midtransClient.Snap({
-    isProduction: keys.isProduction,
-    serverKey: keys.serverKey,
-    clientKey: keys.clientKey,
-  });
 }
 
 function buildDefaultItemDetails(orderId, amount) {
@@ -222,11 +204,23 @@ async function createSnapTransaction({
   };
 
   logger.info('Midtrans Snap createTransaction REQUEST', {
+    mode: keys.mode || (keys.isProduction ? 'Production' : 'Sandbox'),
     isProduction: keys.isProduction,
-    keyPrefix: keys.serverKey.slice(0, 14),
+    envIsProduction: process.env.MIDTRANS_IS_PRODUCTION === 'true',
+    serverKeyPrefix: keyPrefix(keys.serverKey, 'server'),
+    clientKeyPrefix: keyPrefix(keys.clientKey, 'client'),
+    keySource: keys.source || null,
     merchantId: env.midtrans.merchantId || null,
-    parameter,
+    enabled_payments: payments,
+    order_id: parameter.transaction_details.order_id,
+    gross_amount: parameter.transaction_details.gross_amount,
   });
+  // eslint-disable-next-line no-console
+  console.log('[Midtrans Snap] Mode:', keys.isProduction ? 'Production' : 'Sandbox');
+  // eslint-disable-next-line no-console
+  console.log('[Midtrans Snap] Server Key Prefix:', keyPrefix(keys.serverKey, 'server'));
+  // eslint-disable-next-line no-console
+  console.log('[Midtrans Snap] Client Key Prefix:', keyPrefix(keys.clientKey, 'client'));
   // eslint-disable-next-line no-console
   console.log('[Midtrans Snap] parameter', JSON.stringify(parameter, null, 2));
 
@@ -239,8 +233,11 @@ async function createSnapTransaction({
     logger.error('Midtrans Snap createTransaction FAILED', apiBody);
     // eslint-disable-next-line no-console
     console.error('[Midtrans Snap] error response', apiBody);
+    const statusHint = /401|unauthorized|unknown merchant/i.test(JSON.stringify(apiBody))
+      ? ' (kemungkinan Server/Client Key salah atau key Production dipakai di host Sandbox)'
+      : '';
     throw ApiError.badRequest(
-      `Gagal createTransaction Midtrans: ${typeof apiBody === 'object' ? JSON.stringify(apiBody) : apiBody}`,
+      `Gagal createTransaction Midtrans${statusHint}: ${typeof apiBody === 'object' ? JSON.stringify(apiBody) : apiBody}`,
     );
   }
 
@@ -254,17 +251,22 @@ async function createSnapTransaction({
     redirect_url: result.redirect_url,
   }, null, 2));
 
-  const probed = await probeSnapEnabledPayments(result.token, keys.isProduction);
+  // Probe host harus cocok dengan isProduction flag env (Sandbox vs Production app URL)
+  const probeIsProd = process.env.MIDTRANS_IS_PRODUCTION === 'true';
+  const probed = await probeSnapEnabledPayments(result.token, probeIsProd);
   const channelInactive = !probed.enabledPayments || probed.enabledPayments.length === 0;
 
   if (channelInactive) {
-    logger.warn('Midtrans Snap enabled_payments KOSONG — No payment channels available', {
-      isProduction: keys.isProduction,
-      keyPrefix: keys.serverKey.slice(0, 14),
-      probe: probed.raw,
-    });
+    const cause = diagnoseEmptyChannels(keys, probed);
+    logger.error('Midtrans Snap: No payment channels available — penyebab', cause);
     // eslint-disable-next-line no-console
-    console.warn('[Midtrans Snap] enabled_payments kosong. Probe lengkap:', JSON.stringify(probed.raw, null, 2));
+    console.error('[Midtrans Snap] No payment channels available');
+    // eslint-disable-next-line no-console
+    console.error('[Midtrans Snap] PENYEBAB:', cause.summary);
+    // eslint-disable-next-line no-console
+    console.error('[Midtrans Snap] Detail:', JSON.stringify(cause, null, 2));
+    // eslint-disable-next-line no-console
+    console.warn('[Midtrans Snap] enabled_payments kosong. Probe:', JSON.stringify(probed.raw, null, 2));
   } else {
     logger.info('Midtrans Snap payment channels', probed.enabledPayments);
   }
@@ -276,9 +278,39 @@ async function createSnapTransaction({
     isProduction: keys.isProduction,
     enabledPayments: probed.enabledPayments,
     channelInactive,
+    channelInactiveCause: channelInactive ? diagnoseEmptyChannels(keys, probed) : null,
     transactionStatus: 'pending',
     probeRaw: probed.raw,
     requestParameter: parameter,
+  };
+}
+
+function diagnoseEmptyChannels(keys, probed) {
+  const reasons = [];
+  if (/^Mid-server-/.test(keys.serverKey || '')) {
+    reasons.push('SERVER_KEY adalah Production (Mid-server-). Saat MIDTRANS_IS_PRODUCTION=false wajib SB-Mid-server-.');
+  }
+  if (/^Mid-client-/.test(keys.clientKey || '')) {
+    reasons.push('CLIENT_KEY adalah Production (Mid-client-). Wajib SB-Mid-client- untuk Sandbox.');
+  }
+  if (!isSandboxKeyPair(keys) && process.env.MIDTRANS_IS_PRODUCTION !== 'true') {
+    reasons.push('Pasangan key bukan Sandbox (SB-Mid-).');
+  }
+  if (Array.isArray(probed?.enabledPayments) && probed.enabledPayments.length === 0) {
+    reasons.push('Snap token valid tetapi merchant belum mengaktifkan kanal QRIS/GoPay/ShopeePay/bank_transfer di Midtrans MAP.');
+  }
+  if (probed?.raw?.httpStatus) {
+    reasons.push(`Probe Snap HTTP ${probed.raw.httpStatus}.`);
+  }
+  return {
+    summary: reasons.join(' ') || 'enabled_payments kosong dari Midtrans (kanal belum aktif di MAP).',
+    reasons,
+    mode: keys.mode || (keys.isProduction ? 'Production' : 'Sandbox'),
+    serverKeyPrefix: keyPrefix(keys.serverKey, 'server'),
+    clientKeyPrefix: keyPrefix(keys.clientKey, 'client'),
+    keySource: keys.source || null,
+    requestedEnabledPayments: DEFAULT_SNAP_ENABLED_PAYMENTS,
+    probeEnabledPayments: probed?.enabledPayments || [],
   };
 }
 

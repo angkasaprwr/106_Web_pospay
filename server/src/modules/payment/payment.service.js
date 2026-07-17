@@ -404,11 +404,14 @@ async function createMidtransPayment(input, actor, req) {
           // Jangan kirim Snap kosong ke frontend (tampil "No payment channels available")
           if (channelInactive && snapPayload) {
             await prisma.payment.delete({ where: { id: payment.id } }).catch(() => {});
+            const cause = snapPayload.channelInactiveCause;
             const probeHint = snapPayload.probeRaw
               ? ` Probe enabled_payments=${JSON.stringify(snapPayload.enabledPayments || [])}.`
               : '';
+            const causeHint = cause?.summary ? ` Penyebab: ${cause.summary}` : '';
+            logger.error('QRIS ditolak: No payment channels', cause || {});
             const err = ApiError.badRequest(
-              `Midtrans tidak menyediakan kanal pembayaran (QRIS/GoPay kosong).${probeHint} `
+              `Midtrans tidak menyediakan kanal pembayaran (QRIS/GoPay kosong).${probeHint}${causeHint} `
               + 'Gunakan key Sandbox SB-Mid-server-/SB-Mid-client- dari dashboard.sandbox.midtrans.com, '
               + 'set MIDTRANS_IS_PRODUCTION=false di server/.env, aktifkan QRIS/GoPay di MAP Sandbox, '
               + 'lalu restart API. Settlement ke BNI 6513009817 – PAPK SMP PUSPONEGORO BREBES.',
