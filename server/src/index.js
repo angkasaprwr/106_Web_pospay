@@ -6,6 +6,7 @@ const fcm = require('./services/fcm.service');
 const emailService = require('./services/email.service');
 const { initSocket } = require('./services/socket.service');
 const { startReminderJob, stopReminderJob } = require('./jobs/reminder.job');
+const { syncMidtransKeysToPaymentMethods } = require('./services/midtrans-setup.service');
 
 async function bootstrap() {
   // Verify database connectivity early.
@@ -17,6 +18,10 @@ async function bootstrap() {
   }
 
   await emailService.verifySmtpConnection();
+
+  await syncMidtransKeysToPaymentMethods().catch((e) => {
+    logger.warn('Sinkronisasi Midtrans keys gagal', e.message);
+  });
 
   fcm.init();
 

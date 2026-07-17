@@ -24,8 +24,9 @@ const {
   sanitizeMethodForPortal,
   resolveQrDisplayUrl,
   formatPaymentStatusResponse,
+  isEmvQrisString,
 } = require('./dto/payment.dto');
-const { emitPaymentUpdated } = require('../../services/socket.service');
+const { emitPaymentUpdated, emitCatalogChanged } = require('../../services/socket.service');
 
 function drawPospayLogo(doc, x, y, size = 40) {
   doc.save();
@@ -91,6 +92,19 @@ async function createCashPayment(input, actor, req) {
     throw ApiError.badRequest(`Nominal melebihi sisa tagihan (${outstanding(bill)})`);
   }
 
+  // Satu pembayaran PENDING per tagihan — hindari duplikat setelah batal/bayar ulang.
+  const existingPending = await paymentRepository.findPendingByBillId(bill.id);
+  if (existingPending) {
+    if (
+      existingPending.paymentMethodId === method.id
+      || existingPending.channel === 'CASH'
+      || existingPending.paymentType === 'CASH'
+    ) {
+      return paymentRepository.findPaymentById(existingPending.id);
+    }
+    await prisma.payment.delete({ where: { id: existingPending.id } }).catch(() => {});
+  }
+
   const payment = await paymentRepository.createPaymentWithHistory(
     {
       reference: generatePaymentRef(),
@@ -144,8 +158,10 @@ async function createMidtransPayment(input, actor, req) {
     accountName: method.accountName || 'PAPK SMP PUSPONEGORO BREBES',
   };
 
+  const keys = midtransGateway.resolveKeys(method);
+
   // Jika sudah ada transaksi QRIS Midtrans pending, kembalikan QR yang sama
-  // (hindari error "menunggu proses" saat user kembali ke Konfirmasi Pembayaran).
+  // kecuali pending lama adalah demo lokal — regenerate jika key Midtrans sudah valid.
   const existingPending = await paymentRepository.findPendingByBillId(bill.id);
   if (existingPending) {
     const full = await paymentRepository.findPaymentByInvoiceRef(existingPending.id);
@@ -154,25 +170,49 @@ async function createMidtransPayment(input, actor, req) {
       && isMidtransQrisMethod(full.paymentMethod || method)
       && (full.paymentMethodId === method.id || full.channel === 'QRIS')
     ) {
-      const qr_url = await resolveQrDisplayUrl(full.qrUrl, full.qrString);
-      if (qr_url) {
-        return {
-          ...full,
-          qr_string: full.qrString,
-          qr_url,
-          qrDataUrl: qr_url,
-          expiry_time: full.expiryTime,
-          transaction_id: full.transactionId,
-          order_id: full.orderId,
-          gross_amount: toNumber(full.amount),
-          school_name: env.school.name,
-          invoice_no: bill.invoiceNo,
-          school_account: schoolAccount,
-          sandbox_local: String(full.transactionId || '').startsWith('sandbox-local-'),
-        };
+      const wasLocal = String(full.transactionId || '').startsWith('sandbox-local-')
+        || !isEmvQrisString(full.qrString);
+      const canUpgrade = wasLocal && midtransGateway.hasValidMidtransKeys(keys);
+
+      if (!canUpgrade) {
+        const snapTok = String(full.qrString || '').startsWith('SNAP:')
+          ? String(full.qrString).slice(5)
+          : null;
+        const qr_url = snapTok
+          ? null
+          : await resolveQrDisplayUrl(full.qrUrl, full.qrString, { serverKey: keys.serverKey });
+        if (qr_url || snapTok) {
+          const sandboxLocal = String(full.transactionId || '').startsWith('sandbox-local-');
+          return {
+            ...full,
+            qr_string: full.qrString,
+            qr_url: qr_url || full.qrUrl,
+            qrDataUrl: qr_url,
+            expiry_time: full.expiryTime,
+            transaction_id: full.transactionId,
+            order_id: full.orderId,
+            gross_amount: toNumber(full.amount),
+            school_name: env.school.name,
+            invoice_no: bill.invoiceNo,
+            school_account: schoolAccount,
+            sandbox_local: sandboxLocal,
+            scannable: Boolean(snapTok) || (isEmvQrisString(full.qrString) && !sandboxLocal),
+            snap_token: snapTok,
+            snap_redirect_url: snapTok ? full.qrUrl : null,
+            midtrans_client_key: keys.clientKey,
+            midtrans_is_production: keys.isProduction,
+          };
+        }
+        throw ApiError.badRequest('Tagihan ini masih memiliki pembayaran yang menunggu proses');
       }
+      // Tolak pending demo → buat charge Midtrans EMV baru
+      await prisma.payment.update({
+        where: { id: full.id },
+        data: { status: 'REJECTED', rejectionReason: 'Diganti QRIS Midtrans EMV scannable' },
+      });
+    } else {
+      throw ApiError.badRequest('Tagihan ini masih memiliki pembayaran yang menunggu proses');
     }
-    throw ApiError.badRequest('Tagihan ini masih memiliki pembayaran yang menunggu proses');
   }
 
   const amount = input.amount ?? outstanding(bill);
@@ -198,16 +238,15 @@ async function createMidtransPayment(input, actor, req) {
   );
 
   const buildLocalQrisCharge = async (reason) => {
+    // QR demo — BUKAN EMV QRIS, tidak bisa di-scan e-wallet/bank (hanya alur UI dev)
     const qrPayload = [
-      'POSPAY-QRIS-SANDBOX',
+      'POSPAY-QRIS-DEMO-NOT-SCANNABLE',
       `INV:${bill.invoiceNo}`,
       `ORDER:${orderId}`,
       `AMT:${Math.round(Number(amount))}`,
       `BANK:${schoolAccount.bank}`,
       `REK:${schoolAccount.accountNo}`,
       `AN:${schoolAccount.accountName}`,
-      `SISWA:${student.fullName}`,
-      `NIS:${student.nis}`,
     ].join('|');
     const qrDataUrl = await QRCode.toDataURL(qrPayload, { width: 280, margin: 1, errorCorrectionLevel: 'M' });
     return {
@@ -219,17 +258,35 @@ async function createMidtransPayment(input, actor, req) {
       expiryTime: new Date(Date.now() + 30 * 60 * 1000),
       midtransStatus: 'pending',
       statusCode: '201',
-      raw: { sandbox_local: true, reason, school_account: schoolAccount },
+      scannable: false,
+      raw: { sandbox_local: true, reason, school_account: schoolAccount, scannable: false },
     };
   };
 
   let charge;
   let sandboxLocal = false;
-  const keys = midtransGateway.resolveKeys(method);
+  let snapPayload = null;
+  const itemDetails = [
+    {
+      id: bill.id.slice(-12),
+      price: Math.round(Number(amount)),
+      quantity: 1,
+      name: `${bill.feeType?.name || 'Tagihan'} - ${student.nis}`.slice(0, 50),
+    },
+  ];
+  const customerDetails = {
+    first_name: student.fullName,
+    email: actor.email || `${student.nis}@siswa.local`,
+    phone: student.parentPhone || actor.phone || '08123456789',
+  };
 
-  // Jangan panggil Midtrans sama sekali jika Server Key tidak valid / placeholder
-  // (mencegah error 401 Unknown Merchant ditampilkan ke orang tua siswa).
   if (!midtransGateway.hasValidMidtransKeys(keys)) {
+    if (!env.midtrans.sandboxFallback) {
+      await prisma.payment.delete({ where: { id: payment.id } }).catch(() => {});
+      throw ApiError.badRequest(
+        'QRIS Midtrans belum dikonfigurasi. Isi MIDTRANS_SERVER_KEY dan MIDTRANS_CLIENT_KEY di server/.env.',
+      );
+    }
     sandboxLocal = true;
     charge = await buildLocalQrisCharge('midtrans_keys_invalid_or_placeholder');
   } else {
@@ -238,17 +295,45 @@ async function createMidtransPayment(input, actor, req) {
         orderId,
         grossAmount: amount,
         method,
-        customerDetails: {
-          first_name: student.fullName,
-          email: actor.email || `${student.nis}@siswa.local`,
-          phone: student.parentPhone || actor.phone || '08123456789',
-        },
+        customerDetails,
+        itemDetails,
       });
-    } catch (err) {
-      // Selalu fallback lokal saat Midtrans gagal (401 / timeout / QR kosong)
-      // agar tombol Bayar Tagihan tetap membuka Konfirmasi + menampilkan QR.
-      sandboxLocal = true;
-      charge = await buildLocalQrisCharge(err.message || 'midtrans_charge_failed');
+    } catch (coreErr) {
+      // Core API QRIS sering 402 jika kanal belum diaktifkan — fallback Snap (QRIS Tap via UI Midtrans)
+      try {
+        snapPayload = await midtransGateway.createSnapTransaction({
+          orderId,
+          grossAmount: amount,
+          method,
+          customerDetails,
+          enabledPayments: ['qris', 'gopay', 'other_qris'],
+        });
+        charge = {
+          transactionId: snapPayload.snapToken,
+          orderId,
+          grossAmount: amount,
+          qrString: `SNAP:${snapPayload.snapToken}`,
+          qrUrl: snapPayload.redirectUrl,
+          expiryTime: new Date(Date.now() + 30 * 60 * 1000),
+          midtransStatus: 'pending',
+          statusCode: '201',
+          scannable: true,
+          snapToken: snapPayload.snapToken,
+          snapRedirectUrl: snapPayload.redirectUrl,
+          clientKey: snapPayload.clientKey,
+          isProduction: snapPayload.isProduction,
+          raw: { snap: true, ...snapPayload, core_error: coreErr.message },
+        };
+      } catch (snapErr) {
+        if (!env.midtrans.sandboxFallback) {
+          await prisma.payment.delete({ where: { id: payment.id } }).catch(() => {});
+          throw ApiError.badRequest(
+            `Gagal membuat QRIS Midtrans: ${coreErr.message || snapErr.message}. Aktifkan kanal QRIS/GoPay di dashboard Midtrans.`,
+          );
+        }
+        sandboxLocal = true;
+        charge = await buildLocalQrisCharge(coreErr.message || 'midtrans_charge_failed');
+      }
     }
   }
 
@@ -262,33 +347,42 @@ async function createMidtransPayment(input, actor, req) {
       midtransStatus: charge.midtransStatus,
     },
     {
-      note: sandboxLocal ? 'QRIS sandbox lokal di-generate (Midtrans key belum valid)' : 'QRIS Midtrans di-generate',
-      metadata: { statusCode: charge.statusCode, sandboxLocal },
+      note: sandboxLocal
+        ? 'QRIS demo lokal (belum scannable)'
+        : snapPayload
+          ? 'QRIS Midtrans Snap (QRIS Tap e-wallet/bank)'
+          : 'QRIS Midtrans Core (EMV scannable)',
+      metadata: { statusCode: charge.statusCode, sandboxLocal, snap: Boolean(snapPayload) },
     },
   );
 
   await paymentRepository.createMidtransLog({
     paymentId: payment.id,
     orderId,
-    eventType: sandboxLocal ? 'charge_sandbox_local' : 'charge',
+    eventType: sandboxLocal ? 'charge_sandbox_local' : (snapPayload ? 'charge_snap' : 'charge'),
     payload: { orderId, amount, schoolAccount },
     response: charge.raw,
   });
 
   await recordAudit({ userId: actor.id, action: 'CREATE', entity: 'Payment', entityId: payment.id, req });
 
-  const qr_url = await resolveQrDisplayUrl(charge.qrUrl, charge.qrString);
-  if (!qr_url) {
+  const qr_url = sandboxLocal || !snapPayload
+    ? await resolveQrDisplayUrl(charge.qrUrl, charge.qrString, { serverKey: keys.serverKey })
+    : null;
+
+  if (!qr_url && !snapPayload) {
     await prisma.payment.delete({ where: { id: payment.id } }).catch(() => {});
-    throw ApiError.badRequest('Kode QR Midtrans tidak tersedia dari server. Periksa MIDTRANS_SERVER_KEY Sandbox di server/.env.');
+    throw ApiError.badRequest('Kode QR Midtrans tidak tersedia dari server. Periksa konfigurasi Midtrans.');
   }
 
-  emitPaymentUpdated({ ...updated, bill: { student } }, { paymentType: 'QRIS_MIDTRANS', sandboxLocal });
+  const scannable = !sandboxLocal && (Boolean(snapPayload) || charge.scannable || isEmvQrisString(charge.qrString));
+
+  emitPaymentUpdated({ ...updated, bill: { student } }, { paymentType: 'QRIS_MIDTRANS', sandboxLocal, scannable, snap: Boolean(snapPayload) });
 
   return {
     ...updated,
     qr_string: charge.qrString,
-    qr_url,
+    qr_url: qr_url || charge.qrUrl,
     qrDataUrl: qr_url,
     expiry_time: charge.expiryTime,
     transaction_id: charge.transactionId,
@@ -298,6 +392,14 @@ async function createMidtransPayment(input, actor, req) {
     invoice_no: bill.invoiceNo,
     school_account: schoolAccount,
     sandbox_local: sandboxLocal,
+    scannable,
+    snap_token: snapPayload?.snapToken || null,
+    snap_redirect_url: snapPayload?.redirectUrl || null,
+    midtrans_client_key: snapPayload?.clientKey || keys.clientKey || null,
+    midtrans_is_production: snapPayload?.isProduction ?? keys.isProduction,
+    midtrans_simulator_url: !keys.isProduction && scannable && !snapPayload
+      ? 'https://simulator.sandbox.midtrans.com/openapi/qris/index'
+      : null,
   };
 }
 
@@ -448,7 +550,12 @@ async function getStatus(invoiceRef, actor) {
     if (payment.bill.studentId !== student.id) throw ApiError.forbidden('Akses ditolak');
   }
 
-  return formatPaymentStatusResponse(payment);
+  const keys = midtransGateway.resolveKeys(payment.paymentMethod);
+  return formatPaymentStatusResponse(payment, {
+    serverKey: keys.serverKey,
+    clientKey: keys.clientKey,
+    isProduction: keys.isProduction,
+  });
 }
 
 async function getPaymentMethods() {
@@ -674,6 +781,72 @@ async function rejectPayment(paymentId, input, actor, req) {
   return legacyPaymentService.reject(paymentId, input, actor, req);
 }
 
+/**
+ * Siswa membatalkan pembayaran yang masih PENDING.
+ * Hapus permanen dari PostgreSQL → tagihan kembali status belumbayar / menunggu verifikasi hilang.
+ */
+async function cancelPendingPayment(paymentId, actor, req) {
+  if (!paymentId) throw ApiError.badRequest('ID pembayaran wajib diisi');
+  const student = await resolveStudent(actor);
+
+  const payment = await prisma.payment.findUnique({
+    where: { id: paymentId },
+    include: { bill: { include: { student: true, feeType: true } } },
+  });
+  if (!payment) throw ApiError.notFound('Pembayaran tidak ditemukan');
+  if (payment.bill.studentId !== student.id) {
+    throw ApiError.forbidden('Anda hanya dapat membatalkan pembayaran milik sendiri');
+  }
+  if (payment.status !== 'PENDING') {
+    throw ApiError.badRequest('Hanya pembayaran menunggu verifikasi yang dapat dibatalkan');
+  }
+
+  // Hapus permanen — PaymentHistory / MidtransLog ikut cascade / setNull.
+  await prisma.payment.delete({ where: { id: paymentId } });
+
+  await recordAudit({
+    userId: actor.id,
+    action: 'DELETE',
+    entity: 'Payment',
+    entityId: paymentId,
+    metadata: {
+      cancelledBy: 'SISWA',
+      billId: payment.billId,
+      previousStatus: 'PENDING',
+      reason: 'Dibatalkan siswa pada konfirmasi pembayaran',
+    },
+    req,
+  });
+
+  const billStatus = payment.bill.status === 'PAID' || payment.bill.status === 'WAIVED'
+    ? payment.bill.status
+    : (Number(payment.bill.paidAmount || 0) > 0 ? 'PARTIAL' : 'UNPAID');
+
+  emitPaymentUpdated(
+    {
+      id: paymentId,
+      billId: payment.billId,
+      status: 'REJECTED',
+      bill: payment.bill,
+    },
+    { cancelled: true, billStatus },
+  );
+  emitCatalogChanged({
+    reason: 'payment_cancelled',
+    paymentId,
+    billId: payment.billId,
+    billStatus,
+  });
+
+  return {
+    paymentId,
+    billId: payment.billId,
+    bill_status: billStatus,
+    cancelled: true,
+    message: 'Pembayaran dibatalkan. Tagihan kembali belum dibayar.',
+  };
+}
+
 async function streamInvoicePdf(paymentId, actor, res) {
   const payment = await paymentRepository.findPaymentById(paymentId);
   if (!payment) throw ApiError.notFound('Pembayaran tidak ditemukan');
@@ -758,6 +931,7 @@ module.exports = {
   handleMidtransWebhook,
   approvePayment,
   rejectPayment,
+  cancelPendingPayment,
   streamInvoicePdf,
   finalizeVerifiedPayment,
 };

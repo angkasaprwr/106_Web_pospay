@@ -7,39 +7,101 @@ function sanitizeMethodForPortal(method) {
   return safe;
 }
 
-async function resolveQrDisplayUrl(qrUrl, qrString) {
-  // Data URL / relative sudah siap ditampilkan
-  if (qrUrl && (qrUrl.startsWith('data:') || qrUrl.startsWith('/'))) return qrUrl;
-
-  // URL gambar Midtrans (actions.generate-qr-code) — fetch lalu bungkus data URL agar tidak CORS di browser
-  if (qrUrl && /^https?:\/\//i.test(qrUrl)) {
-    try {
-      const res = await fetch(qrUrl, { redirect: 'follow' });
-      if (res.ok) {
-        const ctype = res.headers.get('content-type') || 'image/png';
-        if (ctype.includes('image') || ctype.includes('octet-stream')) {
-          const buf = Buffer.from(await res.arrayBuffer());
-          return `data:${ctype.split(';')[0]};base64,${buf.toString('base64')}`;
-        }
-      }
-    } catch {
-      // lanjut ke qrString
-    }
-    // Fallback: pakai URL langsung (kadang Midtrans image bisa di-embed)
-    return qrUrl;
-  }
-
-  if (!qrString) return null;
-  try {
-    return await QRCode.toDataURL(qrString, { width: 280, margin: 1, errorCorrectionLevel: 'M' });
-  } catch {
-    return null;
-  }
+/** EMV QRIS payload dari Midtrans (bisa di-scan GoPay/Dana/ShopeePay/BRImo/Livin/dll). */
+function isEmvQrisString(qrString) {
+  const s = String(qrString || '').trim();
+  return s.startsWith('000201') && s.length >= 40;
 }
 
-async function formatPaymentStatusResponse(payment) {
-  const qr_url = await resolveQrDisplayUrl(payment.qrUrl, payment.qrString);
+function midtransAuthHeader(serverKey) {
+  if (!serverKey) return {};
+  return { Authorization: `Basic ${Buffer.from(`${serverKey}:`).toString('base64')}` };
+}
+
+async function fetchMidtransQrImage(url, serverKey) {
+  const res = await fetch(url, {
+    redirect: 'follow',
+    headers: {
+      Accept: 'image/*,application/octet-stream,*/*',
+      ...midtransAuthHeader(serverKey),
+    },
+  });
+  if (!res.ok) return null;
+  const ctype = res.headers.get('content-type') || 'image/png';
+  if (!ctype.includes('image') && !ctype.includes('octet-stream')) return null;
+  const buf = Buffer.from(await res.arrayBuffer());
+  return `data:${ctype.split(';')[0]};base64,${buf.toString('base64')}`;
+}
+
+async function renderEmvQrisDataUrl(qrString) {
+  // EMV QRIS panjang — gunakan error correction L agar tetap terbaca scanner bank/e-wallet
+  return QRCode.toDataURL(qrString, {
+    width: 320,
+    margin: 2,
+    errorCorrectionLevel: 'L',
+    type: 'image/png',
+  });
+}
+
+/**
+ * Siapkan URL/data-URL QR untuk ditampilkan di browser siswa.
+ * Prioritas: EMV qr_string → gambar Midtrans (dengan auth) → qr_string lain → qrUrl.
+ */
+async function resolveQrDisplayUrl(qrUrl, qrString, options = {}) {
+  const { serverKey } = options;
+  const emv = isEmvQrisString(qrString);
+
+  if (emv) {
+    try {
+      return await renderEmvQrisDataUrl(qrString);
+    } catch {
+      /* lanjut ke URL Midtrans */
+    }
+  }
+
+  if (qrUrl && (qrUrl.startsWith('data:') || qrUrl.startsWith('/'))) return qrUrl;
+
+  if (qrUrl && /^https?:\/\//i.test(qrUrl)) {
+    try {
+      const dataUrl = await fetchMidtransQrImage(qrUrl, serverKey);
+      if (dataUrl) return dataUrl;
+    } catch {
+      /* lanjut */
+    }
+    if (!serverKey) return qrUrl;
+  }
+
+  if (qrString) {
+    try {
+      return await QRCode.toDataURL(qrString, { width: 280, margin: 1, errorCorrectionLevel: 'M' });
+    } catch {
+      return null;
+    }
+  }
+
+  return null;
+}
+
+async function formatPaymentStatusResponse(payment, options = {}) {
+  const serverKey = options.serverKey
+    || payment.paymentMethod?.midtransServerKey
+    || null;
+  const clientKey = options.clientKey
+    || payment.paymentMethod?.midtransClientKey
+    || null;
+  const isProduction = options.isProduction;
+  const snapToken = String(payment.qrString || '').startsWith('SNAP:')
+    ? String(payment.qrString).slice(5)
+    : (String(payment.transactionId || '').includes('-') && String(payment.qrUrl || '').includes('midtrans.com/snap')
+      ? payment.transactionId
+      : null);
+  const sandboxLocal = String(payment.transactionId || '').startsWith('sandbox-local-');
+  const qr_url = snapToken
+    ? null
+    : await resolveQrDisplayUrl(payment.qrUrl, payment.qrString, { serverKey });
   const method = sanitizeMethodForPortal(payment.paymentMethod);
+  const scannable = Boolean(snapToken) || (isEmvQrisString(payment.qrString) && !sandboxLocal);
+
   return {
     id: payment.id,
     invoice_id: payment.bill.id,
@@ -52,8 +114,13 @@ async function formatPaymentStatusResponse(payment) {
     amount: toNumber(payment.amount),
     channel: payment.channel,
     qr_string: payment.qrString,
-    qr_url,
+    qr_url: qr_url || payment.qrUrl,
     qrDataUrl: qr_url,
+    scannable,
+    snap_token: snapToken,
+    snap_redirect_url: snapToken ? (payment.qrUrl || null) : null,
+    midtrans_client_key: clientKey,
+    midtrans_is_production: isProduction,
     expiry_time: payment.expiryTime,
     paid_at: payment.verifiedAt || payment.paidAt,
     verifiedAt: payment.verifiedAt,
@@ -79,12 +146,13 @@ async function formatPaymentStatusResponse(payment) {
           accountNo: '6513009817',
           accountName: 'PAPK SMP PUSPONEGORO BREBES',
         },
-    sandbox_local: String(payment.transactionId || '').startsWith('sandbox-local-'),
+    sandbox_local: sandboxLocal,
   };
 }
 
 module.exports = {
   sanitizeMethodForPortal,
+  isEmvQrisString,
   resolveQrDisplayUrl,
   formatPaymentStatusResponse,
 };

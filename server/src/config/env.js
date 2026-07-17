@@ -107,6 +107,7 @@ const env = {
     merchantId: process.env.MIDTRANS_MERCHANT_ID || '',
     isProduction: bool(process.env.MIDTRANS_IS_PRODUCTION, false),
     callbackUrl: process.env.MIDTRANS_CALLBACK_URL || '',
+    sandboxFallback: bool(process.env.MIDTRANS_SANDBOX_FALLBACK, true),
   },
 };
 

@@ -2,13 +2,17 @@ const midtransClient = require('midtrans-client');
 const crypto = require('crypto');
 const { env } = require('../../../config/env');
 const { ApiError } = require('../../../core/ApiError');
+const { isEmvQrisString } = require('../dto/payment.dto');
 
 function resolveKeys(method) {
-  return {
-    serverKey: method?.midtransServerKey || env.midtrans.serverKey,
-    clientKey: method?.midtransClientKey || env.midtrans.clientKey,
-    isProduction: method?.productionMode ?? env.midtrans.isProduction,
-  };
+  const serverKey = String(method?.midtransServerKey || env.midtrans.serverKey || '').trim();
+  const clientKey = String(method?.midtransClientKey || env.midtrans.clientKey || '').trim();
+  // Deteksi otomatis: Mid-server- = Production, SB-Mid-server- = Sandbox
+  // (mencegah 401 jika key production dipakai dengan isProduction=false)
+  let isProduction = method?.productionMode ?? env.midtrans.isProduction;
+  if (/^Mid-server-/.test(serverKey)) isProduction = true;
+  if (/^SB-Mid-server-/.test(serverKey)) isProduction = false;
+  return { serverKey, clientKey, isProduction };
 }
 
 function hasValidMidtransKeys(keys) {
@@ -17,7 +21,9 @@ function hasValidMidtransKeys(keys) {
   if (!sk || sk.length < 20) return false;
   const invalid = /replace_me|your-|changeme|xxx|placeholder|example|dummy/i;
   if (invalid.test(sk) || invalid.test(ck)) return false;
+  // Sandbox: SB-Mid-server- / SB-Mid-client- ; Production: Mid-server- / Mid-client-
   if (!/^SB-Mid-server-|^Mid-server-/.test(sk)) return false;
+  if (ck && !/^SB-Mid-client-|^Mid-client-/.test(ck)) return false;
   return true;
 }
 
@@ -40,15 +46,14 @@ function verifySignature({ order_id: orderId, status_code: statusCode, gross_amo
 
 function extractQrisData(chargeResponse) {
   const actions = Array.isArray(chargeResponse.actions) ? chargeResponse.actions : [];
+  // ASPI border (v2) lebih kompatibel dengan scanner bank/e-wallet QRIS Tap
   const qrAction =
-    actions.find((a) => /generate-qr-code|qr-code|qr/i.test(String(a.name || '')))
+    actions.find((a) => /generate-qr-code-v2/i.test(String(a.name || '')))
+    || actions.find((a) => /generate-qr-code|qr-code|qr/i.test(String(a.name || '')))
     || actions.find((a) => /qr/i.test(String(a.url || '')))
     || actions[0];
   const qrUrl = qrAction?.url || chargeResponse.qr_url || null;
-  // Prefer EMV qr_string; jangan pakai URL HTTP sebagai qrString (nanti kita generate dataURL terpisah).
-  const qrString = chargeResponse.qr_string
-    || chargeResponse.qrString
-    || null;
+  const qrString = chargeResponse.qr_string || chargeResponse.qrString || null;
 
   return {
     transactionId: chargeResponse.transaction_id || null,
@@ -56,10 +61,12 @@ function extractQrisData(chargeResponse) {
     grossAmount: chargeResponse.gross_amount,
     qrString,
     qrUrl,
+    acquirer: chargeResponse.acquirer || null,
     expiryTime: chargeResponse.expiry_time ? new Date(chargeResponse.expiry_time) : new Date(Date.now() + 15 * 60 * 1000),
     midtransStatus: chargeResponse.transaction_status || 'pending',
     statusCode: chargeResponse.status_code || '201',
     raw: chargeResponse,
+    scannable: isEmvQrisString(qrString),
   };
 }
 
@@ -70,7 +77,7 @@ function normalizeBankFromMethod(method) {
   if (source.includes('bni')) return 'bni';
   if (source.includes('mandiri')) return 'mandiri';
   if (source.includes('jateng')) return 'permata';
-  return 'bca';
+  return 'bni';
 }
 
 function createSnapApi(method) {
@@ -84,7 +91,6 @@ function createSnapApi(method) {
 
 /**
  * Snap Sandbox transaction token (Midtrans Snap API).
- * Digunakan untuk fallback / integrasi Snap.js; QRIS custom UI memakai CoreApi.charge(payment_type=qris).
  */
 async function createSnapTransaction({ orderId, grossAmount, method, customerDetails, enabledPayments }) {
   const keys = resolveKeys(method);
@@ -113,7 +119,12 @@ async function createSnapTransaction({ orderId, grossAmount, method, customerDet
   };
 }
 
-async function chargeQris({ orderId, grossAmount, method, customerDetails }) {
+/**
+ * Charge QRIS Midtrans — menghasilkan qr_string EMV (000201…) yang bisa di-scan
+ * GoPay, Dana, ShopeePay, SeaBank, Livin, BRImo, BNI Mobile, BCA, Mandiri, dll.
+ * Dana settlement ke rekening merchant (BNI 6513009817) dikonfigurasi di dashboard Midtrans.
+ */
+async function chargeQris({ orderId, grossAmount, method, customerDetails, itemDetails }) {
   const keys = resolveKeys(method);
   if (!hasValidMidtransKeys(keys)) {
     throw ApiError.badRequest(
@@ -121,16 +132,27 @@ async function chargeQris({ orderId, grossAmount, method, customerDetails }) {
     );
   }
 
-  // Midtrans Sandbox (MIDTRANS_IS_PRODUCTION=false): charge payment_type=qris
-  // memakai midtrans-client → menghasilkan QR scannable (GoPay/Dana/ShopeePay/dll).
   const core = createCoreApi(method);
+  const amount = Math.round(grossAmount);
   const parameter = {
     payment_type: 'qris',
     transaction_details: {
       order_id: orderId,
-      gross_amount: Math.round(grossAmount),
+      gross_amount: amount,
     },
     customer_details: customerDetails,
+    // acquirer gopay = QRIS unified (QRIS Tap semua issuer terdaftar BI)
+    qris: {
+      acquirer: 'gopay',
+    },
+    item_details: itemDetails || [
+      {
+        id: orderId.slice(-12),
+        price: amount,
+        quantity: 1,
+        name: 'Pembayaran Tagihan Sekolah',
+      },
+    ],
   };
 
   const response = await core.charge(parameter);
@@ -142,7 +164,12 @@ async function chargeQris({ orderId, grossAmount, method, customerDetails }) {
   const extracted = extractQrisData(response);
   if (!extracted.qrString && !extracted.qrUrl) {
     throw ApiError.badRequest(
-      'Midtrans tidak mengembalikan kode QR. Pastikan fitur QRIS aktif di dashboard Sandbox Midtrans dan Server Key benar.',
+      'Midtrans tidak mengembalikan kode QR. Pastikan fitur QRIS aktif di dashboard Sandbox Midtrans.',
+    );
+  }
+  if (!extracted.scannable && !extracted.qrUrl) {
+    throw ApiError.badRequest(
+      'Midtrans tidak mengembalikan QRIS EMV yang valid. Periksa Server Key Sandbox dan aktivasi QRIS.',
     );
   }
   return extracted;

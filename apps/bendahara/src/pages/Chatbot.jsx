@@ -5,6 +5,7 @@ import { useToast } from '../context/ToastContext';
 import { Spinner, Modal, Field, EmptyState, ConfirmDialog } from '../components/ui';
 import { Icon } from '../components/Icons';
 import ChatInboxTab from '../components/chatbot/ChatInboxTab';
+import { deleteOnce } from '../lib/deleteOnce';
 
 const DAYS = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
 
@@ -143,10 +144,14 @@ function QAManager() {
   };
 
   const del = async () => {
+    if (!confirm?.id || saving) return;
     setSaving(true);
     try {
-      if (confirm.type === 'qa') await api.delete(`/chatbot/qa/${confirm.id}`);
-      else await api.delete(`/chatbot/documents/${confirm.id}`);
+      await deleteOnce(`chatbot:${confirm.type}:${confirm.id}`, async () => {
+        if (confirm.type === 'qa') await api.delete(`/chatbot/qa/${confirm.id}`);
+        else await api.delete(`/chatbot/documents/${confirm.id}`);
+      });
+      toast.success('Data dihapus permanen');
       setConfirm(null);
       load();
     } catch (e) {

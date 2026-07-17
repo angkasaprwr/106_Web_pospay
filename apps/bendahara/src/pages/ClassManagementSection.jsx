@@ -4,6 +4,7 @@ import { useToast } from '../context/ToastContext';
 import { Spinner, Modal, Field, EmptyState, ConfirmDialog } from '../components/ui';
 import { Icon } from '../components/Icons';
 import { formatClassLabel } from '../components/tagihan/shared';
+import { deleteOnce } from '../lib/deleteOnce';
 
 const GRADE_OPTIONS = [
   { value: 7, label: 'Kelas 7 (VII)' },
@@ -112,6 +113,7 @@ export default function ClassManagementSection({ onClassesChange }) {
   };
 
   const del = async () => {
+    if (!confirm?.id || saving) return;
     const studentCount = confirm._count?.students ?? 0;
     if (studentCount > 0) {
       toast.error(`Kelas masih memiliki ${studentCount} siswa. Pindahkan siswa terlebih dahulu.`);
@@ -120,8 +122,10 @@ export default function ClassManagementSection({ onClassesChange }) {
     }
     setSaving(true);
     try {
-      await api.delete(`/masterdata/classes/${confirm.id}`);
-      toast.success('Kelas dihapus');
+      await deleteOnce(`class:${confirm.id}`, async () => {
+        await api.delete(`/masterdata/classes/${confirm.id}`);
+      });
+      toast.success('Kelas dihapus permanen');
       setConfirm(null);
       loadClasses(yearFilter || undefined);
     } catch (e) {

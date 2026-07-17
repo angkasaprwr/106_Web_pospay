@@ -64,7 +64,7 @@ export function Modal({ open, onClose, title, children, footer, size = 'md' }) {
       <div className={`mt-10 w-full ${sizes[size]} card animate-[slidein_.2s_ease-out]`}>
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-800">
           <h2 className="text-lg font-semibold text-slate-900 dark:text-white">{title}</h2>
-          <button onClick={onClose} className="btn-ghost rounded-lg p-1.5">
+          <button onClick={onClose} disabled={!onClose} className="btn-ghost rounded-lg p-1.5 disabled:opacity-40">
             <Icon.X width={18} height={18} />
           </button>
         </div>
@@ -137,15 +137,27 @@ export function ConfirmDialog({ open, title = 'Konfirmasi', message, confirmText
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={loading ? undefined : onClose}
       title={title}
       footer={
         <>
           <button className="btn-secondary" onClick={onClose} disabled={loading}>
             Batal
           </button>
-          <button className={danger ? 'btn-danger' : 'btn-primary'} onClick={onConfirm} disabled={loading}>
-            {loading ? <Spinner size={16} className="text-white" /> : confirmText}
+          <button
+            className={danger ? 'btn-danger' : 'btn-primary'}
+            onClick={() => {
+              if (loading) return;
+              onConfirm?.();
+            }}
+            disabled={loading}
+          >
+            {loading ? (
+              <span className="inline-flex items-center gap-2">
+                <Spinner size={16} className="text-white" />
+                Menghapus…
+              </span>
+            ) : confirmText}
           </button>
         </>
       }
